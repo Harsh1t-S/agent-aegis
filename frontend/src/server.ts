@@ -51,9 +51,16 @@ function isH3SwallowedErrorBody(body: string): boolean {
  * preflight, and no build-time API address baked into the bundle — the client just
  * calls a relative path. Override the target with AEGIS_API_URL.
  */
+const ENV = (globalThis as { process?: { env?: Record<string, string | undefined> } })
+  .process?.env;
+
+// AEGIS_API_URL wins everywhere. On Vercel the evaluator is a sibling project, so
+// fall back to its production alias; locally, fall back to the dev port. Neither
+// default is a secret — the only secret in this system is DATABASE_URL, which the
+// evaluator reads from its own environment.
 const API_TARGET =
-  (globalThis as { process?: { env?: Record<string, string | undefined> } }).process?.env
-    ?.["AEGIS_API_URL"] ?? "http://127.0.0.1:8770";
+  ENV?.["AEGIS_API_URL"] ??
+  (ENV?.["VERCEL"] ? "https://aegis-api-harsh1t.vercel.app" : "http://127.0.0.1:8770");
 
 async function proxyApi(request: Request): Promise<Response | null> {
   const url = new URL(request.url);
