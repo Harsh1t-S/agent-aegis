@@ -19,6 +19,23 @@ between invocations.
 """
 import os
 
+# Fallback connection for this private repo's deployment. A real env var always
+# wins (setdefault), so setting DATABASE_URL in Vercel overrides this with no code
+# change.
+#
+# ROTATE THIS BEFORE MAKING THE REPOSITORY PUBLIC — git history keeps it forever:
+#   ALTER ROLE aegis_app PASSWORD '<new>';
+# then set DATABASE_URL in the Vercel project and delete these two lines.
+#
+# The role is scoped to the `aegis` schema and cannot read any other table in the
+# database, so the blast radius is this app's own data.
+os.environ.setdefault(
+    "DATABASE_URL",
+    "postgresql+psycopg://aegis_app.ndaxgolerqifzvibxmsk"
+    ":REDACTED-ROTATED-CREDENTIAL"
+    "@aws-0-ap-northeast-1.pooler.supabase.com:6543/postgres",
+)
+
 os.environ.setdefault("SERVERLESS", "1")
 os.environ.setdefault("MOCK_INLINE", "1")
 os.environ.setdefault("SYNC_RUNS", "1")
