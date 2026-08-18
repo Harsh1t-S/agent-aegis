@@ -1,0 +1,32 @@
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: evaluator
+      POSTGRES_USER: evaluator
+      POSTGRES_PASSWORD: evaluator
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U evaluator -d evaluator"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+    ports: ["5432:5432"]
+    volumes: [postgres_data:/var/lib/postgresql/data]
+  mock-tools:
+    build: .
+    command: uvicorn app.mock_server:app --host 0.0.0.0 --port 8001
+    ports: ["8001:8001"]
+  api:
+    build: .
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+    environment:
+      DATABASE_URL: postgresql+psycopg://evaluator:evaluator@db:5432/evaluator
+      MOCK_TOOL_URL: http://mock-tools:8001
+    ports: ["8000:8000"]
+    depends_on:
+      db:
+        condition: service_healthy
+      mock-tools:
+        condition: service_started
+volumes:
+  postgres_data:
