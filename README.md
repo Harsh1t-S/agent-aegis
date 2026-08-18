@@ -9,6 +9,26 @@ Built for **OOSC 4.0, Problem Statement 4**.
 
 ---
 
+## Deployed
+
+| | |
+| --- | --- |
+| Dashboard | https://aegis-dashboard-harsh1t.vercel.app |
+| API | https://aegis-api-harsh1t.vercel.app |
+| Database | Supabase Postgres, isolated `aegis` schema |
+
+The dashboard proxies `/api/*` to the API, so there is one URL to share. The API
+runs in `hnd1` to sit next to the database.
+
+**Required environment variable on the API project** — without it the app reports
+`degraded` from `/health` and database routes fail:
+
+```
+DATABASE_URL=postgresql+psycopg://<role>:<password>@aws-0-<region>.pooler.supabase.com:6543/postgres
+```
+
+It is deliberately not in this repository. Set it in the Vercel project settings.
+
 ## Quick start
 
 ```bash
