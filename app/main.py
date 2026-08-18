@@ -20,9 +20,23 @@ from .schemas import (AgentIn, EnvironmentIn, GenerateSuiteIn, IntrospectIn, Run
                       ScenarioIn, VersionIn)
 
 
+DB_READY = {"ok": False, "error": None}
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    Base.metadata.create_all(bind=engine)
+    """Create tables if we can, but never let a bad database kill the process.
+
+    On a read-only serverless filesystem the default SQLite URL cannot even be
+    created, and raising here turns every route — including /health — into an
+    opaque 500. Recording the failure instead means the deployment comes up and
+    can say precisely what is wrong.
+    """
+    try:
+        Base.metadata.create_all(bind=engine)
+        DB_READY["ok"] = True
+    except Exception as exc:  # noqa: BLE001 - surfaced through /health
+        DB_READY["error"] = f"{type(exc).__name__}: {exc}"[:400]
     yield
 
 
@@ -82,7 +96,15 @@ def root():
 
 @app.get("/health")
 def health():
-    return {"status": "ok", "generator": GENERATOR_VERSION}
+    if DB_READY["ok"]:
+        return {"status": "ok", "database": "connected", "generator": GENERATOR_VERSION}
+    return {
+        "status": "degraded",
+        "database": "unavailable",
+        "detail": DB_READY["error"],
+        "fix": "Set DATABASE_URL in the deployment environment, then redeploy.",
+        "generator": GENERATOR_VERSION,
+    }
 
 
 @app.get("/taxonomy")
