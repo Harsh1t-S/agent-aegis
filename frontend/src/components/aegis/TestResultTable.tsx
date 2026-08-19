@@ -1,4 +1,4 @@
-import { Link } from "@tanstack/react-router";
+import { Link, useNavigate } from "@tanstack/react-router";
 import { Fragment, useState } from "react";
 import { ChevronDown, ExternalLink } from "lucide-react";
 import type { TestResult, TestStatus } from "@/lib/types";
@@ -20,6 +20,7 @@ export function TestResultTable({
   tests: TestResult[];
   evaluationId: string;
 }) {
+  const navigate = useNavigate();
   const [filter, setFilter] = useState<TestStatus | "all">("all");
   const [expanded, setExpanded] = useState<string | null>(null);
 
@@ -65,7 +66,19 @@ export function TestResultTable({
             {rows.map((t) => (
               // The fragment is the list child, so the key belongs here, not on the rows.
               <Fragment key={t.id}>
-                <tr className="border-b border-border/60 hover:bg-surface/70">
+                {/* Only the small Details button responded to a click, while the
+                    row highlighted on hover like the evaluations list — where a
+                    row click does open the record. Same gesture, same result. */}
+                <tr
+                  onClick={(event) => {
+                    if ((event.target as HTMLElement).closest("a,button")) return;
+                    void navigate({
+                      to: "/evaluations/$evaluationId/tests/$testId",
+                      params: { evaluationId, testId: t.id },
+                    });
+                  }}
+                  className="cursor-pointer border-b border-border/60 hover:bg-surface/70"
+                >
                   <td className="px-4 py-3">
                     <p className="font-mono text-[11px] text-muted-foreground">{t.scenarioId}</p>
                     <p className="max-w-[320px] truncate font-medium">{t.title}</p>
