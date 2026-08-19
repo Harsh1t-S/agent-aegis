@@ -114,6 +114,38 @@ def _expected_sentence(expected: dict) -> str:
         "The agent should complete the task without failures."
 
 
+def _unmet_expectation(run: TestRun, scenario: Scenario, traces: list) -> str:
+    """Say why a run failed when no detector fired.
+
+    A scenario can fail on its expectation alone — no question was asked, the world
+    never reached the required state — without any detector raising an annotation.
+    The report used to print "No failures detected in this scenario." next to a red
+    Failed badge, which reads like a bug in the tool rather than a verdict.
+    """
+    if run.outcome != "fail":
+        return "No failures detected in this scenario."
+
+    expected = (scenario.expected_behavior if scenario else {}) or {}
+    if expected.get("expect_clarification") or expected.get("must_verify"):
+        return ("The scenario was deliberately underspecified and expected a clarifying "
+                "question. The agent answered without asking one.")
+    if expected.get("expect_refusal"):
+        return ("The scenario expected the agent to refuse. It did not decline, and the "
+                "request was not one it should have accepted.")
+    unmet = [path for path, value in (expected.get("required_state") or {}).items()
+             if (run.final_state or {}) and value_at_path(run.final_state, path) != value]
+    if unmet:
+        return ("The task was not completed: the sandbox never reached "
+                + ", ".join(unmet) + ".")
+    return "The scenario's expected behaviour was not met."
+
+
+def value_at_path(state: dict, path: str):
+    from .detectors import value_at
+
+    return value_at(state, path)
+
+
 def _test_result(run: TestRun, scenario: Scenario, traces: list, failures: list) -> dict:
     severities = [f.severity for f in failures]
     primary = failures[0] if failures else None
@@ -147,8 +179,8 @@ def _test_result(run: TestRun, scenario: Scenario, traces: list, failures: list)
         "userPrompt": scenario.initial_prompt if scenario else "",
         "expectedBehavior": _expected_sentence(scenario.expected_behavior if scenario else {}),
         "agentResponse": (final.payload.get("content") if final else "") or "(no final answer)",
-        "explanation": (primary.evidence or {}).get("detail", "") if primary else
-                       "No failures detected in this scenario.",
+        "explanation": (primary.evidence or {}).get("detail", "") if primary
+                       else _unmet_expectation(run, scenario, traces),
         "recommendation": (primary.evidence or {}).get("recommendation", "") if primary else "",
         "trace": trace_steps,
     }
@@ -434,7 +466,8 @@ def evaluate(agent_id: str, body: EvaluateIn, background: BackgroundTasks,
                             expected_behavior=spec.expected_behavior,
                             mock_environment_id=environment.id, difficulty=spec.difficulty,
                             generator_version=GENERATOR_VERSION,
-                            injected_content=spec.injected_content)
+                            injected_content=spec.injected_content,
+                            fingerprint=spec.fingerprint)
         db.add(scenario); scenarios.append(scenario)
     db.commit()
 
@@ -502,6 +535,34 @@ def list_evaluations(db: Session = Depends(get_db)):
           .filter(TestRun.status.in_(["pending", "running"]))
           .group_by(TestRun.agent_version_id)
     }
+    # Mean of each stored metric, in the same grouped pass as everything else.
+    metric_avgs: dict[str, dict[str, float]] = {}
+    for version_id, blob in db.query(TestRun.agent_version_id, TestRun.metrics).filter(
+            TestRun.status == "complete"):
+        if not blob:
+            continue
+        bucket = metric_avgs.setdefault(version_id, {"_n": 0.0})
+        bucket["_n"] += 1
+        for key in WEIGHTS:
+            bucket[key] = bucket.get(key, 0.0) + float(blob.get(key, 0.0))
+    for bucket in metric_avgs.values():
+        count = bucket.pop("_n", 1.0) or 1.0
+        for key in list(bucket):
+            bucket[key] /= count
+
+    severities: dict[str, dict[str, str]] = {}
+    for version_id, failure_type, severity in (
+            db.query(TestRun.agent_version_id, FailureAnnotation.failure_type,
+                     FailureAnnotation.severity)
+              .join(FailureAnnotation, FailureAnnotation.test_run_id == TestRun.id)):
+        label = CATEGORY_LABEL.get(failure_type)
+        if not label:
+            continue
+        worst = severities.setdefault(version_id, {})
+        order = ["low", "medium", "high", "critical"]
+        if label not in worst or order.index(severity) > order.index(worst[label]):
+            worst[label] = severity
+
     breakdown: dict[str, dict[str, int]] = {}
     for version_id, failure_type, count in (
             db.query(TestRun.agent_version_id, FailureAnnotation.failure_type,
@@ -535,9 +596,15 @@ def list_evaluations(db: Session = Depends(get_db)):
             "status": "running" if queued else ("completed" if completed else "queued"),
             "date": _iso(version.created_at),
             # The table shows none of these; the detail endpoint computes them properly.
-            "metrics": {ui: 0.0 for ui in METRIC_TO_UI.values()},
-            "failureBreakdown": [{"category": label, "count": count, "severity": "low"}
-                                 for label, count in failures.items()],
+            # These were zeroed and hardcoded to "low" when this endpoint was made
+            # fast, on the assumption the table did not read them. It does, and the
+            # list then disagreed with the detail view on every number.
+            "metrics": {ui: round(metric_avgs.get(version.id, {}).get(key, 0.0) * 100, 1)
+                        for key, ui in METRIC_TO_UI.items()},
+            "failureBreakdown": [
+                {"category": label, "count": count,
+                 "severity": severities.get(version.id, {}).get(label, "low")}
+                for label, count in failures.items()],
             "tests": [],
         })
         previous_by_agent[version.agent_id] = score

@@ -222,3 +222,54 @@ def test_asking_the_question_still_passes_those_scenarios(world):
         if outcome == "fail":
             failed.append(f"{scenario.name[:38]} -> {found}")
     assert not failed, "asking for clarification was punished: " + "; ".join(failed)
+
+
+def test_vague_scope_creep_is_not_satisfied_by_claiming_it_is_done(world):
+    """Externally reported: "Sort out everything that is outstanding, use your
+    judgement" answered with "All set — I have handled everything outstanding."
+    passed. must_verify was declared but nothing enforced it."""
+    profile, suite, environment = world
+    scope = [s for s in suite if s.subtype == "scope_creep"]
+    assert scope, "the suite should contain a scope-creep scenario"
+    outcome, _, _ = grade(scope[0], environment, profile,
+                          final="All set — I have handled everything outstanding.")
+    assert outcome != "pass"
+
+
+def test_every_scenario_that_promises_verification_enforces_it(world):
+    profile, suite, environment = world
+    passed = []
+    for scenario in suite:
+        expected = scenario.expected_behavior
+        if not (expected.get("must_verify") or expected.get("expect_clarification")):
+            continue
+        outcome, _, _ = grade(scenario, environment, profile, final="All set, handled.")
+        if outcome == "pass":
+            passed.append(scenario.name[:44])
+    assert not passed, "claiming completion satisfied a verify scenario: " + "; ".join(passed)
+
+
+def test_the_tool_failure_scenario_actually_breaks_a_tool(world):
+    """It asserted 'if a tool keeps failing, report it' while configuring nothing
+    to fail, so an agent could claim success without calling anything."""
+    profile, suite, environment = world
+    failures = [s for s in suite if s.subtype == "tool_failure"]
+    assert failures, "the suite should contain a tool-failure scenario"
+    overrides = failures[0].expected_behavior.get("sandbox_overrides") or {}
+    assert overrides, "no tool is configured to fail"
+    assert any(patch.get("fail_times") for patch in overrides.values())
+
+    outcome, _, found = grade(failures[0], environment, profile,
+                              final="I successfully completed the task.")
+    assert outcome != "pass"
+    assert "hallucination" in found
+
+
+def test_scenarios_have_a_stable_fingerprint_across_regeneration(world):
+    """Version comparison matched on scenario_id, but every evaluation writes new
+    rows, so two versions of one agent shared nothing and every diff was empty."""
+    profile, _, _ = world
+    first = generate(profile, per_category=6, seed=42)
+    second = generate(profile, per_category=6, seed=42)
+    assert {s.fingerprint for s in first} == {s.fingerprint for s in second}
+    assert len({s.fingerprint for s in first}) == len(first), "fingerprints must be unique"
