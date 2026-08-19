@@ -1,4 +1,4 @@
-import { Link } from "@tanstack/react-router";
+import { Link, useNavigate } from "@tanstack/react-router";
 import { ChevronRight } from "lucide-react";
 import type { Evaluation } from "@/lib/types";
 import { StatusBadge, statusLabel, statusTone } from "./StatusBadge";
@@ -12,6 +12,7 @@ const scoreText: Record<string, string> = {
 };
 
 export function EvaluationTable({ rows }: { rows: Evaluation[] }) {
+  const navigate = useNavigate();
   return (
     <div className="overflow-x-auto">
       <table className="w-full min-w-[720px] text-sm">
@@ -28,9 +29,21 @@ export function EvaluationTable({ rows }: { rows: Evaluation[] }) {
         </thead>
         <tbody>
           {rows.map((row) => (
+            /* The row highlights on hover and ends in a chevron, so it reads as
+               clickable — but only the agent name and that chevron were links, and
+               clicking the score, status or date did nothing. The whole row now
+               navigates; the anchors stay for keyboard and middle-click. */
             <tr
               key={row.id}
-              className="group border-b border-border/60 transition-colors last:border-0 hover:bg-surface/70"
+              onClick={(event) => {
+                const target = event.target as HTMLElement;
+                if (target.closest("a,button")) return;   // let real links win
+                void navigate({
+                  to: "/evaluations/$evaluationId",
+                  params: { evaluationId: row.id },
+                });
+              }}
+              className="group cursor-pointer border-b border-border/60 transition-colors last:border-0 hover:bg-surface/70"
             >
               <td className="px-4 py-3">
                 <Link
