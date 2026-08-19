@@ -15,6 +15,7 @@ from datetime import datetime
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Response
 from pydantic import BaseModel, Field
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from .classifier import TAXONOMY
@@ -342,10 +343,21 @@ def create_agent(body: AgentIn, db: Session = Depends(get_db)):
     schema = {t.name: {"description": t.description,
                        **({"danger_level": t.risk} if t.risk else {})}
               for t in body.tools}
+    # Agent names are unique, and the integrity error surfaced as a 500. Someone
+    # reusing a name should be told that, not shown a server error.
+    if db.query(Agent).filter(Agent.name == body.name).first():
+        raise HTTPException(409, f"An agent named '{body.name}' already exists.")
+
     agent = Agent(name=body.name, description=body.description,
                   system_prompt=body.systemPrompt, tool_schema=schema)
     agent.profile = profile_agent(body.systemPrompt, schema).to_dict()
-    db.add(agent); db.commit(); db.refresh(agent)
+    db.add(agent)
+    try:
+        db.commit()
+    except IntegrityError:                      # lost a race with a concurrent create
+        db.rollback()
+        raise HTTPException(409, f"An agent named '{body.name}' already exists.")
+    db.refresh(agent)
     return _agent_payload(db, agent)
 
 

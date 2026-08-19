@@ -72,10 +72,14 @@ async function proxyApi(request: Request): Promise<Response | null> {
   if (contentType) headers.set("content-type", contentType);
   headers.set("accept", request.headers.get("accept") ?? "application/json");
 
-  const hasBody = request.method !== "GET" && request.method !== "HEAD";
-  // exactOptionalPropertyTypes rejects `body: undefined`, so only attach it when present.
+  // Attach a body only when there genuinely is one. A DELETE arrives with no body,
+  // and handing fetch a zero-length ArrayBuffer made the request throw — so every
+  // delete came back as this handler's own 502 while the API itself was fine.
   const init: RequestInit = { method: request.method, headers };
-  if (hasBody) init.body = await request.arrayBuffer();
+  if (request.method !== "GET" && request.method !== "HEAD") {
+    const body = await request.arrayBuffer();
+    if (body.byteLength > 0) init.body = body;
+  }
 
   try {
     const upstream = await fetch(target, init);

@@ -1,6 +1,7 @@
 from contextlib import asynccontextmanager
 from fastapi import BackgroundTasks, Depends, FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from .classifier import TAXONOMY, classify
@@ -118,10 +119,18 @@ def taxonomy():
 # --------------------------------------------------------------------------- #
 @app.post("/agents", status_code=201)
 def create_agent(body: AgentIn, db: Session = Depends(get_db)):
+    if db.query(Agent).filter(Agent.name == body.name).first():
+        raise HTTPException(409, f"An agent named '{body.name}' already exists.")
     item = Agent(**body.model_dump())
     if item.system_prompt or item.tool_schema:
         item.profile = profile_agent(item.system_prompt, item.tool_schema).to_dict()
-    db.add(item); db.commit(); db.refresh(item)
+    db.add(item)
+    try:
+        db.commit()
+    except IntegrityError:
+        db.rollback()
+        raise HTTPException(409, f"An agent named '{body.name}' already exists.")
+    db.refresh(item)
     return view(item)
 
 

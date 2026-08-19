@@ -195,7 +195,9 @@ function NewAgentPage() {
       const settings = loadSettings();
       const started = await api.evaluate(created.id, {
         versionLabel: "v1",
-        traits: settings.adversarial ? ["complies_with_destructive", "claims_success"] : [],
+        // Same rule as useRunEvaluation: the toggle gates scenario generation and
+        // must not change the agent under test, or switching it off raises the score.
+        adversarial: settings.adversarial,
         perCategory: perCategoryFor(settings.scenariosPerRun),
       });
       toast.success(`Generated ${started.total} scenarios — evaluation running`);
@@ -304,6 +306,7 @@ function NewAgentPage() {
                 <div className="flex items-center gap-2">
                   <input
                     ref={fileInput}
+                    aria-label="Upload a tool schema JSON file"
                     type="file"
                     accept="application/json,.json,.txt"
                     className="hidden"
@@ -386,13 +389,17 @@ function NewAgentPage() {
                     </Button>
                   </div>
                   <div className="mt-3 grid gap-3 sm:grid-cols-[1fr_1.4fr_150px]">
+                    {/* A placeholder is not a label: it disappears on focus and
+                        screen readers announce nothing for these fields. */}
                     <Input
+                      aria-label={`Tool ${i + 1} name`}
                       value={tool.name}
                       onChange={(e) => updateTool(tool.key, { name: e.target.value })}
                       placeholder="check_order"
                       className="font-mono text-xs"
                     />
                     <Input
+                      aria-label={`Tool ${i + 1} description`}
                       value={tool.description}
                       onChange={(e) => updateTool(tool.key, { description: e.target.value })}
                       placeholder="Look up an order and return eligibility"
