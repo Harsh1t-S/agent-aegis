@@ -204,9 +204,8 @@ export function AppLayout({
               >
                 <Search className="size-4" />
               </Button>
-              <span className="ml-1 grid size-8 place-items-center rounded-full bg-primary/20 text-xs font-semibold text-primary">
-                JP
-              </span>
+              {/* No authentication here, so no avatar. A set of initials in the
+                  topbar implies a signed-in user that does not exist. */}
               {actions && <div className="ml-2 hidden sm:flex">{actions}</div>}
             </div>
           </div>

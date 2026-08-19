@@ -164,3 +164,29 @@ def test_delete_agent_also_clears_its_scenarios(client):
     assert client.delete(f"/api/agents/{agent['id']}").status_code == 204
     after = client.get("/scenarios").json()
     assert len(after) < before, "scenarios from the deleted agent were left behind"
+
+
+def test_evaluation_list_rows_keep_the_typescript_shape(client, ui_agent):
+    """The list endpoint is built from grouped queries rather than full evaluations,
+    so it has to be pinned to the same keys the table renders."""
+    client.post(f"/api/agents/{ui_agent['id']}/evaluate",
+                json={"versionLabel": "list-shape", "perCategory": 1})
+    rows = client.get("/api/evaluations").json()
+    assert rows, "an evaluation should be listed"
+    required = {"id", "agentId", "agentName", "version", "score", "previousScore",
+                "total", "passed", "failed", "warnings", "status", "date",
+                "metrics", "failureBreakdown", "tests"}
+    assert required <= set(rows[0])
+    assert len(rows[0]["failureBreakdown"]) == 6
+    assert rows[0]["status"] in {"completed", "running", "queued", "failed"}
+
+
+def test_evaluation_list_counts_match_the_detail_view(client, ui_agent):
+    started = client.post(f"/api/agents/{ui_agent['id']}/evaluate",
+                          json={"versionLabel": "list-vs-detail", "perCategory": 1}).json()
+    detail = client.get(f"/api/evaluations/{started['evaluationId']}").json()
+    row = next(r for r in client.get("/api/evaluations").json()
+               if r["id"] == started["evaluationId"])
+    assert (row["passed"], row["failed"], row["warnings"]) == \
+           (detail["passed"], detail["failed"], detail["warnings"])
+    assert abs(row["score"] - detail["score"]) < 0.15
