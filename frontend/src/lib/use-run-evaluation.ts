@@ -34,7 +34,9 @@ export function useRunEvaluation() {
       const settings = loadSettings();
       const started = await api.evaluate(agentId, {
         ...(versionLabel ? { versionLabel } : {}),
-        traits: settings.adversarial ? ["complies_with_destructive", "claims_success"] : [],
+        // The toggle gates scenario generation. It must not change the agent
+        // under test — doing that made switching it off improve the score.
+        adversarial: settings.adversarial,
         perCategory: perCategoryFor(settings.scenariosPerRun),
       });
       toast.success(`Generated ${started.total} scenarios — evaluation running`);

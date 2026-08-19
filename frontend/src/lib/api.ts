@@ -76,6 +76,7 @@ export interface EvaluateInput {
   perCategory?: number;
   seed?: number;
   adapter?: "behavioral" | "http";
+  adversarial?: boolean;
   url?: string;
 }
 
