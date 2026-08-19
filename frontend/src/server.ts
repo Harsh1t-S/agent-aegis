@@ -87,10 +87,14 @@ async function proxyApi(request: Request): Promise<Response | null> {
     const upstreamType = upstream.headers.get("content-type");
     if (upstreamType) outHeaders.set("content-type", upstreamType);
     outHeaders.set("cache-control", "no-store");
-    return new Response(await upstream.arrayBuffer(), {
-      status: upstream.status,
-      headers: outHeaders,
-    });
+
+    // 204, 205 and 304 are null-body statuses: the Response constructor rejects
+    // *any* body for them, including a zero-length buffer. Passing one through
+    // threw here and surfaced as this handler's own 502, so every successful
+    // delete looked like a proxy outage.
+    const NULL_BODY = new Set([204, 205, 304]);
+    const body = NULL_BODY.has(upstream.status) ? null : await upstream.arrayBuffer();
+    return new Response(body, { status: upstream.status, headers: outHeaders });
   } catch (error) {
     console.error("API proxy failed", error);
     return new Response(
