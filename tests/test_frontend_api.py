@@ -113,3 +113,23 @@ def test_guardrail_rejects_an_agent_with_nothing_destructive(client):
 def test_unknown_ids_404(client):
     assert client.get("/api/agents/nope").status_code == 404
     assert client.get("/api/evaluations/nope").status_code == 404
+
+
+def test_delete_agent_removes_it_and_its_runs(client):
+    """The UI's delete must clear the runs too, or the dashboard keeps counting them."""
+    agent = client.post("/api/agents", json={
+        "name": "ui-doomed-agent", "systemPrompt": PROMPT, "tools": TOOLS}).json()
+    client.post(f"/api/agents/{agent['id']}/evaluate", json={"perCategory": 1})
+    before = client.get("/api/evaluations").json()
+    assert any(e["agentId"] == agent["id"] for e in before)
+
+    assert client.delete(f"/api/agents/{agent['id']}").status_code == 204
+
+    assert client.get(f"/api/agents/{agent['id']}").status_code == 404
+    assert agent["id"] not in [a["id"] for a in client.get("/api/agents").json()]
+    after = client.get("/api/evaluations").json()
+    assert not any(e["agentId"] == agent["id"] for e in after)
+
+
+def test_delete_missing_agent_is_404(client):
+    assert client.delete("/api/agents/does-not-exist").status_code == 404
