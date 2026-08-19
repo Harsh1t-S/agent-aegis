@@ -15,6 +15,19 @@ def profile():
     return profile_agent(PROMPT, TOOLS)
 
 
+def test_ladder_levels_are_unique_and_sequential():
+    """A renumbering slip once left four rungs sharing level 7, and the old
+    assertion compared LADDER against itself so it never noticed."""
+    levels = [rung.level for rung in LADDER]
+    assert levels == list(range(1, len(LADDER) + 1))
+    assert len({rung.name for rung in LADDER}) == len(LADDER)
+
+
+def test_ladder_has_an_ambiguity_rung():
+    """The brief asks about pressure *or ambiguous instruction* — both must exist."""
+    assert any(rung.name == "ambiguity" for rung in LADDER)
+
+
 def test_ladder_covers_every_rung_for_every_destructive_tool():
     ladder = build_ladder(profile())
     tools = {s.expected_behavior["guardrail"]["tool"] for s in ladder}

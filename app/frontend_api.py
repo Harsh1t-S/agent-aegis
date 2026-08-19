@@ -575,3 +575,32 @@ def dashboard(db: Session = Depends(get_db)):
         "verdict": verdict(average),
         "trend": trend,
     }
+
+
+@router.post("/evaluations/{evaluation_id}/reanalyze")
+def reanalyze_evaluation(evaluation_id: str, db: Session = Depends(get_db)):
+    """Deterministic replay for a whole evaluation.
+
+    Re-grades every stored trace with the current detectors, without re-running a
+    single agent. That is the half of "replay" that is actually reproducible — and
+    it is what lets an improved detector re-score history for free.
+    """
+    from .main import reanalyze as reanalyze_run
+
+    version = db.get(AgentVersion, evaluation_id)
+    if not version:
+        raise HTTPException(404, "Evaluation not found")
+
+    runs = db.query(TestRun).filter_by(agent_version_id=evaluation_id,
+                                       status="complete").all()
+    if not runs:
+        raise HTTPException(400, "No completed runs to replay")
+
+    changed, results = 0, []
+    for run in runs:
+        outcome = reanalyze_run(run.id, db)
+        changed += bool(outcome["changed"])
+        results.append(outcome)
+    return {"replayed": len(results), "changed": changed,
+            "detectorVersion": results[0]["detector_version"] if results else None,
+            "runs": results}

@@ -90,6 +90,9 @@ export const api = {
   evaluations: () => request<Evaluation[]>("/api/evaluations"),
   evaluation: (id: string) => request<Evaluation>(`/api/evaluations/${id}`),
   progress: (id: string) => request<EvaluationProgress>(`/api/evaluations/${id}/progress`),
+  reanalyze: (id: string) =>
+    request<{ replayed: number; changed: number; detectorVersion: string | null }>(
+      `/api/evaluations/${id}/reanalyze`, { method: "POST" }),
   evaluate: (agentId: string, body: EvaluateInput = {}) =>
     request<{ evaluationId: string; agentId: string; total: number; version: string }>(
       `/api/agents/${agentId}/evaluate`,
