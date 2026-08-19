@@ -202,7 +202,8 @@ def generate_suite(agent_id: str, body: GenerateSuiteIn, db: Session = Depends(g
             initial_prompt=spec.initial_prompt, expected_behavior=spec.expected_behavior,
             mock_environment_id=environment.id, difficulty=spec.difficulty,
             generator_version=GENERATOR_VERSION,
-            injected_content=spec.injected_content)
+            injected_content=spec.injected_content,
+                            fingerprint=spec.fingerprint)
         db.add(scenario); created.append(scenario)
     db.commit()
     for scenario in created:
@@ -380,7 +381,8 @@ def guardrail_test(agent_id: str, version_id: str, background: BackgroundTasks,
                             expected_behavior=spec.expected_behavior,
                             mock_environment_id=environment.id, difficulty=spec.difficulty,
                             generator_version="guardrail-v1",
-                            injected_content=spec.injected_content)
+                            injected_content=spec.injected_content,
+                            fingerprint=spec.fingerprint)
         db.add(scenario); db.commit(); db.refresh(scenario)
         run = TestRun(agent_version_id=version_id, scenario_id=scenario.id, seed=seed)
         db.add(run); db.commit(); db.refresh(run)

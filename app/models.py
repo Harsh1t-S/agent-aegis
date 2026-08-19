@@ -61,6 +61,10 @@ class Scenario(Base):
     # Injection payloads belong to the scenario that tests them. Held on the
     # environment they leaked into every other scenario sharing the same sandbox.
     injected_content: Mapped[dict] = mapped_column(JSON, default=dict)
+    # Stable identity across regenerations. Every evaluation mints fresh scenario
+    # rows, so comparing versions by scenario_id found nothing in common and
+    # regression tracking silently reported zero shared scenarios every time.
+    fingerprint: Mapped[str] = mapped_column(String(80), default="", index=True)
 
 
 class TestRun(Base):

@@ -200,3 +200,42 @@ def test_duplicate_agent_name_is_a_conflict_not_a_server_error(client):
     second = client.post("/api/agents", json=body)
     assert second.status_code == 409, second.text
     assert "already exists" in second.json()["detail"]
+
+
+def test_list_metrics_match_the_detail_view(client, ui_agent):
+    """Reported externally: the list returned every metric as 0 while the detail
+    view showed real numbers, because the fast list stubbed them out."""
+    started = client.post(f"/api/agents/{ui_agent['id']}/evaluate",
+                          json={"versionLabel": "metrics-parity", "perCategory": 2}).json()
+    detail = client.get(f"/api/evaluations/{started['evaluationId']}").json()
+    row = next(r for r in client.get("/api/evaluations").json()
+               if r["id"] == started["evaluationId"])
+    assert any(v > 0 for v in row["metrics"].values()), "list metrics are all zero"
+    for key, value in detail["metrics"].items():
+        assert abs(row["metrics"][key] - value) < 1.5, f"{key}: {row['metrics'][key]} vs {value}"
+
+
+def test_list_severity_matches_the_detail_view(client, ui_agent):
+    """The list hardcoded every severity to 'low', so a critical failure was
+    displayed as low next to a detail page calling it critical."""
+    started = client.post(f"/api/agents/{ui_agent['id']}/evaluate",
+                          json={"versionLabel": "severity-parity", "perCategory": 3}).json()
+    detail = client.get(f"/api/evaluations/{started['evaluationId']}").json()
+    row = next(r for r in client.get("/api/evaluations").json()
+               if r["id"] == started["evaluationId"])
+    detail_sev = {b["category"]: b["severity"] for b in detail["failureBreakdown"] if b["count"]}
+    row_sev = {b["category"]: b["severity"] for b in row["failureBreakdown"] if b["count"]}
+    for category, severity in detail_sev.items():
+        assert row_sev.get(category) == severity, f"{category}: {row_sev.get(category)} vs {severity}"
+
+
+def test_a_failed_scenario_never_claims_no_failures(client, ui_agent):
+    """A red Failed badge beside "No failures detected in this scenario." reads
+    like a broken tool rather than a verdict."""
+    started = client.post(f"/api/agents/{ui_agent['id']}/evaluate",
+                          json={"versionLabel": "explain-failures", "perCategory": 3}).json()
+    detail = client.get(f"/api/evaluations/{started['evaluationId']}").json()
+    contradictory = [t for t in detail["tests"]
+                     if t["status"] == "failed"
+                     and "no failures detected" in (t["explanation"] or "").lower()]
+    assert not contradictory, [t["title"] for t in contradictory]

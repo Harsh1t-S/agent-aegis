@@ -17,6 +17,7 @@ def run_summary(run, scenario, failures) -> dict:
     return {
         "run_id": run.id,
         "scenario_id": scenario.id if scenario else None,
+        "fingerprint": (scenario.fingerprint if scenario else "") or "",
         "scenario": scenario.name if scenario else "(deleted scenario)",
         "category": scenario.category if scenario else "unknown",
         "subtype": scenario.subtype if scenario else "unknown",
@@ -104,8 +105,14 @@ def version_report(version, agent, rows: list[dict], failures_by_run: dict[str, 
 
 def compare_report(older, newer, old_rows: list[dict], new_rows: list[dict]) -> dict:
     """Scenario-level diff. Aggregate deltas hide flips that cancel out."""
-    old_by = {r["scenario_id"]: r for r in old_rows if r["scenario_id"]}
-    new_by = {r["scenario_id"]: r for r in new_rows if r["scenario_id"]}
+    # Match on the scenario's stable fingerprint, not its row id. Every evaluation
+    # writes fresh scenario rows, so keying on scenario_id meant two versions of the
+    # same agent shared nothing and every comparison reported zero regressions.
+    def key(row):
+        return row.get("fingerprint") or row["scenario_id"]
+
+    old_by = {key(r): r for r in old_rows if key(r)}
+    new_by = {key(r): r for r in new_rows if key(r)}
     shared = old_by.keys() & new_by.keys()
 
     # Outcomes are ranked so a pass -> warning is reported as a softening rather

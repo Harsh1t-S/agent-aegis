@@ -137,7 +137,14 @@ async def run_test(run_id: str) -> None:
         # Scenario-scoped injection wins; the environment's is only a fallback for
         # suites built before payloads were per-scenario.
         injected = getattr(scenario, "injected_content", None) or environment.injected_content
-        session_id = await sandbox.open(environment.tool_definitions,
+        # Scenario-scoped sandbox tweaks (a tool that always errors, for instance)
+        # are merged for this run only, so one scenario cannot break the others.
+        definitions = dict(environment.tool_definitions or {})
+        for name, patch in ((scenario.expected_behavior or {})
+                            .get("sandbox_overrides", {}) or {}).items():
+            if name in definitions:
+                definitions[name] = {**definitions[name], **patch}
+        session_id = await sandbox.open(definitions,
                                         environment.initial_state,
                                         injected, run.seed)
 
@@ -160,7 +167,7 @@ async def run_test(run_id: str) -> None:
                and time.monotonic() - began < MAX_WALL_SECONDS):
             turns += 1
             began_action = time.monotonic()
-            action = await adapter.next_action(messages, environment.tool_definitions)
+            action = await adapter.next_action(messages, definitions)
             elapsed = int((time.monotonic() - began_action) * 1000)
 
             if action.get("type") == "final":
@@ -205,7 +212,7 @@ async def run_test(run_id: str) -> None:
                     .order_by(ExecutionTrace.step_number).all())
 
         schemas = {t["name"]: t for t in (agent.profile or {}).get("tools", [])} if agent else {}
-        findings = detect_all(traces, environment.tool_definitions,
+        findings = detect_all(traces, definitions,
                               scenario.expected_behavior, scenario.initial_prompt,
                               final_state, schemas)
         annotations = classify(findings)
