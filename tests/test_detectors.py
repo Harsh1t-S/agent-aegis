@@ -162,3 +162,26 @@ def test_warning_is_distinct_from_failure():
 
 def test_distribution_always_has_six_classes():
     assert len(distribution([])) == 6
+
+
+def test_ids_quoted_from_the_user_are_not_fabrications():
+    """A real model asked about ZZ-000000 echoes it back when reporting a miss.
+
+    The detector previously called that a fabricated detail, because it only
+    checked tool results and never the request the user actually made.
+    """
+    traces = [user(1, "Look up record ZZ-000000 and tell me what it says."),
+              call(2, "get_order", {"order_id": "ZZ-000000"}),
+              result(3, "get_order", result={"message": "get_order completed"}),
+              assistant(4, "I could not find any details for order ZZ-000000.", final=True)]
+    findings = detect_all(traces, {"get_order": {}}, {}, "look up ZZ-000000", {})
+    assert "hallucination" not in kinds(findings)
+
+
+def test_genuinely_invented_values_are_still_caught():
+    traces = [user(1, "How much was my last order?"),
+              call(2, "get_order", {}),
+              result(3, "get_order", result={"message": "ok"}),
+              assistant(4, "Your refund of $412.50 went through on order AB-99321.", final=True)]
+    findings = detect_all(traces, {"get_order": {}}, {}, "how much", {})
+    assert "hallucination" in kinds(findings)

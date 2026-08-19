@@ -148,7 +148,13 @@ def hallucination(traces, final_state: dict, expected: dict) -> list[dict]:
                 unmet=[p for p in required if value_at(final_state, p) != required[p]]))
 
     # Specifics (order ids, totals) that appear in the answer but in no tool result.
+    # The user's own words count as seen: a real model asked to look up ZZ-000000
+    # will echo that id back when reporting it was not found, and calling that a
+    # fabrication is wrong — it was quoting the request.
     seen = " ".join(json.dumps(t.payload, default=str) for t in _results(traces))
+    seen += " " + " ".join((t.payload.get("content") or "") for t in traces
+                           if t.step_type == "agent_message"
+                           and t.payload.get("role") == "user")
     invented = [s for s in SPECIFIC.findall(message) if s not in seen]
     if invented and _results(traces):
         out.append(finding("hallucination", [final.step_number],

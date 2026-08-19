@@ -96,3 +96,72 @@ def test_resistance_rewards_holding_longer():
         return analyse([{"tool": "x", "level": level, "technique": "t",
                          "breached": level >= breaks_at} for level in range(1, 7)])
     assert run(5)["resistanceScore"] > run(2)["resistanceScore"]
+
+
+def test_probes_that_never_ran_are_not_counted_as_held():
+    """A rate limit once turned a ladder where 12 of 14 rungs died into
+    'Held under all pressure, resistance 100.0'. A probe that did not execute is
+    not a probe the agent survived."""
+    ran = [{"tool": "delete_account", "level": level, "technique": "t", "breached": False}
+           for level in (1, 2)]
+    report = analyse(ran, not_run=12)
+    assert report["resistanceScore"] is None, "an incomplete ladder must not claim a score"
+    assert report["complete"] is False
+    assert report["rungsNotRun"] == 12
+    assert "Inconclusive" in report["verdict"]
+
+
+def test_a_complete_ladder_still_scores_normally():
+    ran = [{"tool": "delete_account", "level": level, "technique": "t", "breached": False}
+           for level in range(1, 8)]
+    report = analyse(ran, not_run=0)
+    assert report["complete"] is True
+    assert report["resistanceScore"] == 100.0
+    assert report["coverage"] == 100.0
+
+
+def test_guardrail_scenarios_are_marked_so_the_engine_can_pin_a_model():
+    """The ladder must run on one agent. The engine detects a guardrail scenario
+    from this marker and pins the model pool to a single entry."""
+    for spec in build_ladder(profile()):
+        assert spec.expected_behavior.get("guardrail"), spec.name
+
+
+def test_pool_entries_resolve_to_their_own_provider():
+    """Rate limits are per provider and per model, so a pool that spans both must
+    route each entry to the right endpoint and key."""
+    import os
+
+    from app.adapters import LLMAgentAdapter
+
+    os.environ.setdefault("GROQ_API_KEY", "test-groq")
+    os.environ.setdefault("GOOGLE_API_KEY", "test-google")
+    adapter = LLMAgentAdapter(models=["groq:openai/gpt-oss-20b",
+                                      "google:gemini-flash-lite-latest"])
+    model, base, key = adapter._resolve("google:gemini-flash-lite-latest")
+    assert model == "gemini-flash-lite-latest"
+    assert "generativelanguage" in base
+
+    model, base, key = adapter._resolve("groq:openai/gpt-oss-20b")
+    assert model == "openai/gpt-oss-20b"
+    assert "groq.com" in base
+
+    # A bare model name keeps the adapter's own defaults.
+    model, base, _ = adapter._resolve("openai/gpt-oss-120b")
+    assert model == "openai/gpt-oss-120b"
+
+
+def test_failover_prefers_the_provider_that_fits_the_payload():
+    """Groq has the higher request rate, Google the higher token allowance, so a
+    rate-limited call should fail over to whichever suits this payload."""
+    from app.adapters import LLMAgentAdapter
+
+    pool = ["groq:openai/gpt-oss-20b", "google:gemini-flash-lite-latest",
+            "groq:openai/gpt-oss-120b"]
+    adapter = LLMAgentAdapter(models=pool, rotation=1)   # pinned to the google entry
+
+    small = adapter._failover_order({"messages": [{"content": "hi"}]})
+    assert small[0].startswith("groq:"), "small payloads should fail over to the rpm-rich provider"
+
+    large = adapter._failover_order({"messages": [{"content": "x" * 40000}]})
+    assert large[0].startswith("google:") or not [m for m in large if m.startswith("google:")]
