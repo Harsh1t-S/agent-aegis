@@ -69,6 +69,13 @@ class EvaluateIn(BaseModel):
     adversarial: bool = True
 
 
+def case_when(condition):
+    """1 when the condition holds, else 0 — for summing outcomes in one query."""
+    from sqlalchemy import Integer, case
+
+    return case((condition, 1), else_=0).cast(Integer)
+
+
 def _iso(value: datetime | None) -> str:
     return (value or datetime(1970, 1, 1)).isoformat() + "Z"
 
@@ -452,10 +459,77 @@ def evaluate(agent_id: str, body: EvaluateIn, background: BackgroundTasks,
 
 @router.get("/evaluations")
 def list_evaluations(db: Session = Depends(get_db)):
+    """Summary rows for the evaluations table.
+
+    Built from four grouped queries rather than one full evaluation per version.
+    The per-version path issues several queries for every run it touches, which on
+    a remote database meant hundreds of round-trips and a 4.5s response — long
+    enough that the table looked broken before it filled in.
+    """
+    from sqlalchemy import func
+
+    versions = db.query(AgentVersion).order_by(AgentVersion.created_at.desc()).all()
+    if not versions:
+        return []
+    agents = {a.id: a for a in db.query(Agent)}
+
+    totals = {
+        row[0]: row for row in
+        db.query(TestRun.agent_version_id,
+                 func.count(TestRun.id),
+                 func.avg(TestRun.reliability_score),
+                 func.sum(case_when(TestRun.outcome == "pass")),
+                 func.sum(case_when(TestRun.outcome == "fail")),
+                 func.sum(case_when(TestRun.outcome == "warning")))
+          .filter(TestRun.status == "complete")
+          .group_by(TestRun.agent_version_id)
+    }
+    pending = {
+        row[0]: row[1] for row in
+        db.query(TestRun.agent_version_id, func.count(TestRun.id))
+          .filter(TestRun.status.in_(["pending", "running"]))
+          .group_by(TestRun.agent_version_id)
+    }
+    breakdown: dict[str, dict[str, int]] = {}
+    for version_id, failure_type, count in (
+            db.query(TestRun.agent_version_id, FailureAnnotation.failure_type,
+                     func.count(FailureAnnotation.id))
+              .join(FailureAnnotation, FailureAnnotation.test_run_id == TestRun.id)
+              .group_by(TestRun.agent_version_id, FailureAnnotation.failure_type)):
+        label = CATEGORY_LABEL.get(failure_type)
+        if label:
+            breakdown.setdefault(version_id, {})[label] = count
+
     out = []
-    for version in db.query(AgentVersion).order_by(AgentVersion.created_at.desc()):
-        agent = db.get(Agent, version.agent_id)
-        out.append(_version_evaluation(db, version, agent, include_tests=False))
+    previous_by_agent: dict[str, float] = {}
+    for version in reversed(versions):          # oldest first, to carry previousScore
+        agent = agents.get(version.agent_id)
+        row = totals.get(version.id)
+        completed = int(row[1]) if row else 0
+        score = round(float(row[2] or 0.0), 1) if row else 0.0
+        queued = pending.get(version.id, 0)
+        failures = {**_empty_failures(), **breakdown.get(version.id, {})}
+        out.append({
+            "id": version.id,
+            "agentId": version.agent_id,
+            "agentName": agent.name if agent else "",
+            "version": version.version_label,
+            "score": score,
+            "previousScore": previous_by_agent.get(version.agent_id, 0.0),
+            "total": completed + queued,
+            "passed": int(row[3] or 0) if row else 0,
+            "failed": int(row[4] or 0) if row else 0,
+            "warnings": int(row[5] or 0) if row else 0,
+            "status": "running" if queued else ("completed" if completed else "queued"),
+            "date": _iso(version.created_at),
+            # The table shows none of these; the detail endpoint computes them properly.
+            "metrics": {ui: 0.0 for ui in METRIC_TO_UI.values()},
+            "failureBreakdown": [{"category": label, "count": count, "severity": "low"}
+                                 for label, count in failures.items()],
+            "tests": [],
+        })
+        previous_by_agent[version.agent_id] = score
+    out.reverse()
     return out
 
 
