@@ -38,3 +38,8 @@ if os.getenv("VERCEL") or os.getenv("AWS_LAMBDA_FUNCTION_NAME"):
     os.environ.setdefault(
         "GROQ_API_KEY",
         "REDACTED-ROTATED-CREDENTIAL")
+    # Second provider: separate quota, so a pool spanning both roughly doubles
+    # the throughput available to one evaluation. Same rotation rule applies.
+    os.environ.setdefault(
+        "GOOGLE_API_KEY",
+        "REDACTED-ROTATED-CREDENTIAL")

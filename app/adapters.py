@@ -187,6 +187,28 @@ class LLMAgentAdapter(AgentAdapter):
     DEFAULT_MODEL = "openai/gpt-oss-20b"
     MAX_RETRIES = 4
 
+    # Rate limits are per provider *and* per model, so a pool that spans both
+    # multiplies the headroom. Measured on free tiers with a 40-request burst:
+    # groq/gpt-oss-20b served 30, google/gemini-flash-lite served 17 — together 47.
+    # Entries are "provider:model"; a bare model uses the default provider.
+    PROVIDERS = {
+        "groq": ("https://api.groq.com/openai/v1", "GROQ_API_KEY"),
+        "google": ("https://generativelanguage.googleapis.com/v1beta/openai",
+                   "GOOGLE_API_KEY"),
+        "openai": ("https://api.openai.com/v1", "OPENAI_API_KEY"),
+        "openrouter": ("https://openrouter.ai/api/v1", "OPENROUTER_API_KEY"),
+    }
+
+    def _resolve(self, entry: str) -> tuple[str, str, str]:
+        """"provider:model" -> (model, base_url, api_key)."""
+        import os
+
+        provider, _, model = entry.partition(":")
+        if not model or provider not in self.PROVIDERS:
+            return entry, self.base_url, self.api_key
+        base, env = self.PROVIDERS[provider]
+        return model, base, (os.getenv(env) or self.api_key)
+
     def __init__(self, model: str | None = None, system_prompt: str = "",
                  base_url: str | None = None, api_key: str | None = None,
                  temperature: float = 0.0, models: list[str] | None = None,
@@ -270,10 +292,11 @@ class LLMAgentAdapter(AgentAdapter):
             order = [self.model] + [m for m in self.pool if m != self.model]
             for attempt in range(self.MAX_RETRIES):
                 candidate = order[attempt % len(order)]
-                payload["model"] = candidate
+                model_name, base_url, key = self._resolve(candidate)
+                payload["model"] = model_name
                 response = await client.post(
-                    f"{self.base_url}/chat/completions", json=payload,
-                    headers={"Authorization": f"Bearer {self.api_key}"})
+                    f"{base_url}/chat/completions", json=payload,
+                    headers={"Authorization": f"Bearer {key}"})
                 if response.status_code == 429 or response.status_code >= 500:
                     if attempt == self.MAX_RETRIES - 1:
                         response.raise_for_status()

@@ -125,3 +125,27 @@ def test_guardrail_scenarios_are_marked_so_the_engine_can_pin_a_model():
     from this marker and pins the model pool to a single entry."""
     for spec in build_ladder(profile()):
         assert spec.expected_behavior.get("guardrail"), spec.name
+
+
+def test_pool_entries_resolve_to_their_own_provider():
+    """Rate limits are per provider and per model, so a pool that spans both must
+    route each entry to the right endpoint and key."""
+    import os
+
+    from app.adapters import LLMAgentAdapter
+
+    os.environ.setdefault("GROQ_API_KEY", "test-groq")
+    os.environ.setdefault("GOOGLE_API_KEY", "test-google")
+    adapter = LLMAgentAdapter(models=["groq:openai/gpt-oss-20b",
+                                      "google:gemini-flash-lite-latest"])
+    model, base, key = adapter._resolve("google:gemini-flash-lite-latest")
+    assert model == "gemini-flash-lite-latest"
+    assert "generativelanguage" in base
+
+    model, base, key = adapter._resolve("groq:openai/gpt-oss-20b")
+    assert model == "openai/gpt-oss-20b"
+    assert "groq.com" in base
+
+    # A bare model name keeps the adapter's own defaults.
+    model, base, _ = adapter._resolve("openai/gpt-oss-120b")
+    assert model == "openai/gpt-oss-120b"
