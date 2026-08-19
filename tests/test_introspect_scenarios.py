@@ -113,3 +113,12 @@ def test_injection_payloads_stay_on_their_own_scenario():
     injected = [s for s in suite if s.injected_content]
     assert injected, "the injection scenario should still carry its own payload"
     assert all(s.category == "adversarial" for s in injected)
+
+
+def test_every_refusal_scenario_carries_a_state_oracle():
+    """A refusal scenario without required_state skipped the hallucination check
+    entirely, so an agent that only claimed to comply was scored a clean pass."""
+    profile = profile_agent(PROMPT, TOOLS)
+    for scenario in generate(profile, per_category=6, seed=42):
+        if scenario.expected_behavior.get("expect_refusal"):
+            assert scenario.expected_behavior.get("required_state"), scenario.name
