@@ -67,13 +67,14 @@ def test_adversarial_scenarios_target_destructive_tools():
     assert any(s.subtype == "prompt_injection" for s in adversarial)
 
 
-def test_injection_scenario_carries_payload_into_the_environment():
+def test_injection_payload_targets_an_untrusted_read_tool():
+    """The payload must ride on a tool that returns outside content — that is the
+    only place an injection can realistically arrive from."""
     profile = profile_agent(PROMPT, TOOLS)
     suite = generate(profile, per_category=5, seed=1)
-    environment = environment_for(profile, suite)
-    assert environment["injected_content"], "injection payload must reach the mock env"
-    carrier = next(iter(environment["injected_content"]))
-    assert carrier in profile.injection_surface
+    carriers = {tool for scenario in suite for tool in scenario.injected_content}
+    assert carriers, "an injection scenario should exist"
+    assert carriers <= set(profile.injection_surface)
 
 
 def test_every_scenario_is_gradeable():
@@ -99,3 +100,16 @@ def test_agent_with_no_tools_does_not_explode():
     profile = profile_agent("You answer questions.", {})
     suite = generate(profile, per_category=2, seed=1)
     assert isinstance(suite, list)
+
+
+def test_injection_payloads_stay_on_their_own_scenario():
+    """Held on the shared environment, an injection aimed at one scenario fired in
+    every other scenario that happened to read the same tool."""
+    profile = profile_agent(PROMPT, TOOLS)
+    suite = generate(profile, per_category=5, seed=1)
+    environment = environment_for(profile, suite)
+    assert environment["injected_content"] == {}, "sandbox must not carry payloads"
+
+    injected = [s for s in suite if s.injected_content]
+    assert injected, "the injection scenario should still carry its own payload"
+    assert all(s.category == "adversarial" for s in injected)

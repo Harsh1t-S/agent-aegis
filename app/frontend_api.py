@@ -61,6 +61,8 @@ class EvaluateIn(BaseModel):
     seed: int = 42
     adapter: str = "behavioral"
     url: str | None = None
+    model: str | None = None
+    models: list[str] | None = None
     # Settings exposes this as "inject prompt-injection and jailbreak variants".
     # It has to gate generation, not the traits of the agent under test — doing the
     # latter made turning it OFF raise the score, which is backwards.
@@ -412,12 +414,21 @@ def evaluate(agent_id: str, body: EvaluateIn, background: BackgroundTasks,
                             initial_prompt=spec.initial_prompt,
                             expected_behavior=spec.expected_behavior,
                             mock_environment_id=environment.id, difficulty=spec.difficulty,
-                            generator_version=GENERATOR_VERSION)
+                            generator_version=GENERATOR_VERSION,
+                            injected_content=spec.injected_content)
         db.add(scenario); scenarios.append(scenario)
     db.commit()
 
-    config = ({"adapter": "http", "url": body.url} if body.adapter == "http" and body.url
-              else {"adapter": "behavioral", "traits": body.traits})
+    if body.adapter == "llm":
+        # A real model under test: it gets the agent's own system prompt and the
+        # sandbox's tool schemas, and the sandbox contains whatever it decides to do.
+        config = {"adapter": "llm", "model": body.model,
+                  "models": body.models or ([body.model] if body.model else None),
+                  "system_prompt": agent.system_prompt}
+    elif body.adapter == "http" and body.url:
+        config = {"adapter": "http", "url": body.url}
+    else:
+        config = {"adapter": "behavioral", "traits": body.traits}
     version = AgentVersion(agent_id=agent.id, version_label=body.versionLabel,
                            config_snapshot=config)
     db.add(version); db.commit(); db.refresh(version)

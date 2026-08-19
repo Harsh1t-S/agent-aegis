@@ -9,6 +9,8 @@
 """
 from __future__ import annotations
 
+import asyncio
+import json
 import re
 from typing import Any
 
@@ -150,12 +152,153 @@ class BehavioralAdapter(AgentAdapter):
                 "content": "I could not find a suitable tool for this request."}
 
 
-def adapter_for(config: dict) -> AgentAdapter:
+def adapter_for(config: dict, rotation: int = 0) -> AgentAdapter:
     kind = config.get("adapter", "http")
     if kind == "scripted":
         return ScriptedAdapter(config.get("responses", []))
     if kind == "behavioral":
         return BehavioralAdapter(config.get("traits", []))
+    if kind == "llm":
+        return LLMAgentAdapter(model=config.get("model"),
+                               models=config.get("models"),
+                               rotation=rotation,
+                               system_prompt=config.get("system_prompt", ""),
+                               base_url=config.get("base_url"),
+                               api_key=config.get("api_key"))
     if kind == "http":
         return HttpAgentAdapter(config["url"], config.get("headers"))
     raise ValueError(f"Unsupported adapter '{kind}'")
+
+
+class LLMAgentAdapter(AgentAdapter):
+    """A real language model acting as the agent under test.
+
+    Any OpenAI-compatible chat-completions endpoint works, which covers Groq,
+    OpenAI, OpenRouter and most local servers. The model is handed the scenario's
+    system prompt and the sandbox's tool schemas and is free to call them; the
+    sandbox decides what those calls actually do, so nothing it invokes can reach
+    the outside world.
+
+    This is what makes the whole evaluator meaningful — a scripted fake fails where
+    you scripted it to, whereas a real model fails where it genuinely will.
+    """
+
+    DEFAULT_BASE = "https://api.groq.com/openai/v1"
+    DEFAULT_MODEL = "openai/gpt-oss-20b"
+    MAX_RETRIES = 4
+
+    def __init__(self, model: str | None = None, system_prompt: str = "",
+                 base_url: str | None = None, api_key: str | None = None,
+                 temperature: float = 0.0, models: list[str] | None = None,
+                 rotation: int = 0):
+        import os
+
+        # A pool spreads load across per-model rate limits. One model is chosen per
+        # run and used for the whole conversation: swapping mid-run would mean the
+        # score no longer describes any single agent. Failover only happens when a
+        # model refuses to serve at all, and the trace records it.
+        self.pool = [m for m in (models or []) if m] or [
+            model or os.getenv("LLM_MODEL", self.DEFAULT_MODEL)]
+        self.rotation = rotation
+        self.model = self.pool[rotation % len(self.pool)]
+        self.served_by: list[str] = []
+        self.base_url = (base_url or os.getenv("LLM_BASE_URL", self.DEFAULT_BASE)).rstrip("/")
+        self.api_key = api_key or os.getenv("LLM_API_KEY") or os.getenv("GROQ_API_KEY", "")
+        self.system_prompt = system_prompt
+        self.temperature = temperature
+
+    @staticmethod
+    def _schema(tools: dict[str, dict]) -> list[dict]:
+        """Sandbox definitions -> OpenAI function schemas."""
+        out = []
+        for name, definition in (tools or {}).items():
+            definition = definition or {}
+            out.append({
+                "type": "function",
+                "function": {
+                    "name": name,
+                    "description": definition.get("description") or name.replace("_", " "),
+                    "parameters": definition.get("parameters")
+                                  or {"type": "object", "properties": {}},
+                },
+            })
+        return out
+
+    def _conversation(self, messages: list[dict]) -> list[dict]:
+        """Our trace-shaped history -> chat-completions messages."""
+        out: list[dict] = []
+        if self.system_prompt:
+            out.append({"role": "system", "content": self.system_prompt})
+        for message in messages:
+            if message.get("role") == "user":
+                out.append({"role": "user", "content": message.get("content", "")})
+            elif message.get("role") == "tool":
+                # Tool output is untrusted data; label it so a well-behaved model
+                # treats it as a result rather than as fresh instructions.
+                out.append({"role": "user",
+                            "content": f"[tool result from {message.get('name')}] "
+                                       f"{json.dumps(message.get('content'), default=str)[:1500]}"})
+            elif "tool_call" in message:
+                call = message["tool_call"]
+                out.append({"role": "assistant",
+                            "content": f"[called {call.get('name')} with "
+                                       f"{json.dumps(call.get('arguments', {}), default=str)[:500]}]"})
+            elif message.get("content"):
+                out.append({"role": "assistant", "content": message["content"]})
+        return out
+
+    async def next_action(self, messages, tools):
+        if not self.api_key:
+            raise ValueError("No API key for the llm adapter (set LLM_API_KEY or GROQ_API_KEY)")
+
+        payload = {
+            "model": self.model,
+            "messages": self._conversation(messages),
+            "temperature": self.temperature,
+        }
+        schema = self._schema(tools)
+        if schema:
+            payload["tools"] = schema
+            payload["tool_choice"] = "auto"
+
+        # Free tiers rate-limit aggressively. Without a retry a whole guardrail
+        # ladder dies on 429 and — worse — the runs that never executed used to be
+        # indistinguishable from runs the agent passed.
+        async with httpx.AsyncClient(timeout=60) as client:
+            # Prefer this run's model; fall back through the rest of the pool only
+            # when it is rate-limited, and sleep only once nothing will serve.
+            order = [self.model] + [m for m in self.pool if m != self.model]
+            for attempt in range(self.MAX_RETRIES):
+                candidate = order[attempt % len(order)]
+                payload["model"] = candidate
+                response = await client.post(
+                    f"{self.base_url}/chat/completions", json=payload,
+                    headers={"Authorization": f"Bearer {self.api_key}"})
+                if response.status_code == 429 or response.status_code >= 500:
+                    if attempt == self.MAX_RETRIES - 1:
+                        response.raise_for_status()
+                    # Only wait once every model in the pool has been tried.
+                    if (attempt + 1) % len(order) == 0:
+                        wait = float(response.headers.get("retry-after") or 0) or 2 ** attempt
+                        await asyncio.sleep(min(wait, 20))
+                    continue
+                response.raise_for_status()
+                self.served_by.append(candidate)
+                break
+            choice = response.json()["choices"][0]["message"]
+
+        calls = choice.get("tool_calls") or []
+        if calls:
+            call = calls[0]["function"]
+            try:
+                arguments = json.loads(call.get("arguments") or "{}")
+            except json.JSONDecodeError:
+                arguments = {"_raw": call.get("arguments")}
+            action = {"type": "tool_call", "tool_name": call["name"],
+                      "arguments": arguments if isinstance(arguments, dict) else {}}
+            # Reasoning that accompanies a call is kept: the drift detector reads it.
+            if choice.get("content"):
+                action["content"] = choice["content"]
+            return action
+
+        return {"type": "final", "content": choice.get("content") or ""}

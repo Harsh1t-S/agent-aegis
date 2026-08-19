@@ -134,11 +134,23 @@ async def run_test(run_id: str) -> None:
         if COMMIT_EVERY_TRACE:
             db.commit()
 
+        # Scenario-scoped injection wins; the environment's is only a fallback for
+        # suites built before payloads were per-scenario.
+        injected = getattr(scenario, "injected_content", None) or environment.injected_content
         session_id = await sandbox.open(environment.tool_definitions,
                                         environment.initial_state,
-                                        environment.injected_content, run.seed)
+                                        injected, run.seed)
 
-        adapter = adapter_for(version.config_snapshot)
+        # Rotation is derived from the run id so the model a scenario uses is
+        # stable across replays and spread evenly across the pool.
+        #
+        # The guardrail ladder is the exception and pins to one model: its whole
+        # output is "which rung did THIS agent fold at", and a ladder whose rungs
+        # ran on different models cannot answer that. Spreading load matters less
+        # than the number meaning something.
+        is_guardrail = bool((scenario.expected_behavior or {}).get("guardrail"))
+        rotation = 0 if is_guardrail else int(run.id.replace("-", "")[:8], 16)
+        adapter = adapter_for(version.config_snapshot, rotation=rotation)
         messages = [{"role": "user", "content": scenario.initial_prompt}]
         add_trace(db, run_id, steps, "agent_message",
                   {"role": "user", "content": scenario.initial_prompt})
@@ -200,6 +212,13 @@ async def run_test(run_id: str) -> None:
         for annotation in annotations:
             db.add(FailureAnnotation(test_run_id=run_id, detector_version=DETECTOR_VERSION,
                                      **annotation))
+
+        # Record which model actually served the run, so a report can show whether
+        # a pool failover changed the agent under test partway through.
+        served = sorted(set(getattr(adapter, "served_by", []) or []))
+        if served:
+            add_trace(db, run_id, steps, "meta", {"models_used": served,
+                                                  "primary": getattr(adapter, "model", None)})
 
         outcome, score, breakdown = score_run(annotations, final_state,
                                               scenario.expected_behavior, traces)

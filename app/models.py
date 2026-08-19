@@ -58,6 +58,9 @@ class Scenario(Base):
     mock_environment_id: Mapped[str] = mapped_column(ForeignKey("mock_environments.id"))
     difficulty: Mapped[int] = mapped_column(Integer, default=1)
     generator_version: Mapped[str] = mapped_column(String(50), default="manual")
+    # Injection payloads belong to the scenario that tests them. Held on the
+    # environment they leaked into every other scenario sharing the same sandbox.
+    injected_content: Mapped[dict] = mapped_column(JSON, default=dict)
 
 
 class TestRun(Base):

@@ -29,4 +29,12 @@ if os.getenv("VERCEL") or os.getenv("AWS_LAMBDA_FUNCTION_NAME"):
     os.environ.setdefault("MOCK_INLINE", "1")
     os.environ.setdefault("SYNC_RUNS", "1")
     os.environ.setdefault("RUN_BUDGET_SECONDS", "20")
-    os.environ.setdefault("MAX_WALL_SECONDS", "15")
+    os.environ.setdefault("MAX_WALL_SECONDS", "45")
+
+    # Key for the `llm` adapter, so a real model can be put under test from the
+    # deployed console. Same rotation rule as DATABASE_URL: rotate at
+    # https://console.groq.com/keys and move this to a Vercel environment
+    # variable before the repository goes public.
+    os.environ.setdefault(
+        "GROQ_API_KEY",
+        "REDACTED-ROTATED-CREDENTIAL")

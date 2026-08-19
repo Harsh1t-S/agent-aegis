@@ -232,6 +232,17 @@ def mock_environment_from_profile(profile: AgentProfile, name: str = "generated-
         definition: dict = {
             "danger_level": tool.danger_level,
             "response": {"message": f"{tool.name} completed"},
+            # A scripted agent only needs the name, but a real model needs a
+            # callable schema, so the sandbox carries one for every tool.
+            "description": tool.description or f"{tool.name.replace('_', ' ')}",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    name: {"type": "string", "description": name.replace("_", " ")}
+                    for name in tool.required_arguments + tool.optional_arguments
+                },
+                "required": list(tool.required_arguments),
+            },
         }
         if tool.danger_level != "low":
             definition["set_state"] = {"path": f"effects.{tool.name}", "value": "done"}

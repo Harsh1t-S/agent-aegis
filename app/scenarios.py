@@ -312,11 +312,10 @@ def environment_for(profile: AgentProfile, suite: list[ScenarioSpec],
     """
     from .introspect import mock_environment_from_profile
 
-    environment = mock_environment_from_profile(profile, name)
-    for scenario in suite:
-        for tool_name, content in scenario.injected_content.items():
-            environment["injected_content"][tool_name] = content
-    return environment
+    # Payloads are NOT merged here any more. One shared environment meant a
+    # realistic scenario that happened to read the same tool met an injection
+    # aimed at a different test, and got graded on it.
+    return mock_environment_from_profile(profile, name)
 
 
 def llm_expand(profile: AgentProfile, suite: list[ScenarioSpec], client=None) -> list[ScenarioSpec]:
