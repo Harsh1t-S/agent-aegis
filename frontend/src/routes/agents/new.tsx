@@ -1,6 +1,6 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { useEffect, useState } from "react";
-import { Info, Plus, Sparkles, Trash2 } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import { ClipboardPaste, Info, Plus, Sparkles, Trash2, Upload } from "lucide-react";
 import { toast } from "sonner";
 import { AppLayout } from "@/components/aegis/AppLayout";
 import { PageHeader } from "@/components/aegis/PageHeader";
@@ -17,6 +17,7 @@ import {
 } from "@/components/ui/select";
 import type { RiskLevel } from "@/lib/types";
 import { api } from "@/lib/api";
+import { parseToolSchema, toolsToJson } from "@/lib/tool-schema";
 import { loadSettings, perCategoryFor } from "@/lib/workspace-settings";
 
 export const Route = createFileRoute("/agents/new")({
@@ -39,6 +40,17 @@ export const Route = createFileRoute("/agents/new")({
   }),
   component: NewAgentPage,
 });
+
+const SCHEMA_PLACEHOLDER = [
+  "[",
+  '  {"type": "function", "function": {',
+  '    "name": "get_order",',
+  '    "description": "Look up an order by id",',
+  '    "parameters": {"type": "object",',
+  '      "properties": {"order_id": {"type": "string"}},',
+  '      "required": ["order_id"]}}}',
+  "]",
+].join("\n");
 
 interface DraftTool {
   key: string;
@@ -95,6 +107,32 @@ function NewAgentPage() {
     { key: "tool-1", name: "", description: "", risk: "low" },
   ]);
   const [saving, setSaving] = useState(false);
+  const [showSchema, setShowSchema] = useState(false);
+  const [schemaText, setSchemaText] = useState("");
+  const [schemaErrors, setSchemaErrors] = useState<string[]>([]);
+  const fileInput = useRef<HTMLInputElement>(null);
+
+  /** Replaces the draft rows with whatever the pasted or uploaded schema holds. */
+  const importSchema = (text: string) => {
+    const { tools: parsed, errors } = parseToolSchema(text);
+    setSchemaErrors(errors);
+    if (!parsed.length) {
+      toast.error(errors[0] ?? "No tools found in that schema.");
+      return;
+    }
+    setTools(parsed.map((tool, index) => ({
+      key: `imported-${index}-${Date.now()}`,
+      name: tool.name,
+      description: tool.description,
+      // Risk is only a hint here; the backend re-derives it from the tool's verb.
+      risk: tool.risk ?? "low",
+    })));
+    setShowSchema(false);
+    toast.success(
+      `Imported ${parsed.length} tool${parsed.length === 1 ? "" : "s"}` +
+        (errors.length ? ` (${errors.length} skipped)` : ""),
+    );
+  };
 
   // Restore a draft saved on this device, so "Save as Draft" survives a reload.
   useEffect(() => {
@@ -253,6 +291,85 @@ function NewAgentPage() {
             title="Available tools"
             description="Tools are mocked in the sandbox; risk level drives adversarial pressure."
           >
+            {/* Nobody has their tools as a form. They have a schema. */}
+            <div className="rounded-lg border border-dashed border-border bg-surface/40 p-4">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div>
+                  <p className="text-xs font-medium">Import a tool schema</p>
+                  <p className="text-xs text-muted-foreground">
+                    Paste an OpenAI <code>tools</code> array, an Anthropic/MCP tool list, or a
+                    name-to-definition map. Upload a .json file instead if you prefer.
+                  </p>
+                </div>
+                <div className="flex items-center gap-2">
+                  <input
+                    ref={fileInput}
+                    type="file"
+                    accept="application/json,.json,.txt"
+                    className="hidden"
+                    onChange={(event) => {
+                      const file = event.target.files?.[0];
+                      if (!file) return;
+                      if (file.size > 512_000) {
+                        toast.error("That file is larger than 500 KB.");
+                        return;
+                      }
+                      const reader = new FileReader();
+                      reader.onload = () => {
+                        setSchemaText(String(reader.result ?? ""));
+                        importSchema(String(reader.result ?? ""));
+                      };
+                      reader.readAsText(file);
+                      event.target.value = "";
+                    }}
+                  />
+                  <Button variant="surface" size="sm" onClick={() => fileInput.current?.click()}>
+                    <Upload className="size-3.5" /> Upload .json
+                  </Button>
+                  <Button variant="surface" size="sm" onClick={() => setShowSchema((v) => !v)}>
+                    <ClipboardPaste className="size-3.5" /> {showSchema ? "Hide" : "Paste schema"}
+                  </Button>
+                </div>
+              </div>
+              {showSchema ? (
+                <div className="mt-3 space-y-2">
+                  <Textarea
+                    rows={8}
+                    value={schemaText}
+                    onChange={(e) => setSchemaText(e.target.value)}
+                    placeholder={SCHEMA_PLACEHOLDER}
+                    className="font-mono text-xs"
+                  />
+                  <div className="flex flex-wrap items-center gap-2">
+                    <Button size="sm" onClick={() => importSchema(schemaText)}>
+                      Import tools
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => {
+                        const named = tools.filter((t) => t.name.trim());
+                        if (!named.length) {
+                          toast.error("No tools to copy yet.");
+                          return;
+                        }
+                        setSchemaText(toolsToJson(named.map((t) => ({
+                          name: t.name, description: t.description,
+                        }))));
+                      }}
+                    >
+                      Copy current tools out
+                    </Button>
+                    {schemaErrors.length ? (
+                      <span className="text-xs text-destructive">
+                        {schemaErrors.slice(0, 2).join(" ")}
+                      </span>
+                    ) : null}
+                  </div>
+                </div>
+              ) : null}
+            </div>
+
             <div className="space-y-3">
               {tools.map((tool, i) => (
                 <div key={tool.key} className="rounded-lg border border-border bg-surface/60 p-4">

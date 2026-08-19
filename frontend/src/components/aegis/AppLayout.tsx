@@ -79,23 +79,29 @@ function UserBlock() {
     <DropdownMenu>
       <DropdownMenuTrigger className="flex w-full cursor-pointer items-center gap-3 rounded-lg border border-sidebar-border bg-sidebar-accent/40 px-3 py-2 text-left transition-colors hover:bg-sidebar-accent">
         <span className="grid size-8 shrink-0 place-items-center rounded-full bg-primary/20 text-xs font-semibold text-primary">
-          JP
+          AE
         </span>
         <span className="min-w-0 flex-1">
-          <span className="block truncate text-sm font-medium">Jai Pratap</span>
-          <span className="block truncate text-xs text-muted-foreground">Reliability Lead</span>
+          <span className="block truncate text-sm font-medium">Local workspace</span>
+          <span className="block truncate text-xs text-muted-foreground">No sign-in required</span>
         </span>
         <ChevronsUpDown className="size-4 shrink-0 text-muted-foreground" />
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="start" className="w-56">
-        <DropdownMenuLabel>jai@aegis.dev</DropdownMenuLabel>
+      {/* This deployment has no authentication, so it shows no user. A fabricated
+          name and a Sign out link that only navigates home read as a mockup — and
+          would be the first thing a reviewer pulled on. */}
+      <DropdownMenuContent align="start" className="w-64">
+        <DropdownMenuLabel className="font-normal text-xs text-muted-foreground">
+          Single shared workspace. Anyone with the link sees the same agents and runs.
+        </DropdownMenuLabel>
         <DropdownMenuSeparator />
         <DropdownMenuItem asChild>
           <Link to="/settings">Workspace settings</Link>
         </DropdownMenuItem>
-        <DropdownMenuSeparator />
         <DropdownMenuItem asChild>
-          <Link to="/">Sign out</Link>
+          <a href="https://github.com/Harsh1t-S/aegis-evaluator" target="_blank" rel="noreferrer">
+            Source and API docs
+          </a>
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>
