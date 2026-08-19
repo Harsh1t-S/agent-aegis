@@ -34,9 +34,33 @@ function TraceDetail() {
   const { evaluationId, testId } = useParams({
     from: "/evaluations/$evaluationId/tests/$testId",
   });
-  const { data: loaded } = useEvaluation(evaluationId);
+  const { data: loaded, loading, error } = useEvaluation(evaluationId);
   const evaluation = loaded ?? EMPTY_EVALUATION;
-  const test = evaluation.tests.find((t) => t.id === testId) ?? evaluation.tests[0]!;
+  // `evaluation.tests[0]!` asserted non-null over an array that is empty on the
+  // first render and for an evaluation with no completed runs, so `test.id` in the
+  // breadcrumbs threw and the whole trace page rendered blank.
+  const test = evaluation.tests.find((t) => t.id === testId) ?? evaluation.tests[0];
+
+  if (!test) {
+    return (
+      <AppLayout
+        title="Trace"
+        crumbs={[
+          { label: "Aegis", to: "/dashboard" },
+          { label: "Evaluations", to: "/evaluations" },
+          { label: "Trace" },
+        ]}
+      >
+        <div className="p-8 text-sm text-muted-foreground">
+          {loading
+            ? "Loading the execution trace…"
+            : error
+              ? `Could not load this trace: ${error}`
+              : "That scenario is not part of this evaluation, or its run has not finished yet."}
+        </div>
+      </AppLayout>
+    );
+  }
 
   return (
     <AppLayout
