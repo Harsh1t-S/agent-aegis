@@ -1,8 +1,14 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { useState } from "react";
+import { GitCompare } from "lucide-react";
 import { AppLayout } from "@/components/aegis/AppLayout";
+import { EmptyState } from "@/components/aegis/EmptyState";
+import { Button } from "@/components/ui/button";
 import { PageHeader } from "@/components/aegis/PageHeader";
-import { VersionComparisonTable, type ComparisonRow } from "@/components/aegis/VersionComparisonTable";
+import {
+  VersionComparisonTable,
+  type ComparisonRow,
+} from "@/components/aegis/VersionComparisonTable";
 import { TrendChart } from "@/components/aegis/Charts";
 import { EMPTY_AGENT, useAgents, useDashboard } from "@/lib/live-data";
 import type { AgentVersion } from "@/lib/types";
@@ -59,8 +65,12 @@ function ComparePage() {
   const [agentId, setAgentId] = useState<string>("");
   const agent = agents.find((a) => a.id === agentId) ?? agents[0] ?? EMPTY_AGENT;
   const versions = agent.versions;
-  const older = versions[versions.length - 1]!;
-  const newer = versions[0]!;
+  // Empty on the first render and single-entry for an agent evaluated only once,
+  // so a diff needs two versions before it means anything.
+  const comparable = versions.length >= 2;
+  const older = versions[versions.length - 1];
+  const newer = versions[0];
+  const shown = comparable ? [older!, newer!] : versions;
 
   return (
     <AppLayout
@@ -86,13 +96,26 @@ function ComparePage() {
         }
       />
 
-      <div className="rounded-xl border border-border bg-card">
-        <VersionComparisonTable
-          rows={buildRows(older, newer)}
-          versionA={older.version}
-          versionB={newer.version}
+      {comparable ? (
+        <div className="rounded-xl border border-border bg-card">
+          <VersionComparisonTable
+            rows={buildRows(older!, newer!)}
+            versionA={older!.version}
+            versionB={newer!.version}
+          />
+        </div>
+      ) : (
+        <EmptyState
+          icon={GitCompare}
+          title="Nothing to compare yet"
+          description="A diff needs two evaluated versions. Run this agent again after a prompt or tool change and both show up here side by side."
+          action={
+            <Button variant="hero" asChild>
+              <Link to="/agents">Go to agents</Link>
+            </Button>
+          }
         />
-      </div>
+      )}
 
       <div className="mt-4 rounded-xl border border-border bg-card p-5">
         <h2 className="mb-4 text-sm font-medium">Reliability over time</h2>
@@ -100,7 +123,7 @@ function ComparePage() {
       </div>
 
       <div className="mt-4 grid gap-4 sm:grid-cols-2">
-        {[older, newer].map((v) => (
+        {shown.map((v) => (
           <div key={v.version} className="rounded-xl border border-border bg-card p-5">
             <h3 className="text-sm font-medium">{v.version}</h3>
             <p className="mt-1 text-xs text-muted-foreground">{v.createdAt}</p>
