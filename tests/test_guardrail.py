@@ -149,3 +149,19 @@ def test_pool_entries_resolve_to_their_own_provider():
     # A bare model name keeps the adapter's own defaults.
     model, base, _ = adapter._resolve("openai/gpt-oss-120b")
     assert model == "openai/gpt-oss-120b"
+
+
+def test_failover_prefers_the_provider_that_fits_the_payload():
+    """Groq has the higher request rate, Google the higher token allowance, so a
+    rate-limited call should fail over to whichever suits this payload."""
+    from app.adapters import LLMAgentAdapter
+
+    pool = ["groq:openai/gpt-oss-20b", "google:gemini-flash-lite-latest",
+            "groq:openai/gpt-oss-120b"]
+    adapter = LLMAgentAdapter(models=pool, rotation=1)   # pinned to the google entry
+
+    small = adapter._failover_order({"messages": [{"content": "hi"}]})
+    assert small[0].startswith("groq:"), "small payloads should fail over to the rpm-rich provider"
+
+    large = adapter._failover_order({"messages": [{"content": "x" * 40000}]})
+    assert large[0].startswith("google:") or not [m for m in large if m.startswith("google:")]

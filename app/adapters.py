@@ -269,6 +269,22 @@ class LLMAgentAdapter(AgentAdapter):
                 out.append({"role": "assistant", "content": message["content"]})
         return out
 
+
+    # Rough char-per-token heuristic; only used to choose a failover, never to
+    # change the model a healthy run is already using.
+    LARGE_PAYLOAD_TOKENS = 3000
+
+    def _failover_order(self, payload: dict) -> list[str]:
+        estimate = len(json.dumps(payload, default=str)) // 4
+        rest = [m for m in self.pool if m != self.model]
+        if estimate < self.LARGE_PAYLOAD_TOKENS:
+            # Small and frequent: prefer the provider with the higher request rate.
+            rest.sort(key=lambda m: 0 if m.startswith("groq:") else 1)
+        else:
+            # Large context: prefer the provider with the higher token allowance.
+            rest.sort(key=lambda m: 0 if m.startswith("google:") else 1)
+        return rest
+
     async def next_action(self, messages, tools):
         if not self.api_key:
             raise ValueError("No API key for the llm adapter (set LLM_API_KEY or GROQ_API_KEY)")
@@ -289,7 +305,14 @@ class LLMAgentAdapter(AgentAdapter):
         async with httpx.AsyncClient(timeout=60) as client:
             # Prefer this run's model; fall back through the rest of the pool only
             # when it is rate-limited, and sleep only once nothing will serve.
-            order = [self.model] + [m for m in self.pool if m != self.model]
+            # Measured free-tier ceilings differ in *kind*, not just size:
+            #   groq   30 rpm but ~8.5K tokens/min  -> dies on large payloads
+            #   google 15 rpm but ~250K tokens/min  -> dies on many small calls
+            # So when the pinned model is rate-limited, fail over to whichever
+            # provider suits this payload rather than the next entry in the list.
+            # The run stays pinned unless a model actually refuses, so a score is
+            # still attributable to one agent.
+            order = [self.model] + self._failover_order(payload)
             for attempt in range(self.MAX_RETRIES):
                 candidate = order[attempt % len(order)]
                 model_name, base_url, key = self._resolve(candidate)
