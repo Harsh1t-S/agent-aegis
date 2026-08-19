@@ -7,8 +7,8 @@ back as a 502 from the proxy while the API answered 204.
 
 ```bash
 pip install playwright && playwright install chromium
-python tests/browser/test_journeys.py      # nothing -> agent -> run -> report -> trace
-python tests/browser/test_controls.py      # the controls called out by name
+python tests/browser/check_journeys.py      # nothing -> agent -> run -> report -> trace
+python tests/browser/check_controls.py      # the controls called out by name
 python tests/browser/audit_adversarial.py  # what a reviewer pokes at
 python tests/browser/audit_clicks.py       # every button on every route
 ```
@@ -20,3 +20,5 @@ these pages refetch on load, so a dead control on a polling page can pass. It al
 only exercises `button`, `a[href]` and `role=button` — it never tested a table row,
 which is how the unclickable rows survived it. Prefer the journey suite for
 anything that matters.
+
+They are named `check_*` rather than `test_*` on purpose: pytest would collect them, fail to supply their fixtures, and report errors in the backend suite.
