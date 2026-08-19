@@ -190,3 +190,13 @@ def test_evaluation_list_counts_match_the_detail_view(client, ui_agent):
     assert (row["passed"], row["failed"], row["warnings"]) == \
            (detail["passed"], detail["failed"], detail["warnings"])
     assert abs(row["score"] - detail["score"]) < 0.15
+
+
+def test_duplicate_agent_name_is_a_conflict_not_a_server_error(client):
+    """The name column is unique; the integrity error used to reach the user as a 500."""
+    body = {"name": "duplicate-name-check", "systemPrompt": "You are a test agent.",
+            "tools": [{"name": "get_order", "description": "Look up an order"}]}
+    assert client.post("/api/agents", json=body).status_code == 201
+    second = client.post("/api/agents", json=body)
+    assert second.status_code == 409, second.text
+    assert "already exists" in second.json()["detail"]
