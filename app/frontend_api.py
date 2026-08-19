@@ -643,6 +643,21 @@ def guardrail(evaluation_id: str, db: Session = Depends(get_db)):
     return {"ran": True, **analyse(results)}
 
 
+@router.get("/versions/{older_version_id}/compare/{newer_version_id}")
+def compare_versions_for_ui(older_version_id: str, newer_version_id: str,
+                            db: Session = Depends(get_db)):
+    """Regression diff, on the surface the dashboard can actually reach.
+
+    The equivalent lived only at /versions/... which is outside the /api prefix the
+    frontend proxies, so it was unreachable from the dashboard's own origin. The
+    compare page works around that by diffing client-side from each agent's
+    versions, which cannot see scenario-level regressions at all.
+    """
+    from .main import compare_versions
+
+    return compare_versions(older_version_id, newer_version_id, db)
+
+
 @router.get("/dashboard")
 def dashboard(db: Session = Depends(get_db)):
     runs = db.query(TestRun).filter_by(status="complete").all()
