@@ -1,6 +1,5 @@
 import { Link, useRouterState } from "@tanstack/react-router";
 import {
-  Bell,
   Bot,
   ChevronsUpDown,
   FlaskConical,
@@ -24,6 +23,8 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { SearchPalette } from "./SearchPalette";
+import { useSearchPalette } from "@/lib/use-search-palette";
 
 const nav = [
   { label: "Dashboard", to: "/dashboard", icon: LayoutDashboard },
@@ -92,7 +93,6 @@ function UserBlock() {
         <DropdownMenuItem asChild>
           <Link to="/settings">Workspace settings</Link>
         </DropdownMenuItem>
-        <DropdownMenuItem>API keys</DropdownMenuItem>
         <DropdownMenuSeparator />
         <DropdownMenuItem asChild>
           <Link to="/">Sign out</Link>
@@ -119,9 +119,11 @@ export function AppLayout({
   children: ReactNode;
 }) {
   const [open, setOpen] = useState(false);
+  const { open: searchOpen, setOpen: setSearchOpen } = useSearchPalette();
 
   return (
     <div className="min-h-screen bg-background">
+      <SearchPalette open={searchOpen} onOpenChange={setSearchOpen} />
       <aside className="fixed inset-y-0 left-0 z-40 hidden w-[248px] flex-col border-r border-sidebar-border bg-sidebar px-3 py-4 lg:flex">
         <Link to="/dashboard" className="px-2 py-1">
           <AegisLogo />
@@ -188,12 +190,13 @@ export function AppLayout({
               <p className="truncate text-sm font-medium">{title}</p>
             </div>
             <div className="flex items-center gap-1.5">
-              <Button variant="ghost" size="icon" aria-label="Search">
+              <Button
+                variant="ghost"
+                size="icon"
+                aria-label="Search"
+                onClick={() => setSearchOpen(true)}
+              >
                 <Search className="size-4" />
-              </Button>
-              <Button variant="ghost" size="icon" aria-label="Notifications" className="relative">
-                <Bell className="size-4" />
-                <span className="absolute top-2 right-2 size-1.5 rounded-full bg-primary" />
               </Button>
               <span className="ml-1 grid size-8 place-items-center rounded-full bg-primary/20 text-xs font-semibold text-primary">
                 JP

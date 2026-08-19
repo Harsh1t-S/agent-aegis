@@ -8,7 +8,8 @@ import { FailureChart, MetricBars } from "@/components/aegis/Charts";
 import { TestResultTable } from "@/components/aegis/TestResultTable";
 import { GuardrailPanel } from "@/components/aegis/GuardrailPanel";
 import { Button } from "@/components/ui/button";
-import { EMPTY_EVALUATION, useEvaluation } from "@/lib/live-data";
+import { EMPTY_EVALUATION, useAgent, useEvaluation } from "@/lib/live-data";
+import { nextVersionLabel, useRunEvaluation } from "@/lib/use-run-evaluation";
 
 export const Route = createFileRoute("/evaluations/$evaluationId/")({
   head: () => ({
@@ -35,6 +36,8 @@ function ReportPage() {
   const { evaluationId } = useParams({ from: "/evaluations/$evaluationId/" });
   const { data: loaded } = useEvaluation(evaluationId);
   const evaluation = loaded ?? EMPTY_EVALUATION;
+  const { data: agent } = useAgent(evaluation.agentId || undefined);
+  const { run, runningAgentId } = useRunEvaluation();
   const delta = evaluation.score - evaluation.previousScore;
 
   return (
@@ -57,10 +60,17 @@ function ReportPage() {
         title={`${evaluation.agentName} · ${evaluation.version}`}
         subtitle={`Run ${evaluation.id} · ${evaluation.total} scenarios executed on ${evaluation.date}`}
         actions={
-          <Button variant="hero" asChild>
-            <Link to="/evaluations/$evaluationId/running" params={{ evaluationId: "eval_1043" }}>
-              <Repeat className="size-4" /> Re-run evaluation
-            </Link>
+          <Button
+            variant="hero"
+            onClick={() =>
+              void run(
+                evaluation.agentId,
+                nextVersionLabel((agent?.versions ?? []).map((v) => v.version)),
+              )
+            }
+            disabled={!!runningAgentId || !evaluation.agentId}
+          >
+            <Repeat className="size-4" /> {runningAgentId ? "Starting…" : "Re-run evaluation"}
           </Button>
         }
       />

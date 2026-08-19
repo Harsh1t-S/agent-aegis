@@ -1,5 +1,5 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Info, Plus, Sparkles, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { AppLayout } from "@/components/aegis/AppLayout";
@@ -17,6 +17,7 @@ import {
 } from "@/components/ui/select";
 import type { RiskLevel } from "@/lib/types";
 import { api } from "@/lib/api";
+import { loadSettings, perCategoryFor } from "@/lib/workspace-settings";
 
 export const Route = createFileRoute("/agents/new")({
   head: () => ({
@@ -28,7 +29,10 @@ export const Route = createFileRoute("/agents/new")({
           "Describe your agent's prompt, domain and tools so Aegis can generate realistic and adversarial test scenarios.",
       },
       { property: "og:title", content: "New Agent · Aegis" },
-      { property: "og:description", content: "Configure an AI agent for automated reliability evaluation." },
+      {
+        property: "og:description",
+        content: "Configure an AI agent for automated reliability evaluation.",
+      },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },
     ],
@@ -71,6 +75,16 @@ function Section({
   );
 }
 
+const DRAFT_KEY = "aegis.agent-draft.v1";
+
+interface Draft {
+  name: string;
+  description: string;
+  domain: string;
+  prompt: string;
+  tools: DraftTool[];
+}
+
 function NewAgentPage() {
   const navigate = useNavigate();
   const [name, setName] = useState("");
@@ -81,6 +95,35 @@ function NewAgentPage() {
     { key: "tool-1", name: "", description: "", risk: "low" },
   ]);
   const [saving, setSaving] = useState(false);
+
+  // Restore a draft saved on this device, so "Save as Draft" survives a reload.
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(DRAFT_KEY);
+      if (!raw) return;
+      const draft = JSON.parse(raw) as Draft;
+      setName(draft.name ?? "");
+      setDescription(draft.description ?? "");
+      setDomain(draft.domain ?? "");
+      setPrompt(draft.prompt ?? "");
+      if (draft.tools?.length) setTools(draft.tools);
+      toast("Draft restored", { description: "Picked up where you left off." });
+    } catch {
+      /* a corrupt draft should never block the form */
+    }
+  }, []);
+
+  const saveDraft = () => {
+    try {
+      localStorage.setItem(
+        DRAFT_KEY,
+        JSON.stringify({ name, description, domain, prompt, tools } satisfies Draft),
+      );
+      toast.success("Draft saved on this device");
+    } catch {
+      toast.error("Could not save the draft.");
+    }
+  };
 
   const updateTool = (key: string, patch: Partial<DraftTool>) =>
     setTools((prev) => prev.map((t) => (t.key === key ? { ...t, ...patch } : t)));
@@ -109,11 +152,13 @@ function NewAgentPage() {
         })),
       });
       toast.success(`Agent created — ${created.tools.length} tools profiled`);
+      localStorage.removeItem(DRAFT_KEY);
 
+      const settings = loadSettings();
       const started = await api.evaluate(created.id, {
         versionLabel: "v1",
-        traits: ["complies_with_destructive", "claims_success"],
-        perCategory: 3,
+        traits: settings.adversarial ? ["complies_with_destructive", "claims_success"] : [],
+        perCategory: perCategoryFor(settings.scenariosPerRun),
       });
       toast.success(`Generated ${started.total} scenarios — evaluation running`);
       void navigate({
@@ -193,10 +238,13 @@ function NewAgentPage() {
                 onChange={(e) => setPrompt(e.target.value)}
                 rows={12}
                 className="font-mono text-xs leading-relaxed"
-                placeholder={"You are a customer support agent for…\n\nAlways verify order eligibility before discussing refunds.\nNever promise a policy exception that is not supported by tool output."}
+                placeholder={
+                  "You are a customer support agent for…\n\nAlways verify order eligibility before discussing refunds.\nNever promise a policy exception that is not supported by tool output."
+                }
               />
               <p className="text-xs text-muted-foreground">
-                {prompt.length} characters · adversarial coverage improves with explicit constraints.
+                {prompt.length} characters · adversarial coverage improves with explicit
+                constraints.
               </p>
             </div>
           </Section>
@@ -267,7 +315,7 @@ function NewAgentPage() {
             <Button variant="ghost" onClick={() => void navigate({ to: "/agents" })}>
               Cancel
             </Button>
-            <Button variant="surface" onClick={() => toast.success("Draft saved")}>
+            <Button variant="surface" onClick={saveDraft}>
               Save as Draft
             </Button>
             <Button variant="hero" onClick={() => void submit()} disabled={saving}>

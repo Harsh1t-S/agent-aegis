@@ -1,5 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { toast } from "sonner";
+import { useWorkspaceSettings, type WorkspaceSettings } from "@/lib/workspace-settings";
 import { AppLayout } from "@/components/aegis/AppLayout";
 import { PageHeader } from "@/components/aegis/PageHeader";
 import { Button } from "@/components/ui/button";
@@ -28,24 +29,56 @@ export const Route = createFileRoute("/settings")({
   component: SettingsPage,
 });
 
+const automation: { key: keyof WorkspaceSettings; title: string; detail: string }[] = [
+  {
+    key: "adversarial",
+    title: "Adversarial scenarios",
+    detail: "Inject prompt-injection and jailbreak variants in every run.",
+  },
+  {
+    key: "regressionAlerts",
+    title: "Regression alerts",
+    detail: "Notify when reliability drops more than 5 points.",
+  },
+  {
+    key: "autoRerun",
+    title: "Auto re-run on failure",
+    detail: "Re-run failed scenarios once to filter out flakiness.",
+  },
+];
+
 function SettingsPage() {
+  const { settings, update, persist } = useWorkspaceSettings();
+
   return (
     <AppLayout
       title="Settings"
       crumbs={[{ label: "Aegis", to: "/dashboard" }, { label: "Settings" }]}
     >
-      <PageHeader title="Workspace settings" subtitle="Configure defaults for every evaluation run." />
+      <PageHeader
+        title="Workspace settings"
+        subtitle="Configure defaults for every evaluation run."
+      />
 
       <div className="grid gap-4 lg:grid-cols-2">
         <section className="space-y-4 rounded-xl border border-border bg-card p-5">
           <h2 className="text-sm font-medium">Organization</h2>
           <div className="space-y-2">
             <Label htmlFor="org">Workspace name</Label>
-            <Input id="org" defaultValue="Aegis Labs" />
+            <Input
+              id="org"
+              value={settings.workspaceName}
+              onChange={(e) => update({ workspaceName: e.target.value })}
+            />
           </div>
           <div className="space-y-2">
             <Label htmlFor="email">Alert email</Label>
-            <Input id="email" type="email" defaultValue="reliability@aegis.dev" />
+            <Input
+              id="email"
+              type="email"
+              value={settings.alertEmail}
+              onChange={(e) => update({ alertEmail: e.target.value })}
+            />
           </div>
         </section>
 
@@ -53,34 +86,56 @@ function SettingsPage() {
           <h2 className="text-sm font-medium">Evaluation defaults</h2>
           <div className="space-y-2">
             <Label htmlFor="scenarios">Scenarios per run</Label>
-            <Input id="scenarios" type="number" defaultValue={50} />
+            <Input
+              id="scenarios"
+              type="number"
+              min={4}
+              max={40}
+              value={settings.scenariosPerRun}
+              onChange={(e) => update({ scenariosPerRun: Number(e.target.value) })}
+            />
+            <p className="text-xs text-muted-foreground">
+              Applied to every run started from Aegis, rounded to a whole number per category.
+            </p>
           </div>
           <div className="space-y-2">
             <Label htmlFor="threshold">Critical score threshold</Label>
-            <Input id="threshold" type="number" defaultValue={65} />
+            <Input
+              id="threshold"
+              type="number"
+              min={0}
+              max={100}
+              value={settings.criticalThreshold}
+              onChange={(e) => update({ criticalThreshold: Number(e.target.value) })}
+            />
           </div>
         </section>
 
         <section className="space-y-4 rounded-xl border border-border bg-card p-5 lg:col-span-2">
           <h2 className="text-sm font-medium">Automation</h2>
-          {[
-            ["Adversarial scenarios", "Inject prompt-injection and jailbreak variants in every run."],
-            ["Regression alerts", "Notify when reliability drops more than 5 points."],
-            ["Auto re-run on failure", "Re-run failed scenarios once to filter out flakiness."],
-          ].map(([title, detail]) => (
-            <div key={title} className="flex items-center justify-between gap-4">
+          {automation.map(({ key, title, detail }) => (
+            <div key={key} className="flex items-center justify-between gap-4">
               <div>
                 <p className="text-sm font-medium">{title}</p>
                 <p className="text-xs text-muted-foreground">{detail}</p>
               </div>
-              <Switch defaultChecked />
+              <Switch
+                checked={Boolean(settings[key])}
+                onCheckedChange={(checked) => update({ [key]: checked })}
+              />
             </div>
           ))}
         </section>
       </div>
 
       <div className="mt-4 flex justify-end">
-        <Button variant="hero" onClick={() => toast.success("Settings saved")}>
+        <Button
+          variant="hero"
+          onClick={() => {
+            persist(settings);
+            toast.success("Settings saved");
+          }}
+        >
           Save changes
         </Button>
       </div>

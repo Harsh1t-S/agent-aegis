@@ -70,17 +70,37 @@ const steps = [
 ];
 
 const features = [
-  { title: "Adversarial scenario engine", body: "Jailbreaks, prompt injection, ambiguity and contradictory instructions generated per domain." },
-  { title: "Full execution traces", body: "Step-by-step timelines with every tool call, tool response and classifier verdict." },
-  { title: "Failure taxonomy", body: "Six failure classes with severity, frequency and per-version distribution." },
-  { title: "Prompt-level fixes", body: "Each failure ships with a concrete system-prompt recommendation you can copy." },
-  { title: "Version diffing", body: "Reliability, pass rate and failure counts diffed across releases." },
-  { title: "CI-ready", body: "Gate deploys on a reliability threshold and block regressions automatically." },
+  {
+    title: "Adversarial scenario engine",
+    body: "Jailbreaks, prompt injection, ambiguity and contradictory instructions generated per domain.",
+  },
+  {
+    title: "Full execution traces",
+    body: "Step-by-step timelines with every tool call, tool response and classifier verdict.",
+  },
+  {
+    title: "Failure taxonomy",
+    body: "Six failure classes with severity, frequency and per-version distribution.",
+  },
+  {
+    title: "Prompt-level fixes",
+    body: "Each failure ships with a concrete system-prompt recommendation you can copy.",
+  },
+  {
+    title: "Version diffing",
+    body: "Reliability, pass rate and failure counts diffed across releases.",
+  },
+  {
+    title: "CI-ready",
+    body: "Gate deploys on a reliability threshold and block regressions automatically.",
+  },
 ];
 
 function Landing() {
   const { data: evaluations } = useEvaluations();
   const evaluation = evaluations[0] ?? EMPTY_EVALUATION;
+  // Falls back to the dashboard until a first run exists to point at.
+  const demoEvaluationId = evaluations[0]?.id;
   return (
     <div className="min-h-screen bg-background">
       <header className="sticky top-0 z-40 border-b border-border bg-background/80 backdrop-blur-xl">
@@ -89,10 +109,18 @@ function Landing() {
             <AegisLogo />
           </Link>
           <nav className="hidden items-center gap-6 text-sm text-muted-foreground md:flex">
-            <a href="#product" className="transition-colors hover:text-foreground">Product</a>
-            <a href="#how" className="transition-colors hover:text-foreground">How It Works</a>
-            <a href="#features" className="transition-colors hover:text-foreground">Features</a>
-            <a href="#docs" className="transition-colors hover:text-foreground">Documentation</a>
+            <a href="#product" className="transition-colors hover:text-foreground">
+              Product
+            </a>
+            <a href="#how" className="transition-colors hover:text-foreground">
+              How It Works
+            </a>
+            <a href="#features" className="transition-colors hover:text-foreground">
+              Features
+            </a>
+            <a href="#docs" className="transition-colors hover:text-foreground">
+              Documentation
+            </a>
           </nav>
           <div className="ml-auto flex items-center gap-2">
             <Button variant="ghost" size="sm" asChild>
@@ -125,9 +153,13 @@ function Landing() {
                 </Link>
               </Button>
               <Button variant="surface" size="lg" asChild>
-                <Link to="/evaluations/$evaluationId" params={{ evaluationId: "eval_1042" }}>
-                  View Demo
-                </Link>
+                {demoEvaluationId ? (
+                  <Link to="/evaluations/$evaluationId" params={{ evaluationId: demoEvaluationId }}>
+                    View Demo
+                  </Link>
+                ) : (
+                  <Link to="/dashboard">View Demo</Link>
+                )}
               </Button>
             </div>
             <div className="mt-10 flex flex-wrap gap-x-8 gap-y-3 text-xs text-muted-foreground">
@@ -182,7 +214,11 @@ function Landing() {
               <ul className="divide-y divide-border/60 text-xs">
                 {[
                   { i: CheckCircle2, t: "Scenario #38 completed", c: "text-success" },
-                  { i: XCircle, t: "Hallucinated policy exception detected", c: "text-destructive" },
+                  {
+                    i: XCircle,
+                    t: "Hallucinated policy exception detected",
+                    c: "text-destructive",
+                  },
                   { i: Activity, t: "Tool call: check_order", c: "text-info" },
                   { i: CheckCircle2, t: "Grounding check passed", c: "text-success" },
                 ].map((row) => (
@@ -213,9 +249,7 @@ function Landing() {
                   <span className="grid size-10 place-items-center rounded-lg bg-primary/12 text-primary ring-1 ring-primary/20">
                     <s.icon className="size-5" />
                   </span>
-                  <span className="font-mono text-xs text-muted-foreground">
-                    0{i + 1}
-                  </span>
+                  <span className="font-mono text-xs text-muted-foreground">0{i + 1}</span>
                 </div>
                 <h3 className="mt-4 text-base font-semibold">{s.title}</h3>
                 <p className="mt-2 text-sm leading-relaxed text-muted-foreground">{s.body}</p>
@@ -267,9 +301,15 @@ function Landing() {
             © 2026 Aegis Labs · AI Agent Evaluation & Reliability Engine
           </p>
           <div className="flex gap-5 text-xs text-muted-foreground">
-            <a href="#product" className="transition-colors hover:text-foreground">Product</a>
-            <a href="#how" className="transition-colors hover:text-foreground">How it works</a>
-            <a href="#docs" className="transition-colors hover:text-foreground">Docs</a>
+            <a href="#product" className="transition-colors hover:text-foreground">
+              Product
+            </a>
+            <a href="#how" className="transition-colors hover:text-foreground">
+              How it works
+            </a>
+            <a href="#docs" className="transition-colors hover:text-foreground">
+              Docs
+            </a>
           </div>
         </div>
       </footer>

@@ -12,7 +12,10 @@ export const API_BASE: string =
   (import.meta as unknown as { env?: Record<string, string> }).env?.["VITE_API_BASE"] ?? "";
 
 export class ApiError extends Error {
-  constructor(message: string, readonly status: number) {
+  constructor(
+    message: string,
+    readonly status: number,
+  ) {
     super(message);
     this.name = "ApiError";
   }
@@ -82,6 +85,7 @@ export const api = {
   agent: (id: string) => request<Agent>(`/api/agents/${id}`),
   createAgent: (body: NewAgentInput) =>
     request<Agent>("/api/agents", { method: "POST", body: JSON.stringify(body) }),
+  deleteAgent: (id: string) => request<null>(`/api/agents/${id}`, { method: "DELETE" }),
   evaluations: () => request<Evaluation[]>("/api/evaluations"),
   evaluation: (id: string) => request<Evaluation>(`/api/evaluations/${id}`),
   progress: (id: string) => request<EvaluationProgress>(`/api/evaluations/${id}/progress`),

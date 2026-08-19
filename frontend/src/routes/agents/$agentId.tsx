@@ -9,6 +9,7 @@ import { MetricBars, TrendChart } from "@/components/aegis/Charts";
 import { EvaluationTable } from "@/components/aegis/EvaluationTable";
 import { EmptyState } from "@/components/aegis/EmptyState";
 import { EMPTY_AGENT, EMPTY_EVALUATION, useAgent, useAgentEvaluations } from "@/lib/live-data";
+import { nextVersionLabel, useRunEvaluation } from "@/lib/use-run-evaluation";
 import type { TestResult } from "@/lib/types";
 
 export const Route = createFileRoute("/agents/$agentId")({
@@ -21,7 +22,10 @@ export const Route = createFileRoute("/agents/$agentId")({
           "Agent configuration, evaluation history, generated test scenarios and version history in one view.",
       },
       { property: "og:title", content: "Agent details · Aegis" },
-      { property: "og:description", content: "Inspect an AI agent's configuration and reliability history." },
+      {
+        property: "og:description",
+        content: "Inspect an AI agent's configuration and reliability history.",
+      },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },
     ],
@@ -38,6 +42,8 @@ function AgentDetails() {
   const { data: agentEvals } = useAgentEvaluations(agentId);
   const latest = agentEvals[0] ?? EMPTY_EVALUATION;
   const scenarios: TestResult[] = latest.tests.slice(0, 12);
+  const { run, runningAgentId } = useRunEvaluation();
+  const startRun = () => run(agentId, nextVersionLabel(agent.versions.map((v) => v.version)));
 
   return (
     <AppLayout
@@ -48,10 +54,13 @@ function AgentDetails() {
         { label: agent.name },
       ]}
       actions={
-        <Button variant="hero" size="sm" asChild>
-          <Link to="/evaluations/$evaluationId/running" params={{ evaluationId: "eval_1043" }}>
-            <Play className="size-4" /> Run Evaluation
-          </Link>
+        <Button
+          variant="hero"
+          size="sm"
+          onClick={() => void startRun()}
+          disabled={!!runningAgentId}
+        >
+          <Play className="size-4" /> {runningAgentId ? "Starting…" : "Run Evaluation"}
         </Button>
       }
     >
@@ -90,10 +99,14 @@ function AgentDetails() {
             <div className="hidden sm:block">
               <p className="text-xs text-muted-foreground">Reliability</p>
               <p className="text-sm font-medium">{scoreLabel(agent.reliability)}</p>
-              <Button variant="hero" size="sm" className="mt-3" asChild>
-                <Link to="/evaluations/$evaluationId/running" params={{ evaluationId: "eval_1043" }}>
-                  <Play className="size-3.5" /> Run New Evaluation
-                </Link>
+              <Button
+                variant="hero"
+                size="sm"
+                className="mt-3"
+                onClick={() => void startRun()}
+                disabled={!!runningAgentId}
+              >
+                <Play className="size-3.5" /> {runningAgentId ? "Starting…" : "Run New Evaluation"}
               </Button>
             </div>
           </div>
@@ -193,9 +206,14 @@ function AgentDetails() {
               </thead>
               <tbody>
                 {[...agent.versions].reverse().map((v) => (
-                  <tr key={v.version} className="border-b border-border/60 last:border-0 hover:bg-surface/70">
+                  <tr
+                    key={v.version}
+                    className="border-b border-border/60 last:border-0 hover:bg-surface/70"
+                  >
                     <td className="px-4 py-3 font-mono">{v.version}</td>
-                    <td className="px-4 py-3 font-mono text-xs text-muted-foreground">{v.createdAt}</td>
+                    <td className="px-4 py-3 font-mono text-xs text-muted-foreground">
+                      {v.createdAt}
+                    </td>
                     <td className="px-4 py-3 font-mono">{v.reliability}</td>
                     <td className="px-4 py-3 font-mono text-muted-foreground">{v.passRate}%</td>
                     <td className="px-4 py-3 text-xs text-muted-foreground">{v.notes}</td>

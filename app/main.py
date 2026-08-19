@@ -44,13 +44,13 @@ app = FastAPI(title="Aegis — Agent Evaluation & Reliability API", version="1.0
               lifespan=lifespan)
 
 # The dashboard is served from a different origin in every environment we use
-# (Lovable preview, localhost, deployed). Locked down to GET/POST only.
+# (Lovable preview, localhost, deployed). Locked down to the verbs the UI uses.
 app.add_middleware(
     CORSMiddleware,
     allow_origin_regex=(r"https?://(localhost|127\.0\.0\.1)(:\d+)?"
                         r"|https://.*\.lovable\.app"
                         r"|https://.*\.trycloudflare\.com"),
-    allow_methods=["GET", "POST", "OPTIONS"],
+    allow_methods=["GET", "POST", "DELETE", "OPTIONS"],
     allow_headers=["*"],
 )
 

@@ -13,7 +13,7 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Response
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
@@ -334,6 +334,37 @@ def create_agent(body: AgentIn, db: Session = Depends(get_db)):
     agent.profile = profile_agent(body.systemPrompt, schema).to_dict()
     db.add(agent); db.commit(); db.refresh(agent)
     return _agent_payload(db, agent)
+
+
+@router.delete("/agents/{agent_id}", status_code=204)
+def delete_agent(agent_id: str, db: Session = Depends(get_db)):
+    """Remove an agent and everything recorded under it.
+
+    There are no cascade rules on these tables, so the children are cleared
+    explicitly, deepest first, or the rows outlive the agent and reappear in the
+    dashboard aggregates.
+    """
+    agent = db.get(Agent, agent_id)
+    if not agent:
+        raise HTTPException(404, "Agent not found")
+
+    version_ids = [v.id for v in db.query(AgentVersion).filter_by(agent_id=agent_id)]
+    if version_ids:
+        run_ids = [r.id for r in
+                   db.query(TestRun).filter(TestRun.agent_version_id.in_(version_ids))]
+        if run_ids:
+            db.query(FailureAnnotation).filter(
+                FailureAnnotation.test_run_id.in_(run_ids)).delete(synchronize_session=False)
+            db.query(ExecutionTrace).filter(
+                ExecutionTrace.test_run_id.in_(run_ids)).delete(synchronize_session=False)
+            db.query(TestRun).filter(
+                TestRun.id.in_(run_ids)).delete(synchronize_session=False)
+        db.query(AgentVersion).filter(
+            AgentVersion.id.in_(version_ids)).delete(synchronize_session=False)
+
+    db.delete(agent)
+    db.commit()
+    return Response(status_code=204)
 
 
 @router.post("/agents/{agent_id}/evaluate", status_code=202)

@@ -1,5 +1,5 @@
 import { Link } from "@tanstack/react-router";
-import { useState } from "react";
+import { Fragment, useState } from "react";
 import { ChevronDown, ExternalLink } from "lucide-react";
 import type { TestResult, TestStatus } from "@/lib/types";
 import { StatusBadge, severityTone, statusLabel, statusTone } from "./StatusBadge";
@@ -29,7 +29,8 @@ export function TestResultTable({
     <div>
       <div className="flex flex-wrap items-center gap-1.5 border-b border-border px-4 py-3">
         {filters.map((f) => {
-          const count = f.key === "all" ? tests.length : tests.filter((t) => t.status === f.key).length;
+          const count =
+            f.key === "all" ? tests.length : tests.filter((t) => t.status === f.key).length;
           return (
             <button
               key={f.key}
@@ -62,8 +63,9 @@ export function TestResultTable({
           </thead>
           <tbody>
             {rows.map((t) => (
-              <>
-                <tr key={t.id} className="border-b border-border/60 hover:bg-surface/70">
+              // The fragment is the list child, so the key belongs here, not on the rows.
+              <Fragment key={t.id}>
+                <tr className="border-b border-border/60 hover:bg-surface/70">
                   <td className="px-4 py-3">
                     <p className="font-mono text-[11px] text-muted-foreground">{t.scenarioId}</p>
                     <p className="max-w-[320px] truncate font-medium">{t.title}</p>
@@ -91,14 +93,17 @@ export function TestResultTable({
                       onClick={() => setExpanded(expanded === t.id ? null : t.id)}
                     >
                       <ChevronDown
-                        className={cn("size-3.5 transition-transform", expanded === t.id && "rotate-180")}
+                        className={cn(
+                          "size-3.5 transition-transform",
+                          expanded === t.id && "rotate-180",
+                        )}
                       />
                       Details
                     </Button>
                   </td>
                 </tr>
                 {expanded === t.id && (
-                  <tr key={`${t.id}-x`} className="border-b border-border/60 bg-surface/50">
+                  <tr className="border-b border-border/60 bg-surface/50">
                     <td colSpan={6} className="px-4 py-4">
                       <div className="grid gap-4 md:grid-cols-2">
                         <div>
@@ -129,7 +134,7 @@ export function TestResultTable({
                     </td>
                   </tr>
                 )}
-              </>
+              </Fragment>
             ))}
           </tbody>
         </table>

@@ -35,7 +35,7 @@ function EvaluationsPage() {
       crumbs={[{ label: "Aegis", to: "/dashboard" }, { label: "Evaluations" }]}
       actions={
         <Button variant="hero" size="sm" asChild>
-          <Link to="/evaluations/$evaluationId/running" params={{ evaluationId: "eval_1043" }}>
+          <Link to="/agents">
             <Play className="size-4" /> Run Evaluation
           </Link>
         </Button>

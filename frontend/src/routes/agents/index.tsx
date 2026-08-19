@@ -24,8 +24,10 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { useAgents } from "@/lib/live-data";
+import { useAgents, useEvaluations } from "@/lib/live-data";
+import { api } from "@/lib/api";
 import { toast } from "sonner";
+import { useNavigate } from "@tanstack/react-router";
 
 export const Route = createFileRoute("/agents/")({
   head: () => ({
@@ -33,10 +35,14 @@ export const Route = createFileRoute("/agents/")({
       { title: "Agents · Aegis" },
       {
         name: "description",
-        content: "Every AI agent in your workspace with domain, latest version and reliability score.",
+        content:
+          "Every AI agent in your workspace with domain, latest version and reliability score.",
       },
       { property: "og:title", content: "Agents · Aegis" },
-      { property: "og:description", content: "Browse and evaluate the AI agents in your workspace." },
+      {
+        property: "og:description",
+        content: "Browse and evaluate the AI agents in your workspace.",
+      },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },
     ],
@@ -45,21 +51,67 @@ export const Route = createFileRoute("/agents/")({
 });
 
 function AgentsPage() {
-  const { data: mockAgents } = useAgents();
+  const { data: mockAgents, refresh } = useAgents();
+  const { data: evaluations } = useEvaluations();
+  const navigate = useNavigate();
   const [query, setQuery] = useState("");
   const [status, setStatus] = useState("all");
   const [pendingDelete, setPendingDelete] = useState<string | null>(null);
   const [removed, setRemoved] = useState<string[]>([]);
+  const [busy, setBusy] = useState(false);
+
+  // Newest run per agent, so each card's Report button lands on something real.
+  const latestEvaluation = useMemo(() => {
+    const byAgent = new Map<string, string>();
+    for (const e of evaluations) if (!byAgent.has(e.agentId)) byAgent.set(e.agentId, e.id);
+    return byAgent;
+  }, [evaluations]);
+
+  const duplicate = async (agent: (typeof mockAgents)[number]) => {
+    setBusy(true);
+    try {
+      const copy = await api.createAgent({
+        name: `${agent.name} (copy)`,
+        description: agent.description,
+        systemPrompt: agent.systemPrompt,
+        tools: agent.tools.map((t) => ({
+          name: t.name,
+          description: t.description,
+          risk: t.risk,
+        })),
+      });
+      toast.success(`Duplicated as "${copy.name}"`);
+      refresh();
+      void navigate({ to: "/agents/$agentId", params: { agentId: copy.id } });
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Could not duplicate the agent.");
+    }
+    setBusy(false);
+  };
+
+  const confirmDelete = async () => {
+    if (!pendingDelete) return;
+    const id = pendingDelete;
+    setPendingDelete(null);
+    setBusy(true);
+    try {
+      await api.deleteAgent(id);
+      setRemoved((r) => [...r, id]);
+      toast.success("Agent deleted");
+      refresh();
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Could not delete the agent.");
+    }
+    setBusy(false);
+  };
 
   const agents = useMemo(
     () =>
       mockAgents
         .filter((a) => !removed.includes(a.id))
         .filter((a) => (status === "all" ? true : a.status === status))
-        .filter((a) =>
-          `${a.name} ${a.domain}`.toLowerCase().includes(query.trim().toLowerCase()),
-        ),
-    [query, status, removed],
+        .filter((a) => `${a.name} ${a.domain}`.toLowerCase().includes(query.trim().toLowerCase())),
+    [mockAgents, query, status, removed],
   );
 
   const target = mockAgents.find((a) => a.id === pendingDelete);
@@ -130,7 +182,13 @@ function AgentsPage() {
       ) : (
         <div className="mt-5 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
           {agents.map((agent) => (
-            <AgentCard key={agent.id} agent={agent} onDelete={setPendingDelete} />
+            <AgentCard
+              key={agent.id}
+              agent={agent}
+              latestEvaluationId={latestEvaluation.get(agent.id)}
+              onDelete={setPendingDelete}
+              onDuplicate={(a) => void duplicate(a)}
+            />
           ))}
         </div>
       )}
@@ -148,11 +206,8 @@ function AgentsPage() {
             <AlertDialogCancel>Cancel</AlertDialogCancel>
             <AlertDialogAction
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-              onClick={() => {
-                if (pendingDelete) setRemoved((r) => [...r, pendingDelete]);
-                toast.success("Agent deleted");
-                setPendingDelete(null);
-              }}
+              disabled={busy}
+              onClick={() => void confirmDelete()}
             >
               Delete agent
             </AlertDialogAction>

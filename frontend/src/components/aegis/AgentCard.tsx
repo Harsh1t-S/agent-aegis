@@ -1,6 +1,7 @@
 import { Link } from "@tanstack/react-router";
 import { Bot, MoreHorizontal, Play, FileBarChart } from "lucide-react";
 import type { Agent } from "@/lib/types";
+import { nextVersionLabel, useRunEvaluation } from "@/lib/use-run-evaluation";
 import { Button } from "@/components/ui/button";
 import { StatusBadge, statusLabel, statusTone } from "./StatusBadge";
 import { scoreTone } from "./ReliabilityScore";
@@ -19,7 +20,19 @@ const scoreText: Record<string, string> = {
   danger: "text-destructive",
 };
 
-export function AgentCard({ agent, onDelete }: { agent: Agent; onDelete?: (id: string) => void }) {
+export function AgentCard({
+  agent,
+  latestEvaluationId,
+  onDelete,
+  onDuplicate,
+}: {
+  agent: Agent;
+  /** Newest run for this agent; the Report button is disabled without one. */
+  latestEvaluationId?: string | undefined;
+  onDelete?: (id: string) => void;
+  onDuplicate?: (agent: Agent) => void;
+}) {
+  const { run, runningAgentId } = useRunEvaluation();
   return (
     <div className="group flex flex-col rounded-xl border border-border bg-card p-5 transition-all hover:border-border-strong hover:shadow-soft">
       <div className="flex items-start gap-3">
@@ -61,16 +74,26 @@ export function AgentCard({ agent, onDelete }: { agent: Agent; onDelete?: (id: s
       </div>
 
       <div className="mt-4 flex items-center gap-2">
-        <Button size="sm" variant="soft" asChild className="flex-1">
-          <Link to="/evaluations/$evaluationId/running" params={{ evaluationId: "eval_1043" }}>
-            <Play className="size-3.5" /> Evaluate
-          </Link>
+        <Button
+          size="sm"
+          variant="soft"
+          className="flex-1"
+          disabled={!!runningAgentId}
+          onClick={() => void run(agent.id, nextVersionLabel(agent.versions.map((v) => v.version)))}
+        >
+          <Play className="size-3.5" /> {runningAgentId === agent.id ? "Starting…" : "Evaluate"}
         </Button>
-        <Button size="sm" variant="surface" asChild className="flex-1">
-          <Link to="/evaluations/$evaluationId" params={{ evaluationId: "eval_1042" }}>
+        {latestEvaluationId ? (
+          <Button size="sm" variant="surface" asChild className="flex-1">
+            <Link to="/evaluations/$evaluationId" params={{ evaluationId: latestEvaluationId }}>
+              <FileBarChart className="size-3.5" /> Report
+            </Link>
+          </Button>
+        ) : (
+          <Button size="sm" variant="surface" className="flex-1" disabled title="No runs yet">
             <FileBarChart className="size-3.5" /> Report
-          </Link>
-        </Button>
+          </Button>
+        )}
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button size="icon" variant="ghost" aria-label="More actions">
@@ -83,7 +106,9 @@ export function AgentCard({ agent, onDelete }: { agent: Agent; onDelete?: (id: s
                 View details
               </Link>
             </DropdownMenuItem>
-            <DropdownMenuItem>Duplicate agent</DropdownMenuItem>
+            <DropdownMenuItem onClick={() => onDuplicate?.(agent)}>
+              Duplicate agent
+            </DropdownMenuItem>
             <DropdownMenuSeparator />
             <DropdownMenuItem
               className="text-destructive focus:text-destructive"
