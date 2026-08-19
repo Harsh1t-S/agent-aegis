@@ -61,6 +61,10 @@ class EvaluateIn(BaseModel):
     seed: int = 42
     adapter: str = "behavioral"
     url: str | None = None
+    # Settings exposes this as "inject prompt-injection and jailbreak variants".
+    # It has to gate generation, not the traits of the agent under test — doing the
+    # latter made turning it OFF raise the score, which is backwards.
+    adversarial: bool = True
 
 
 def _iso(value: datetime | None) -> str:
@@ -350,8 +354,11 @@ def delete_agent(agent_id: str, db: Session = Depends(get_db)):
 
     version_ids = [v.id for v in db.query(AgentVersion).filter_by(agent_id=agent_id)]
     if version_ids:
-        run_ids = [r.id for r in
-                   db.query(TestRun).filter(TestRun.agent_version_id.in_(version_ids))]
+        runs = db.query(TestRun).filter(TestRun.agent_version_id.in_(version_ids)).all()
+        run_ids = [r.id for r in runs]
+        scenario_ids = sorted({r.scenario_id for r in runs if r.scenario_id})
+        environment_ids = sorted({e for (e,) in db.query(Scenario.mock_environment_id)
+                                  .filter(Scenario.id.in_(scenario_ids))}) if scenario_ids else []
         if run_ids:
             db.query(FailureAnnotation).filter(
                 FailureAnnotation.test_run_id.in_(run_ids)).delete(synchronize_session=False)
@@ -361,6 +368,20 @@ def delete_agent(agent_id: str, db: Session = Depends(get_db)):
                 TestRun.id.in_(run_ids)).delete(synchronize_session=False)
         db.query(AgentVersion).filter(
             AgentVersion.id.in_(version_ids)).delete(synchronize_session=False)
+
+        # Each evaluation mints its own scenarios and sandbox. Leaving them behind
+        # orphans rows that /scenarios still lists and that a run started without
+        # explicit ids would pick up.
+        if scenario_ids:
+            db.query(Scenario).filter(
+                Scenario.id.in_(scenario_ids)).delete(synchronize_session=False)
+        if environment_ids:
+            still_used = {e for (e,) in db.query(Scenario.mock_environment_id)
+                          .filter(Scenario.mock_environment_id.in_(environment_ids))}
+            removable = [e for e in environment_ids if e not in still_used]
+            if removable:
+                db.query(MockEnvironment).filter(
+                    MockEnvironment.id.in_(removable)).delete(synchronize_session=False)
 
     db.delete(agent)
     db.commit()
@@ -380,6 +401,8 @@ def evaluate(agent_id: str, body: EvaluateIn, background: BackgroundTasks,
     profile = profile_agent(agent.system_prompt, agent.tool_schema)
     agent.profile = profile.to_dict()
     suite = generate(profile, per_category=body.perCategory, seed=body.seed)
+    if not body.adversarial:
+        suite = [spec for spec in suite if spec.category != "adversarial"]
     environment = MockEnvironment(**environment_for(profile, suite, f"{agent.name} sandbox"))
     db.add(environment); db.commit(); db.refresh(environment)
 
@@ -552,3 +575,32 @@ def dashboard(db: Session = Depends(get_db)):
         "verdict": verdict(average),
         "trend": trend,
     }
+
+
+@router.post("/evaluations/{evaluation_id}/reanalyze")
+def reanalyze_evaluation(evaluation_id: str, db: Session = Depends(get_db)):
+    """Deterministic replay for a whole evaluation.
+
+    Re-grades every stored trace with the current detectors, without re-running a
+    single agent. That is the half of "replay" that is actually reproducible — and
+    it is what lets an improved detector re-score history for free.
+    """
+    from .main import reanalyze as reanalyze_run
+
+    version = db.get(AgentVersion, evaluation_id)
+    if not version:
+        raise HTTPException(404, "Evaluation not found")
+
+    runs = db.query(TestRun).filter_by(agent_version_id=evaluation_id,
+                                       status="complete").all()
+    if not runs:
+        raise HTTPException(400, "No completed runs to replay")
+
+    changed, results = 0, []
+    for run in runs:
+        outcome = reanalyze_run(run.id, db)
+        changed += bool(outcome["changed"])
+        results.append(outcome)
+    return {"replayed": len(results), "changed": changed,
+            "detectorVersion": results[0]["detector_version"] if results else None,
+            "runs": results}

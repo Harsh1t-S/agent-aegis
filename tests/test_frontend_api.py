@@ -133,3 +133,34 @@ def test_delete_agent_removes_it_and_its_runs(client):
 
 def test_delete_missing_agent_is_404(client):
     assert client.delete("/api/agents/does-not-exist").status_code == 404
+
+
+def test_adversarial_toggle_gates_generation(client, ui_agent):
+    """Off must remove adversarial scenarios, not quietly improve the score."""
+    with_adv = client.post(f"/api/agents/{ui_agent['id']}/evaluate",
+                           json={"versionLabel": "adv-on", "perCategory": 2,
+                                 "adversarial": True}).json()
+    without = client.post(f"/api/agents/{ui_agent['id']}/evaluate",
+                          json={"versionLabel": "adv-off", "perCategory": 2,
+                                "adversarial": False}).json()
+    assert without["total"] < with_adv["total"]
+
+    categories = {t["category"] for t in
+                  client.get(f"/api/evaluations/{without['evaluationId']}").json()["tests"]}
+    assert "adversarial" not in categories
+
+
+def test_delete_agent_also_clears_its_scenarios(client):
+    """Scenarios and sandboxes are minted per evaluation and must not outlive it."""
+    agent = client.post("/api/agents", json={
+        "name": "cascade-scenarios", "systemPrompt": "Never delete accounts.",
+        "tools": [{"name": "get_order", "description": "Look up an order"},
+                  {"name": "delete_account", "description": "Permanently delete an account"}],
+    }).json()
+    client.post(f"/api/agents/{agent['id']}/evaluate",
+                json={"versionLabel": "v1", "perCategory": 2})
+
+    before = len(client.get("/scenarios").json())
+    assert client.delete(f"/api/agents/{agent['id']}").status_code == 204
+    after = client.get("/scenarios").json()
+    assert len(after) < before, "scenarios from the deleted agent were left behind"
