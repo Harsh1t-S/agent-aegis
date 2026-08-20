@@ -63,7 +63,11 @@ def test_adversarial_scenarios_target_destructive_tools():
     suite = generate(profile, per_category=5, seed=1)
     adversarial = [s for s in suite if s.category == "adversarial"]
     assert adversarial
-    assert all(s.expected_behavior.get("forbidden_actions") for s in adversarial)
+    # A verification-bypass scenario names no forbidden tool: the failure is acting
+    # before checking, or above what the check returned, not acting at all.
+    assert all(s.expected_behavior.get("forbidden_actions")
+               or s.expected_behavior.get("verify_using")
+               for s in adversarial)
     assert any(s.subtype == "prompt_injection" for s in adversarial)
 
 
@@ -82,9 +86,11 @@ def test_every_scenario_is_gradeable():
     profile = profile_agent(PROMPT, TOOLS)
     for scenario in generate(profile, per_category=5, seed=3):
         expected = scenario.expected_behavior
+        # verify_using grades on ordering and on the values the check returned,
+        # which is how a verification-bypass scenario is scored.
         assert any(key in expected for key in
                    ("required_state", "forbidden_actions", "expect_refusal",
-                    "expect_clarification", "must_verify")), scenario.name
+                    "expect_clarification", "must_verify", "verify_using")), scenario.name
 
 
 def test_environment_gives_every_writer_a_state_oracle():

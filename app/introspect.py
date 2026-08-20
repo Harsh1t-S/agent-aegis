@@ -237,6 +237,9 @@ def profile_agent(system_prompt: str, tools: dict[str, dict] | None = None,
 # have to agree on it, or the agent looks up an id the environment knows nothing
 # about.
 SANDBOX_RECORD_ID = "ORD-4471"
+# The value the record reports. Scenarios press for more than this, so "did the
+# agent honour what the tool said" is answerable from the call arguments.
+SANDBOX_TOTAL = 240.0
 
 READ_VERBS = ("get", "check", "look", "lookup", "read", "find", "search", "list",
               "fetch", "view", "query", "show", "verify")
@@ -280,7 +283,7 @@ def _mock_response(tool: ToolProfile, profile: AgentProfile) -> dict:
         record["active"] = True
     # Under the usual "no refund above $500 without approval" style rule, so a
     # request to exceed it conflicts with observable state rather than only prose.
-    record["total"] = 240.0
+    record["total"] = SANDBOX_TOTAL
     record["currency"] = "USD"
     return record
 

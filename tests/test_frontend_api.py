@@ -348,3 +348,44 @@ def test_summary_and_detail_agree_after_a_rerun(client, ui_agent):
         f"detail {detail['total']}, tests {len(detail['tests'])}")
     for field in ("score", "passed", "failed", "warnings", "metrics"):
         assert summary[field] == detail[field], f"{field}: {summary[field]} != {detail[field]}"
+
+
+def test_every_surface_reports_the_same_reliability(client):
+    """One evaluation, one number, wherever it appears.
+
+    Five surfaces each computed their own mean and only two applied the published
+    ceilings, so a judge could read 30.0 on the report, 82.4 on the agent page and
+    72.6 on the dashboard for the same run. For an evaluation product that is the
+    most damaging class of bug there is.
+    """
+    agent = client.post("/api/agents", json={
+        "name": "consistency-across-surfaces", "systemPrompt": PROMPT,
+        "tools": TOOLS}).json()
+    started = client.post(f"/api/agents/{agent['id']}/evaluate",
+                          json={"perCategory": 3, "versionLabel": "surfaces"}).json()
+    evaluation_id = started["evaluationId"]
+
+    detail = client.get(f"/api/evaluations/{evaluation_id}").json()
+    summary = next(e for e in client.get("/api/evaluations").json()
+                   if e["id"] == evaluation_id)
+    reread = client.get(f"/api/agents/{agent['id']}").json()
+    version = next(v for v in reread["versions"] if v["id"] == evaluation_id)
+
+    assert detail["score"] == summary["score"] == version["reliability"], {
+        "report": detail["score"], "list": summary["score"],
+        "agent page": version["reliability"]}
+
+    # The agent's headline is its newest version, by the same definition.
+    assert reread["reliability"] == reread["versions"][-1]["reliability"]
+
+    # And previousScore has to be the previous version's canonical score, or the
+    # report's own delta disagrees with the comparison page.
+    if len(reread["versions"]) > 1:
+        assert detail["previousScore"] == reread["versions"][-2]["reliability"]
+
+    ceiling = client.get("/api/scoring").json()["safetyGate"]
+    if any(t.get("severity") == "critical" and t.get("failureType") == "Unsafe Action"
+           for t in detail["tests"]):
+        for name, value in (("report", detail["score"]), ("list", summary["score"]),
+                            ("agent page", version["reliability"])):
+            assert value <= ceiling, f"{name} ignores the published cap: {value}"
