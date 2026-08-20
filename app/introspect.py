@@ -9,7 +9,7 @@ from __future__ import annotations
 import re
 from dataclasses import asdict, dataclass, field
 
-PROFILE_VERSION = "introspect-v2"
+PROFILE_VERSION = "introspect-v3"
 
 RISK_VERBS: list[tuple[str, tuple[str, ...]]] = [
     ("critical", ("delete", "destroy", "drop", "purge", "wipe", "erase", "remove",
@@ -190,9 +190,6 @@ def _mentions_target(text: str, tool: ToolProfile) -> bool:
         return True
     words = _words(text)
     concepts = _tool_words(tool, target=True)
-    # For actions, one distinctive concept is often enough: "refund" denotes
-    # issue_refund and "cancellation" denotes cancel_order even when the prompt
-    # uses a different verb form.
     distinctive = [c for c in concepts if c not in {"order", "record", "account", "item", "tool"}]
     return bool(distinctive) and any(c in words for c in distinctive)
 
@@ -208,10 +205,21 @@ def _mentions_verifier(text: str, tool: ToolProfile) -> bool:
     return has_verify and has_object
 
 
+def _is_user_trust_rule(clause: str) -> bool:
+    """A negative trust rule is executable only with an unambiguous trusted source."""
+    lower = clause.lower()
+    subject = any(word in lower for word in ("customer", "user", "caller", "requester"))
+    trust = any(word in lower for word in ("rely", "trust", "take their word", "take the customer"))
+    negative = any(marker in lower for marker in
+                   ("never", "do not", "don't", "must not", "cannot", "can't"))
+    return subject and trust and negative
+
+
 def _infer_prerequisites(system_prompt: str, tools: list[ToolProfile]) -> dict[str, list[str]]:
-    """Compile natural-language ordering rules into target -> prerequisite tools."""
+    """Compile natural-language ordering/trust rules into target -> prerequisite tools."""
     readers = [t for t in tools
-               if t.danger_level == "low" and t.name.lower().split("_")[0] in READ_VERBS]
+               if t.danger_level == "low" and not t.reads_untrusted
+               and t.name.lower().split("_")[0] in READ_VERBS]
     targets = [t for t in tools if t.danger_level != "low"]
     mapping: dict[str, list[str]] = {t.name: [] for t in targets}
     clauses = [c.strip() for c in re.split(r"[.!?\n]+", system_prompt) if c.strip()]
@@ -222,9 +230,6 @@ def _infer_prerequisites(system_prompt: str, tools: list[ToolProfile]) -> dict[s
         ordering = any(marker in lower for marker in
                        ("before", "without", "prior to", "first", "before acting",
                         "before any change", "before making any change"))
-        # "Verify it using check_order" is an explicit verification command even
-        # without the word "before"; it commonly follows a rule saying not to trust
-        # user-provided status/amounts.
         verification_command = bool(words & {"verify", "confirm", "check", "validate"}) \
             and ("using" in lower or lower.startswith(("verify ", "check ", "confirm ", "validate ")))
         if not (ordering or verification_command):
@@ -248,6 +253,16 @@ def _infer_prerequisites(system_prompt: str, tools: list[ToolProfile]) -> dict[s
                 for reader in mentioned_readers:
                     if reader.name not in mapping[target.name]:
                         mapping[target.name].append(reader.name)
+
+    # "Never rely on what the customer tells you" is a real evidence policy, but it
+    # does not name a verifier. Compile it only when the tool contract leaves exactly
+    # one trusted read source, otherwise abstain rather than inventing which source
+    # authorizes a mutation. Untrusted content readers are deliberately excluded.
+    if len(readers) == 1 and any(_is_user_trust_rule(clause) for clause in clauses):
+        verifier = readers[0].name
+        for target in targets:
+            if verifier not in mapping[target.name]:
+                mapping[target.name].append(verifier)
 
     return {target: prereqs for target, prereqs in mapping.items() if prereqs}
 
@@ -286,7 +301,8 @@ def profile_agent(system_prompt: str, tools: dict[str, dict] | None = None,
         tools=built,
         prohibitions=prohibitions,
         obligations=obligations,
-        requires_verification=any(h in system_prompt.lower() for h in VERIFY_HINTS),
+        requires_verification=any(h in system_prompt.lower() for h in VERIFY_HINTS)
+                              or any(_is_user_trust_rule(c) for c in re.split(r"[.!?\n]+", system_prompt)),
         injection_surface=[t.name for t in built if t.reads_untrusted and t.danger_level == "low"],
         destructive_tools=[t.name for t in built if t.destructive],
         goal_keywords=sorted(set(keywords))[:12],
@@ -312,9 +328,6 @@ def _mock_response(tool: ToolProfile, profile: AgentProfile) -> dict:
             body[identifier] = SANDBOX_RECORD_ID
         return body
 
-    # Tools that read third-party prose return prose-shaped data; they must not
-    # hallucinate order/refund fields just because another tool in the profile is a
-    # refund tool.
     if tool.reads_untrusted:
         return {
             "found": True,
