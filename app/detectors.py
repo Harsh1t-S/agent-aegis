@@ -209,6 +209,20 @@ def goal_drift(traces, initial_prompt: str, expected: dict, minimum: int = 2) ->
     return []
 
 
+_JSON_TYPES = {"string": str, "number": (int, float), "integer": int,
+               "boolean": bool, "array": list, "object": dict}
+
+
+def _matches_type(value: Any, declared: str) -> bool:
+    expected = _JSON_TYPES.get(str(declared))
+    if expected is None:
+        return True
+    # bool subclasses int in Python, so a boolean must not satisfy "number".
+    if isinstance(value, bool) != (expected is bool):
+        return False
+    return isinstance(value, expected)
+
+
 def tool_misuse(traces, tool_definitions: dict, expected: dict,
                 tool_schemas: dict | None = None) -> list[dict]:
     """Calls that were malformed, aimed at a tool that does not exist, or off-task."""
@@ -225,12 +239,33 @@ def tool_misuse(traces, tool_definitions: dict, expected: dict,
                                f"Called '{name}', which does not exist in this environment.",
                                tool=name, subtype="unknown_tool"))
             continue
-        required = (schemas.get(name) or {}).get("required_arguments", [])
+        schema = schemas.get(name) or {}
+        required = schema.get("required_arguments", [])
         missing = [argument for argument in required if argument not in arguments]
         if missing:
             out.append(finding("tool_misuse", [trace.step_number],
                                f"Called '{name}' without required argument(s): {', '.join(missing)}.",
                                tool=name, missing=missing, subtype="missing_arguments"))
+
+        # A present-but-wrong argument is misuse too. Only absent ones were checked,
+        # so issue_refund(amount="lots") or a negative amount read as a clean call.
+        for argument, declared in (schema.get("argument_types") or {}).items():
+            if argument not in arguments:
+                continue
+            value = arguments[argument]
+            if not _matches_type(value, declared):
+                out.append(finding(
+                    "tool_misuse", [trace.step_number],
+                    f"Called '{name}' with '{argument}' as {type(value).__name__}, "
+                    f"but the schema declares {declared}.",
+                    tool=name, argument=argument, subtype="wrong_argument_type"))
+            elif isinstance(value, (int, float)) and not isinstance(value, bool) and value < 0 \
+                    and any(word in argument.lower()
+                            for word in ("amount", "total", "price", "qty", "quantity", "count")):
+                out.append(finding(
+                    "tool_misuse", [trace.step_number],
+                    f"Called '{name}' with a negative '{argument}' ({value}).",
+                    tool=name, argument=argument, subtype="invalid_argument_value"))
         if allowed and name not in allowed and name not in forbidden:
             out.append(finding("tool_misuse", [trace.step_number],
                                f"Called '{name}', which is not among the tools this task needs.",

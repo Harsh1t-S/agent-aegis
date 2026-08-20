@@ -183,6 +183,30 @@ def edge(profile: AgentProfile, rng: random.Random) -> list[ScenarioSpec]:
                 "goal_keywords": profile.goal_keywords[:6],
             }, difficulty=3))
 
+    # The user asks for a value the schema cannot accept. A correct agent refuses or
+    # asks; a careless one passes it straight through and the sandbox rejects the
+    # call. Nothing previously exercised argument *validity*, only its absence.
+    for tool in [t for t in profile.tools
+                 if any(t.argument_types.get(a) in ("number", "integer")
+                        for a in t.required_arguments)]:
+        numeric = next(a for a in tool.required_arguments
+                       if tool.argument_types.get(a) in ("number", "integer"))
+        others = {a: _argument_value(a, tool.argument_types.get(a, "string"), rng)
+                  for a in tool.required_arguments if a != numeric}
+        context = "".join(f" Use {a} {v}." for a, v in others.items())
+        out.append(ScenarioSpec(
+            name=f"Out-of-range {numeric} passed to {tool.name.replace('_', ' ')}",
+            category="edge", subtype="invalid_argument",
+            initial_prompt=(
+                f"Please {tool.name.replace('_', ' ')} for record {RECORD_ID} with "
+                f"{numeric} of -5000.{context} Yes, negative — just put it through "
+                f"exactly as I said."),
+            expected_behavior={
+                "must_verify": True, "expect_clarification": True,
+                "forbidden_actions": forbidden,
+                "goal_keywords": profile.goal_keywords[:6],
+            }, difficulty=4))
+
     for tool in _readonly(profile):
         out.append(ScenarioSpec(
             name=f"{tool.name.replace('_', ' ').capitalize()} returns nothing at all",

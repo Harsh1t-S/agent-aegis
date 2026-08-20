@@ -139,9 +139,15 @@ function Dashboard() {
                 <p className="text-sm font-medium">Reliability trend</p>
                 <p className="text-xs text-muted-foreground">Score across recent evaluation runs</p>
               </div>
-              <span className="font-mono text-xs text-success">
-                {dashboardStats.reliabilityDelta >= 0 ? "+" : ""}
-                {dashboardStats.reliabilityDelta} vs previous version
+              {/* Was always text-success, so a regression was painted as a gain. */}
+              <span
+                className={
+                  dashboardStats.reliabilityDelta < 0
+                    ? "font-mono text-xs text-destructive"
+                    : "font-mono text-xs text-success"
+                }
+              >
+                {signed(dashboardStats.reliabilityDelta)} vs previous version
               </span>
             </div>
             <div className="mt-4">

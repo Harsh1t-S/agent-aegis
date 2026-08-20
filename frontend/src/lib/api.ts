@@ -97,6 +97,22 @@ export interface VersionComparison {
   metric_deltas: Record<string, number>;
 }
 
+export interface CiGate {
+  evaluationId: string;
+  passed: boolean;
+  exitCode: number;
+  gates: { ok: boolean; check: string }[];
+  thresholds: { minScore: number; maxCritical: number; maxFailed: number };
+}
+
+export interface ScoringModel {
+  weights: Record<string, number>;
+  meanings: Record<string, string>;
+  safetyGate: number;
+  safetyGateNote: string;
+  verdictBands: { atLeast: number; label: string }[];
+}
+
 export interface EvaluateInput {
   versionLabel?: string;
   traits?: string[];
@@ -118,6 +134,12 @@ export const api = {
     request<{ runId: string; replayedFrom: string; evaluationId: string; status: string }>(
       `/api/test-runs/${runId}/rerun`,
       { method: "POST" },
+    ),
+  scoring: () => request<ScoringModel>("/api/scoring"),
+  ciGate: (evaluationId: string, minScore: number) =>
+    request<CiGate>(
+      `/api/evaluations/${evaluationId}/ci-gate?min_score=${minScore}` +
+        `&max_critical=0&max_failed=0`,
     ),
   compareVersions: (olderId: string, newerId: string) =>
     request<VersionComparison>(`/api/versions/${olderId}/compare/${newerId}`),

@@ -1,7 +1,9 @@
 import { CheckCircle2, Copy, ShieldX, Terminal } from "lucide-react";
+import { useEffect, useState } from "react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
+import { api, type CiGate } from "@/lib/api";
 import type { Evaluation } from "@/lib/types";
 import { useWorkspaceSettings } from "@/lib/workspace-settings";
 
@@ -17,24 +19,25 @@ import { useWorkspaceSettings } from "@/lib/workspace-settings";
 export function CiGatePanel({ evaluation, agentId }: { evaluation: Evaluation; agentId: string }) {
   const { settings } = useWorkspaceSettings();
   const minScore = settings.criticalThreshold;
-  const criticals = (evaluation.failureBreakdown ?? [])
-    .filter((row) => row.severity === "critical")
-    .reduce((sum, row) => sum + row.count, 0);
 
-  const gates = [
-    {
-      label: `Reliability ≥ ${minScore}`,
-      ok: evaluation.score >= minScore,
-      detail: `scored ${evaluation.score}`,
-    },
-    { label: "No critical failures", ok: criticals === 0, detail: `${criticals} critical` },
-    {
-      label: "No failing scenarios",
-      ok: evaluation.failed === 0,
-      detail: `${evaluation.failed} failed`,
-    },
-  ];
-  const passed = gates.every((g) => g.ok);
+  // The verdict comes from the same evaluate_gates the pipeline runs. Computing it
+  // here in TypeScript meant two implementations of one contract, and a panel that
+  // could show PASS while `python -m app.ci` exited 1.
+  const [gate, setGate] = useState<CiGate | null>(null);
+  useEffect(() => {
+    if (!evaluation.id) return;
+    let cancelled = false;
+    api
+      .ciGate(evaluation.id, minScore)
+      .then((next) => !cancelled && setGate(next))
+      .catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
+  }, [evaluation.id, minScore]);
+
+  if (!gate) return null;
+  const passed = gate.passed;
 
   const command =
     `python -m app.ci --base https://aegis-api-harsh1t.vercel.app \\\n` +
@@ -68,18 +71,17 @@ export function CiGatePanel({ evaluation, agentId }: { evaluation: Evaluation; a
             passed ? "bg-success/15 text-success" : "bg-destructive/15 text-destructive"
           }`}
         >
-          exit {passed ? 0 : 1}
+          exit {gate.exitCode}
         </span>
       </div>
 
       <ul className="mt-4 space-y-1.5">
-        {gates.map((gate) => (
-          <li key={gate.label} className="flex items-center gap-2 text-xs">
-            <span className={gate.ok ? "text-success" : "text-destructive"}>
-              {gate.ok ? "PASS" : "FAIL"}
+        {gate.gates.map((row) => (
+          <li key={row.check} className="flex items-center gap-2 text-xs">
+            <span className={row.ok ? "text-success" : "text-destructive"}>
+              {row.ok ? "PASS" : "FAIL"}
             </span>
-            <span>{gate.label}</span>
-            <span className="text-muted-foreground">· {gate.detail}</span>
+            <span className="font-mono">{row.check}</span>
           </li>
         ))}
       </ul>

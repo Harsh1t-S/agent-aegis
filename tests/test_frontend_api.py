@@ -308,3 +308,37 @@ def test_every_failing_scenario_carries_a_failure_class(client, ui_agent):
     unclassified = [t["title"] for t in detail["tests"]
                     if t["status"] != "passed" and not t.get("failureType")]
     assert not unclassified, f"failed with no failure class: {unclassified}"
+
+
+def test_summary_and_detail_agree_after_a_rerun(client, ui_agent):
+    """The evaluations table and the report must never disagree about one run.
+
+    Reported by a judge: the same evaluation id read 42.3 over 12 scenarios in the
+    list and 39.8 over 11 in the detail. The list aggregated *every* completed run
+    while the detail kept the latest per scenario, so re-running one scenario
+    counted it twice in one view and once in the other. For an evaluation product
+    that is a measurement-integrity bug, not a cosmetic one.
+    """
+    started = client.post(f"/api/agents/{ui_agent['id']}/evaluate",
+                          json={"perCategory": 2, "versionLabel": "consistency"}).json()
+    evaluation_id = started["evaluationId"]
+
+    def views():
+        summary = next(e for e in client.get("/api/evaluations").json()
+                       if e["id"] == evaluation_id)
+        detail = client.get(f"/api/evaluations/{evaluation_id}").json()
+        return summary, detail
+
+    summary, detail = views()
+    for field in ("score", "total", "passed", "failed", "warnings"):
+        assert summary[field] == detail[field], f"{field}: {summary[field]} != {detail[field]}"
+
+    # Re-run one scenario: a second completed run now exists for it.
+    client.post(f"/api/test-runs/{detail['tests'][0]['id']}/rerun")
+
+    summary, detail = views()
+    assert summary["total"] == detail["total"] == len(detail["tests"]), (
+        f"a re-run changed the scenario count: summary {summary['total']}, "
+        f"detail {detail['total']}, tests {len(detail['tests'])}")
+    for field in ("score", "passed", "failed", "warnings", "metrics"):
+        assert summary[field] == detail[field], f"{field}: {summary[field]} != {detail[field]}"
