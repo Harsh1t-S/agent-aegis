@@ -255,6 +255,7 @@ def _version_evaluation(db: Session, version: AgentVersion, agent: Agent,
     # score_run while the published contract states them about reliability itself,
     # so an evaluation holding two confirmed critical unsafe actions reported 76.3.
     score = round(min(sum(scores) / len(scores), ceiling_for(run_findings)), 1) if scores else 0.0
+    # Belt and braces: the same number the rest of the app will read for this id.
 
     if pending:
         status = "running"
@@ -295,11 +296,35 @@ def _version_evaluation(db: Session, version: AgentVersion, agent: Agent,
     }
 
 
-def _version_score(db: Session, version_id: str) -> float:
-    scores = [r.reliability_score for r in
-              db.query(TestRun).filter_by(agent_version_id=version_id, status="complete")
-              if r.reliability_score is not None]
-    return round(sum(scores) / len(scores), 1) if scores else 0.0
+def _version_reliability(db: Session, version_id: str) -> float:
+    """The reliability of one evaluation. The only definition of it.
+
+    Five surfaces each computed their own mean, and only two of them applied the
+    published ceilings — so the same evaluation read 30.0 on its report, 82.4 on
+    the agent page and contributed an uncapped score to the dashboard average.
+    Nothing derives reliability independently any more.
+    """
+    runs = (db.query(TestRun)
+              .filter_by(agent_version_id=version_id, status="complete")
+              .order_by(TestRun.completed_at).all())
+    latest = {r.scenario_id: r for r in runs}          # latest run per scenario
+    scores = [r.reliability_score for r in latest.values() if r.reliability_score is not None]
+    if not scores:
+        return 0.0
+
+    findings: list[tuple[str | None, set[str]]] = []
+    for run in latest.values():
+        annotations = db.query(FailureAnnotation).filter_by(test_run_id=run.id).all()
+        levels = {a.severity for a in annotations}
+        findings.append((
+            next((level for level in ("critical", "high", "medium", "low") if level in levels),
+                 None),
+            {a.failure_type for a in annotations}))
+    return round(min(sum(scores) / len(scores), ceiling_for(findings)), 1)
+
+
+# Kept as the old name so callers read the same; it is now the capped definition.
+_version_score = _version_reliability
 
 
 def _previous_score(db: Session, agent: Agent, version: AgentVersion) -> float:
@@ -339,7 +364,7 @@ def _agent_payload(db: Session, agent: Agent) -> dict:
             "id": version.id,
             "version": version.version_label,
             "createdAt": _iso(version.created_at),
-            "reliability": round(sum(scores) / len(scores), 1) if scores else 0.0,
+            "reliability": _version_reliability(db, version.id),
             "passRate": round(passing / divisor * 100, 1) if runs else 0.0,
             "notes": ", ".join(version.config_snapshot.get("traits", [])) or "—",
             "failures": failures,
@@ -924,19 +949,24 @@ def scoring_model():
 @router.get("/dashboard")
 def dashboard(db: Session = Depends(get_db)):
     runs = db.query(TestRun).filter_by(status="complete").all()
-    scores = [r.reliability_score for r in runs if r.reliability_score is not None]
-    average = round(sum(scores) / len(scores), 1) if scores else 0.0
     critical = db.query(FailureAnnotation).filter_by(severity="critical").count()
+    versions = db.query(AgentVersion).order_by(AgentVersion.created_at).all()
 
-    # Trend: mean score per calendar day of completion.
+    # Averaged over evaluations, not raw runs. Averaging run scores ignored the
+    # ceilings entirely, so the headline moved independently of every report.
+    per_version = {v.id: _version_reliability(db, v.id) for v in versions}
+    evaluated = [score for score in per_version.values() if score > 0.0]
+    average = round(sum(evaluated) / len(evaluated), 1) if evaluated else 0.0
+
+    # Trend: the same capped evaluation scores, by the day the version was created.
     buckets: dict[str, list[float]] = {}
-    for run in runs:
-        if run.completed_at and run.reliability_score is not None:
-            buckets.setdefault(run.completed_at.strftime("%b %d"), []).append(run.reliability_score)
+    for version in versions:
+        score = per_version.get(version.id, 0.0)
+        if score > 0.0 and version.created_at:
+            buckets.setdefault(version.created_at.strftime("%b %d"), []).append(score)
     trend = [{"date": day, "score": round(sum(values) / len(values), 1)}
              for day, values in sorted(buckets.items())][-8:]
 
-    versions = db.query(AgentVersion).order_by(AgentVersion.created_at).all()
     delta = 0.0
     if len(versions) > 1:
         delta = round(_version_score(db, versions[-1].id) - _version_score(db, versions[-2].id), 1)
