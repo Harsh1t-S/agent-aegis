@@ -8,6 +8,7 @@ import { ReliabilityScore, scoreLabel } from "@/components/aegis/ReliabilityScor
 import { MetricBars, TrendChart } from "@/components/aegis/Charts";
 import { EvaluationTable } from "@/components/aegis/EvaluationTable";
 import { EmptyState, LoadingState } from "@/components/aegis/EmptyState";
+import { EditAgentDialog } from "@/components/aegis/EditAgentDialog";
 import {
   EMPTY_AGENT,
   EMPTY_EVALUATION,
@@ -43,7 +44,7 @@ const riskTone = { low: "info", medium: "warning", high: "danger" } as const;
 
 function AgentDetails() {
   const { agentId } = useParams({ from: "/agents/$agentId" });
-  const { data: loadedAgent, loading: agentLoading } = useAgent(agentId);
+  const { data: loadedAgent, loading: agentLoading, refresh: refreshAgent } = useAgent(agentId);
   const agent = loadedAgent ?? EMPTY_AGENT;
   const { data: agentEvals } = useAgentEvaluations(agentId);
   const latest = agentEvals[0] ?? EMPTY_EVALUATION;
@@ -81,14 +82,17 @@ function AgentDetails() {
         { label: agent.name },
       ]}
       actions={
-        <Button
-          variant="hero"
-          size="sm"
-          onClick={() => void startRun()}
-          disabled={!!runningAgentId}
-        >
-          <Play className="size-4" /> {runningAgentId ? "Starting…" : "Run Evaluation"}
-        </Button>
+        <div className="flex items-center gap-2">
+          <EditAgentDialog agent={agent} onSaved={refreshAgent} />
+          <Button
+            variant="hero"
+            size="sm"
+            onClick={() => void startRun()}
+            disabled={!!runningAgentId}
+          >
+            <Play className="size-4" /> {runningAgentId ? "Starting…" : "Run Evaluation"}
+          </Button>
+        </div>
       }
     >
       <div className="rounded-xl border border-border bg-card p-6">

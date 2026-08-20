@@ -130,6 +130,8 @@ export const api = {
   createAgent: (body: NewAgentInput) =>
     request<Agent>("/api/agents", { method: "POST", body: JSON.stringify(body) }),
   deleteAgent: (id: string) => request<null>(`/api/agents/${id}`, { method: "DELETE" }),
+  updateAgent: (id: string, body: Partial<NewAgentInput>) =>
+    request<Agent>(`/api/agents/${id}`, { method: "PATCH", body: JSON.stringify(body) }),
   rerunTest: (runId: string) =>
     request<{ runId: string; replayedFrom: string; evaluationId: string; status: string }>(
       `/api/test-runs/${runId}/rerun`,
