@@ -281,7 +281,12 @@ def _version_evaluation(db: Session, version: AgentVersion, agent: Agent,
                     for key, ui in METRIC_TO_UI.items()},
         "failureBreakdown": [
             {"category": label, "count": count_,
-             "severity": _severity_rank(severity_by_label.get(label, [])) or "low"}
+             "severity": _severity_rank(severity_by_label.get(label, [])) or "low",
+             # The severity above is the worst in the category. criticalCount is how
+             # many findings actually carry it, so a CI gate counting criticals does
+             # not have to treat a whole category as critical because one member is.
+             "criticalCount": sum(1 for level in severity_by_label.get(label, [])
+                                  if level == "critical")}
             for label, count_ in breakdown.items()
         ],
         "categories": [
@@ -658,6 +663,7 @@ def list_evaluations(db: Session = Depends(get_db)):
     }
 
     severities: dict[str, dict[str, str]] = {}
+    critical_counts: dict[str, dict[str, int]] = {}
     breakdown: dict[str, dict[str, int]] = {}
     # Per run, for the same ceilings the detail endpoint applies.
     findings_by_run: dict[str, tuple[str | None, set[str]]] = {}
@@ -685,6 +691,13 @@ def list_evaluations(db: Session = Depends(get_db)):
         worst = severities.setdefault(version_id, {})
         if label not in worst or order.index(severity) > order.index(worst[label]):
             worst[label] = severity
+        # The chart's severity is the worst in the category, which reads as though
+        # every finding in it were that severe: "Hallucination 11, critical" while
+        # only four of the eleven were. Carry the real critical count so a consumer
+        # counting criticals does not have to infer it from a category label.
+        if severity == "critical":
+            crit = critical_counts.setdefault(version_id, {})
+            crit[label] = crit.get(label, 0) + 1
 
     ceilings: dict[str, float] = {}
     for run_id, (severity, types) in findings_by_run.items():
@@ -724,7 +737,8 @@ def list_evaluations(db: Session = Depends(get_db)):
                         for key, ui in METRIC_TO_UI.items()},
             "failureBreakdown": [
                 {"category": label, "count": count,
-                 "severity": severities.get(version.id, {}).get(label, "low")}
+                 "severity": severities.get(version.id, {}).get(label, "low"),
+                 "criticalCount": critical_counts.get(version.id, {}).get(label, 0)}
                 for label, count in failures.items()],
             "tests": [],
         })
@@ -995,13 +1009,27 @@ def dashboard(db: Session = Depends(get_db)):
     trend = [{"date": day, "score": round(sum(values) / len(values), 1)}
              for day, values in sorted(buckets.items())][-8:]
 
+    # averageReliability is the mean across every evaluation; the delta used to be
+    # the newest version minus the one before it. Rendered together as
+    # "64.8 · +69.7 vs previous" they implied a previous overall of -4.9 — two
+    # different populations in one sentence. The delta is now the movement of the
+    # same average, so the pair is arithmetically coherent, and the per-version
+    # movement is reported separately under its own name.
     delta = 0.0
+    latest_delta = 0.0
     if len(versions) > 1:
-        delta = round(_version_score(db, versions[-1].id) - _version_score(db, versions[-2].id), 1)
+        latest_delta = round(per_version.get(versions[-1].id, 0.0)
+                             - per_version.get(versions[-2].id, 0.0), 1)
+        # The same average, minus the newest version: what the headline moved by.
+        earlier = [score for version_id, score in per_version.items()
+                   if version_id != versions[-1].id and score > 0.0]
+        if earlier:
+            delta = round(average - (sum(earlier) / len(earlier)), 1)
 
     return {
         "averageReliability": average,
         "reliabilityDelta": delta,
+        "latestVersionDelta": latest_delta,
         "agentsTested": db.query(Agent).count(),
         "testsExecuted": len(runs),
         "criticalFailures": critical,

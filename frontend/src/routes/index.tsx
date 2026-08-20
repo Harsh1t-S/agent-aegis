@@ -14,7 +14,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { AegisLogo } from "@/components/aegis/AppLayout";
-import { ReliabilityScore } from "@/components/aegis/ReliabilityScore";
+import { ReliabilityScore, scoreLabel } from "@/components/aegis/ReliabilityScore";
 import { FailureChart } from "@/components/aegis/Charts";
 import { StatusBadge } from "@/components/aegis/StatusBadge";
 import { EMPTY_EVALUATION, useEvaluations } from "@/lib/live-data";
@@ -99,6 +99,7 @@ const features = [
 function Landing() {
   const { data: evaluations } = useEvaluations();
   const evaluation = evaluations[0] ?? EMPTY_EVALUATION;
+  const hasReport = Boolean(evaluation.id);
   // Falls back to the dashboard until a first run exists to point at.
   const demoEvaluationId = evaluations[0]?.id;
   return (
@@ -178,25 +179,37 @@ function Landing() {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-xs text-muted-foreground">Reliability Report</p>
-                <p className="text-sm font-medium">Customer Support Agent · v1.3</p>
+                {/* This card used to hardcode "Customer Support Agent · v1.3 ·
+                    78/100 · 50 tests". Inventing a report on the front page of a
+                    product whose whole argument is "do not trust unverified
+                    numbers" is the first thing a reviewer would pull on. */}
+                <p className="text-sm font-medium">
+                  {hasReport
+                    ? `${evaluation.agentName} · ${evaluation.version}`
+                    : "No evaluations yet"}
+                </p>
               </div>
               <StatusBadge tone="warning">Needs attention</StatusBadge>
             </div>
 
             <div className="mt-5 flex flex-col items-center gap-6 sm:flex-row">
-              <ReliabilityScore score={78} size={150} label="Moderately Reliable" />
+              <ReliabilityScore
+                score={hasReport ? evaluation.score : 0}
+                size={150}
+                label={hasReport ? scoreLabel(evaluation.score) : "Awaiting first run"}
+              />
               <div className="grid w-full grid-cols-3 gap-2.5">
                 <div className="rounded-lg border border-border bg-card p-3">
                   <p className="text-[11px] text-muted-foreground">Tests Run</p>
-                  <p className="font-mono text-lg">50</p>
+                  <p className="font-mono text-lg">{hasReport ? evaluation.total : 0}</p>
                 </div>
                 <div className="rounded-lg border border-success/25 bg-success/8 p-3">
                   <p className="text-[11px] text-muted-foreground">Passed</p>
-                  <p className="font-mono text-lg text-success">39</p>
+                  <p className="font-mono text-lg text-success">{hasReport ? evaluation.passed : 0}</p>
                 </div>
                 <div className="rounded-lg border border-destructive/25 bg-destructive/8 p-3">
                   <p className="text-[11px] text-muted-foreground">Failed</p>
-                  <p className="font-mono text-lg text-destructive">11</p>
+                  <p className="font-mono text-lg text-destructive">{hasReport ? evaluation.failed : 0}</p>
                 </div>
               </div>
             </div>
