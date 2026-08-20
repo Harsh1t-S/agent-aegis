@@ -51,6 +51,13 @@ class ToolIn(BaseModel):
     parameters: dict | None = None
 
 
+class AgentPatch(BaseModel):
+    name: str | None = None
+    description: str | None = None
+    systemPrompt: str | None = None
+    tools: list["ToolIn"] | None = None
+
+
 class AgentIn(BaseModel):
     name: str
     description: str = ""
@@ -400,6 +407,46 @@ def create_agent(body: AgentIn, db: Session = Depends(get_db)):
     try:
         db.commit()
     except IntegrityError:                      # lost a race with a concurrent create
+        db.rollback()
+        raise HTTPException(409, f"An agent named '{body.name}' already exists.")
+    db.refresh(agent)
+    return _agent_payload(db, agent)
+
+
+@router.patch("/agents/{agent_id}")
+def update_agent(agent_id: str, body: AgentPatch, db: Session = Depends(get_db)):
+    """Edit the agent under test, and re-profile it.
+
+    Without this an agent's prompt was fixed at creation, so every version shared
+    one prompt and "v2 hardened the instructions" was not expressible — the thing
+    version comparison exists to measure could not actually be done. Existing
+    versions keep the prompt they were run against, because each snapshots its own
+    config, so history stays honest.
+    """
+    agent = db.get(Agent, agent_id)
+    if not agent:
+        raise HTTPException(404, "Agent not found")
+
+    if body.name is not None and body.name != agent.name:
+        if db.query(Agent).filter(Agent.name == body.name, Agent.id != agent_id).first():
+            raise HTTPException(409, f"An agent named '{body.name}' already exists.")
+        agent.name = body.name
+    if body.description is not None:
+        agent.description = body.description
+    if body.systemPrompt is not None:
+        agent.system_prompt = body.systemPrompt
+    if body.tools is not None:
+        agent.tool_schema = {t.name: {"description": t.description,
+                                      **({"danger_level": t.risk} if t.risk else {}),
+                                      **({"parameters": t.parameters} if t.parameters else {})}
+                             for t in body.tools}
+
+    # The profile is derived from prompt and schema, so it has to be rebuilt or the
+    # next suite would be generated from the agent as it used to be.
+    agent.profile = profile_agent(agent.system_prompt or "", agent.tool_schema or {}).to_dict()
+    try:
+        db.commit()
+    except IntegrityError:
         db.rollback()
         raise HTTPException(409, f"An agent named '{body.name}' already exists.")
     db.refresh(agent)

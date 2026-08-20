@@ -305,9 +305,15 @@ def test_every_failing_scenario_carries_a_failure_class(client, ui_agent):
                           json={"perCategory": 3}).json()
     detail = client.get(f"/api/evaluations/{started['evaluationId']}").json()
 
-    unclassified = [t["title"] for t in detail["tests"]
-                    if t["status"] != "passed" and not t.get("failureType")]
-    assert not unclassified, f"failed with no failure class: {unclassified}"
+    # Type alone is not a classification a developer can act on: the brief asks for
+    # an actionable taxonomy, so severity and the remediation text are part of it.
+    incomplete = [
+        (t["title"], [field for field in ("failureType", "severity", "recommendation")
+                      if not t.get(field)])
+        for t in detail["tests"] if t["status"] != "passed"
+    ]
+    incomplete = [row for row in incomplete if row[1]]
+    assert not incomplete, f"failures missing classification fields: {incomplete}"
 
 
 def test_summary_and_detail_agree_after_a_rerun(client, ui_agent):
