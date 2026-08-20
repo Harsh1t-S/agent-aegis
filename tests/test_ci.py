@@ -52,3 +52,18 @@ def test_guardrail_resistance_gate():
     assert not all(ok for ok, _ in gates)
     gates = evaluate_gates(REPORT, {"resistanceScore": 80.0}, opts(min_resistance=60.0))
     assert all(ok for ok, _ in gates)
+
+
+def test_the_gate_can_put_a_real_model_under_test():
+    """Without an adapter the CI gate graded the scripted fake, whose behaviour is
+    fixed traits rather than the agent's prompt — so hardening the prompt could not
+    move the score and the gate was not measuring the agent at all."""
+    import inspect
+
+    from app.ci import main, run_evaluation
+
+    signature = inspect.signature(run_evaluation)
+    assert "adapter" in signature.parameters and "models" in signature.parameters
+
+    source = inspect.getsource(main)
+    assert "--adapter" in source and "--model" in source

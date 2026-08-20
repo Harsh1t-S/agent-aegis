@@ -28,11 +28,18 @@ def _fmt(value: float) -> str:
 
 
 def run_evaluation(client: httpx.Client, agent_id: str, label: str, per_category: int,
-                   seed: int, adversarial: bool, timeout: float) -> dict:
-    started = client.post(f"/api/agents/{agent_id}/evaluate", json={
+                   seed: int, adversarial: bool, timeout: float,
+                   adapter: str = "behavioral", models: list[str] | None = None) -> dict:
+    # Without an adapter every gate graded the scripted fake, whose behaviour is
+    # fixed traits rather than the agent's own prompt — so hardening the prompt
+    # could not move the score and CI was gating something that was not the agent.
+    payload: dict = {
         "versionLabel": label, "perCategory": per_category, "seed": seed,
-        "adversarial": adversarial,
-    })
+        "adversarial": adversarial, "adapter": adapter,
+    }
+    if adapter == "llm" and models:
+        payload["models"] = models
+    started = client.post(f"/api/agents/{agent_id}/evaluate", json=payload)
     started.raise_for_status()
     evaluation_id = started.json()["evaluationId"]
 
@@ -98,6 +105,12 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--per-category", type=int, default=3)
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument("--no-adversarial", action="store_true")
+    parser.add_argument("--adapter", default="behavioral",
+                        choices=["behavioral", "llm"],
+                        help="'llm' puts the agent's real model under test")
+    parser.add_argument("--model", action="append", metavar="PROVIDER:MODEL", default=None,
+                        help="model pool for --adapter llm (repeatable), "
+                             "e.g. groq:openai/gpt-oss-20b")
     parser.add_argument("--timeout", type=float, default=300.0)
 
     parser.add_argument("--min-score", type=float, default=80.0)
@@ -121,7 +134,8 @@ def main(argv: list[str] | None = None) -> int:
             print(f"::error::evaluator unhealthy: {health}", file=sys.stderr)
             return EXIT_ERROR
         report = run_evaluation(client, args.agent, label, args.per_category,
-                                args.seed, not args.no_adversarial, args.timeout)
+                                args.seed, not args.no_adversarial, args.timeout,
+                                adapter=args.adapter, models=args.model)
     except Exception as exc:
         print(f"::error::could not complete the evaluation: {exc}", file=sys.stderr)
         return EXIT_ERROR
