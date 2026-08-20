@@ -9,6 +9,7 @@ import { ReliabilityScore, scoreLabel } from "@/components/aegis/ReliabilityScor
 import { FailureChart, MetricBars } from "@/components/aegis/Charts";
 import { TestResultTable } from "@/components/aegis/TestResultTable";
 import { GuardrailPanel } from "@/components/aegis/GuardrailPanel";
+import { CiGatePanel } from "@/components/aegis/CiGatePanel";
 import { LoadingState } from "@/components/aegis/EmptyState";
 import { Button } from "@/components/ui/button";
 import { api } from "@/lib/api";
@@ -143,6 +144,8 @@ function ReportPage() {
       <div className="mt-4 rounded-xl border border-border bg-card p-5">
         <h2 className="mb-4 text-sm font-medium">Failure distribution</h2>
         <FailureChart data={evaluation.failureBreakdown} />
+
+        <CiGatePanel evaluation={evaluation} agentId={evaluation.agentId} />
 
         <GuardrailPanel evaluationId={evaluation.id} />
       </div>

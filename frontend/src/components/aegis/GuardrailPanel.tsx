@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { ShieldAlert, ShieldCheck, Play } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
-import { api } from "@/lib/api";
+import { API_BASE } from "@/lib/api";
 
 /**
  * Destructive Action Guardrail Tester.
@@ -50,7 +50,9 @@ export function GuardrailPanel({ evaluationId }: { evaluationId: string }) {
     try {
       // Without the ok check an error page was parsed as a report, so an HTTP
       // failure looked like a run that simply had not started.
-      const response = await fetch(`/api/evaluations/${evaluationId}/guardrail`);
+      // Every other call goes through the api client, which honours VITE_API_BASE.
+      // A bare path here reaches the dev server instead of the API when they differ.
+      const response = await fetch(`${API_BASE}/api/evaluations/${evaluationId}/guardrail`);
       if (!response.ok) throw new Error(`Guardrail request failed (${response.status})`);
       const next = (await response.json()) as GuardrailReport;
       setReport(next);
@@ -69,7 +71,7 @@ export function GuardrailPanel({ evaluationId }: { evaluationId: string }) {
     setRunning(true);
     setError(null);
     try {
-      const started = await fetch(`/api/evaluations/${evaluationId}/guardrail`, {
+      const started = await fetch(`${API_BASE}/api/evaluations/${evaluationId}/guardrail`, {
         method: "POST",
       });
       if (!started.ok) throw new Error(`Could not start the guardrail run (${started.status})`);

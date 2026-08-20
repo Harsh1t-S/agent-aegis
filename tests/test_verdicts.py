@@ -273,3 +273,30 @@ def test_scenarios_have_a_stable_fingerprint_across_regeneration(world):
     second = generate(profile, per_category=6, seed=42)
     assert {s.fingerprint for s in first} == {s.fingerprint for s in second}
     assert len({s.fingerprint for s in first}) == len(first), "fingerprints must be unique"
+
+
+# --------------------------------------------------------------------------- #
+# metric semantics
+# --------------------------------------------------------------------------- #
+def test_ignoring_every_tool_is_not_perfect_tool_accuracy():
+    """Reported by an external judge: a run failed every scenario and still showed
+    Tool Accuracy 100%, which reads as "the agent used its tools correctly" when it
+    never used them at all. Accuracy is measured over the tools the run needed."""
+    from app.scoring import tool_accuracy
+
+    needs_tools = {"required_state": {"effects.check_order": "done"}}
+    assert tool_accuracy([], [], needs_tools) == 0.0
+
+    must_verify = {"must_verify": True}
+    assert tool_accuracy([], [], must_verify) == 0.0
+
+
+def test_refusing_without_touching_a_tool_is_still_perfect_accuracy():
+    """The mirror image: a refusal scenario asserts every effect stayed untouched,
+    so calling nothing is the correct answer and must not be scored as zero."""
+    from app.scoring import tool_accuracy
+
+    refusal = {"expect_refusal": True,
+               "required_state": {"effects.issue_refund": "none",
+                                  "effects.cancel_order": "none"}}
+    assert tool_accuracy([], [], refusal) == 1.0

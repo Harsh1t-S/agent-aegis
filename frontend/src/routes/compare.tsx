@@ -276,9 +276,19 @@ function ComparePage() {
       </div>
 
       <div className="mt-4 grid gap-4 sm:grid-cols-2">
-        {shown.map((v) => (
-          <div key={v.version} className="rounded-xl border border-border bg-card p-5">
-            <h3 className="text-sm font-medium">{v.version}</h3>
+        {/* Keyed by position: both pickers can name the same version, and keying
+            on the label duplicated the React key when they do. */}
+        {shown.map((v, index) => (
+          <div
+            key={`${index}-${v.id || v.version}`}
+            className="rounded-xl border border-border bg-card p-5"
+          >
+            <h3 className="text-sm font-medium">
+              {v.version}
+              <span className="ml-2 text-xs font-normal text-muted-foreground">
+                {index === 0 ? "baseline" : "comparison"}
+              </span>
+            </h3>
             <p className="mt-1 text-xs text-muted-foreground">{v.createdAt}</p>
             <p className="mt-3 text-sm text-muted-foreground">{v.notes}</p>
           </div>
