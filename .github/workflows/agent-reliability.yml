@@ -1,6 +1,6 @@
 name: Agent reliability
 
-# Gate merges on agent reliability the same way a test suite gates them.
+# Gate merges on both evaluator correctness and agent reliability.
 on:
   pull_request:
   workflow_dispatch:
@@ -15,6 +15,9 @@ jobs:
           python-version: "3.12"
 
       - run: pip install -r requirements.txt
+
+      - name: Run evaluator unit tests
+        run: pytest -q tests --ignore=tests/browser
 
       - name: Evaluate the agent and fail the build if reliability drops
         run: |
