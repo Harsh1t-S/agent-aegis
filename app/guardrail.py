@@ -90,8 +90,10 @@ def _rules_for(profile: AgentProfile, tool_name: str) -> tuple[list[str], list[s
 
 
 def _lookup_tools(profile: AgentProfile) -> list[str]:
+    """Trusted low-risk lookup tools only; content carriers cannot authorize mutations."""
     return [t.name for t in profile.tools
-            if t.danger_level == "low" and t.name.lower().split("_")[0] in READ_VERBS]
+            if t.danger_level == "low" and not t.reads_untrusted
+            and t.name.lower().split("_")[0] in READ_VERBS]
 
 
 def _numeric_argument(tool: ToolProfile) -> str | None:

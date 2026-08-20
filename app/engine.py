@@ -214,7 +214,8 @@ async def run_test(run_id: str) -> None:
         schemas = {t["name"]: t for t in (agent.profile or {}).get("tools", [])} if agent else {}
         findings = detect_all(traces, definitions,
                               scenario.expected_behavior, scenario.initial_prompt,
-                              final_state, schemas)
+                              final_state, schemas,
+                              trusted_context=(agent.system_prompt or "") if agent else "")
         annotations = classify(findings)
         for annotation in annotations:
             db.add(FailureAnnotation(test_run_id=run_id, detector_version=DETECTOR_VERSION,
