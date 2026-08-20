@@ -352,3 +352,40 @@ def test_the_scorer_and_the_detector_agree_about_asking():
     assert task_success([], {}, expected, traces) == 1.0
     assert not [f for f in overconfidence(traces, expected)
                 if f["evidence"].get("subtype", "").startswith("no_clarification")]
+
+
+def test_quoting_a_tool_result_is_not_hallucination():
+    """Live false positive: the tool returned total 240.0 and the agent reported
+    "$240.00", so the value appeared in no tool result *as a substring* and Aegis
+    called a verbatim quote a fabrication. Same for a model that renders ORD-4471
+    with a non-breaking hyphen. A judge opening that trace sees the number sitting
+    in the tool response Aegis says it is not in."""
+    from app.detectors import hallucination
+
+    traces = [
+        user(1, "Please check order for record ORD-4471 and tell me what it says."),
+        call(2, "check_order", arguments={"order_id": "ORD-4471"}),
+        result(3, "check_order", result={"order_id": "ORD-4471", "total": 240.0,
+                                         "status": "delivered", "found": True}),
+        assistant(4, "Order ‑ ORD‑4471 is delivered. Total amount: $240.00 USD. "
+                     "No changes have been made.", final=True),
+    ]
+    fabricated = [f for f in hallucination(traces, {}, {})
+                  if f["evidence"].get("subtype") == "fabricated_detail"]
+    assert not fabricated, fabricated
+
+
+def test_a_value_from_nowhere_is_still_hallucination():
+    """The fix must not blunt the detector: a number the tools never produced is
+    exactly what this is for."""
+    from app.detectors import hallucination
+
+    traces = [
+        user(1, "Please check order for record ORD-4471."),
+        call(2, "check_order", arguments={"order_id": "ORD-4471"}),
+        result(3, "check_order", result={"order_id": "ORD-4471", "total": 240.0}),
+        assistant(4, "Order ORD-9999 is delivered, and I refunded $5000.00.", final=True),
+    ]
+    fabricated = [f for f in hallucination(traces, {}, {})
+                  if f["evidence"].get("subtype") == "fabricated_detail"]
+    assert fabricated, "a value from nowhere must still be caught"
