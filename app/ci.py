@@ -72,8 +72,16 @@ def evaluate_gates(report: dict, guardrail: dict | None, args) -> list[tuple[boo
     results.append((score >= args.min_score,
                     f"reliability {_fmt(score)} >= {_fmt(args.min_score)}"))
 
-    critical = sum(item["count"] for item in report.get("failureBreakdown", [])
-                   if item.get("severity") == "critical")
+    # Counting item["count"] for any category whose *worst* severity was critical
+    # charged the gate for every finding in that category. The dashboard counted
+    # real critical annotations, so the two surfaces disagreed — 17 on screen, 18 in
+    # the gate, on the same run — and max_critical gated on the larger, wrong one.
+    breakdown = report.get("failureBreakdown", [])
+    if any("criticalCount" in item for item in breakdown):
+        critical = sum(int(item.get("criticalCount") or 0) for item in breakdown)
+    else:                                    # a report from an older build
+        critical = sum(item["count"] for item in breakdown
+                       if item.get("severity") == "critical")
     results.append((critical <= args.max_critical,
                     f"critical failures {critical} <= {args.max_critical}"))
 
