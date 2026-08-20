@@ -25,7 +25,7 @@ from .introspect import profile_agent
 from .models import (Agent, AgentVersion, ExecutionTrace, FailureAnnotation,
                      MockEnvironment, Scenario, TestRun)
 from .scenarios import GENERATOR_VERSION, environment_for, generate
-from .scoring import WEIGHTS, verdict
+from .scoring import WEIGHTS, ceiling_for, verdict
 
 router = APIRouter(prefix="/api", tags=["frontend"])
 
@@ -209,6 +209,8 @@ def _version_evaluation(db: Session, version: AgentVersion, agent: Agent,
 
     failures_flat, tests, breakdown = [], [], _empty_failures()
     severity_by_label: dict[str, list[str]] = {}
+    # (worst severity, failure types) per run, for the published score ceilings.
+    run_findings: list[tuple[str | None, set[str]]] = []
     passed = failed = warnings = 0
     metric_totals = {key: 0.0 for key in WEIGHTS}
     # "across versions and task categories" — the brief asks for both.
@@ -233,6 +235,10 @@ def _version_evaluation(db: Session, version: AgentVersion, agent: Agent,
             if label:
                 breakdown[label] += 1
                 severity_by_label.setdefault(label, []).append(annotation.severity)
+        run_findings.append((
+            next((level for level in ("critical", "high", "medium", "low")
+                  if level in {a.severity for a in annotations}), None),
+            {a.failure_type for a in annotations}))
         passed += run.outcome == "pass"
         failed += run.outcome == "fail"
         warnings += run.outcome == "warning"
@@ -245,7 +251,10 @@ def _version_evaluation(db: Session, version: AgentVersion, agent: Agent,
 
     count = len(latest) or 1
     scores = [r.reliability_score for r in latest.values() if r.reliability_score is not None]
-    score = round(sum(scores) / len(scores), 1) if scores else 0.0
+    # Capped, not just averaged. The gates were applied per scenario inside
+    # score_run while the published contract states them about reliability itself,
+    # so an evaluation holding two confirmed critical unsafe actions reported 76.3.
+    score = round(min(sum(scores) / len(scores), ceiling_for(run_findings)), 1) if scores else 0.0
 
     if pending:
         status = "running"
@@ -625,6 +634,9 @@ def list_evaluations(db: Session = Depends(get_db)):
 
     severities: dict[str, dict[str, str]] = {}
     breakdown: dict[str, dict[str, int]] = {}
+    # Per run, for the same ceilings the detail endpoint applies.
+    findings_by_run: dict[str, tuple[str | None, set[str]]] = {}
+    run_version: dict[str, str] = {}
     order = ["low", "medium", "high", "critical"]
     for run_id, version_id, failure_type, severity in (
             db.query(TestRun.id, TestRun.agent_version_id, FailureAnnotation.failure_type,
@@ -634,6 +646,12 @@ def list_evaluations(db: Session = Depends(get_db)):
         # failure breakdown outlives the run it described.
         if run_id not in kept_ids:
             continue
+        run_version[run_id] = version_id
+        worst_severity, types = findings_by_run.get(run_id, (None, set()))
+        types = types | {failure_type}
+        if worst_severity is None or order.index(severity) > order.index(worst_severity):
+            worst_severity = severity
+        findings_by_run[run_id] = (worst_severity, types)
         label = CATEGORY_LABEL.get(failure_type)
         if not label:
             continue
@@ -643,13 +661,21 @@ def list_evaluations(db: Session = Depends(get_db)):
         if label not in worst or order.index(severity) > order.index(worst[label]):
             worst[label] = severity
 
+    ceilings: dict[str, float] = {}
+    for run_id, (severity, types) in findings_by_run.items():
+        version_id = run_version[run_id]
+        ceilings[version_id] = min(ceilings.get(version_id, 100.0),
+                                   ceiling_for([(severity, types)]))
+
     out = []
     previous_by_agent: dict[str, float] = {}
     for version in reversed(versions):          # oldest first, to carry previousScore
         agent = agents.get(version.agent_id)
         row = totals.get(version.id)
         completed = row["completed"] if row else 0
-        score = round(sum(row["scores"]) / len(row["scores"]), 1) if row and row["scores"] else 0.0
+        score = (round(min(sum(row["scores"]) / len(row["scores"]),
+                           ceilings.get(version.id, 100.0)), 1)
+                 if row and row["scores"] else 0.0)
         queued = pending.get(version.id, 0)
         failures = {**_empty_failures(), **breakdown.get(version.id, {})}
         out.append({
