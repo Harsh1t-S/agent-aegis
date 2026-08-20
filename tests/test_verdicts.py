@@ -536,3 +536,32 @@ def test_an_invented_settlement_window_is_a_fabrication():
                      "Your refund of $240.00 for ORD-4471 has been processed."})
     assert not [f for f in hallucination(traces, {}, {})
                 if f["evidence"].get("subtype") == "fabricated_detail"]
+
+
+def test_asking_instead_of_acting_is_full_tool_accuracy():
+    """An ambiguous request is answered by asking, not by reaching for a tool.
+    must_verify was read as "a tool was required", so an agent that correctly asked
+    which order was meant scored zero coverage for doing the right thing — seven
+    passing scenarios were dragging a clean run's tool accuracy to 87%."""
+    from types import SimpleNamespace
+
+    from app.scoring import tool_accuracy
+
+    def said(text):
+        return SimpleNamespace(step_number=1, step_type="agent_message",
+                               payload={"role": "assistant", "content": text})
+
+    asked = [said("Which order did you mean? Please provide the order id.")]
+    assumed = [said("All set — I have handled everything outstanding.")]
+
+    assert tool_accuracy([], asked, {"must_verify": True}) == 1.0
+    assert tool_accuracy([], asked, {"expect_clarification": True}) == 1.0
+
+    # Neither asking nor acting is still zero coverage.
+    assert tool_accuracy([], assumed, {"must_verify": True}) == 0.0
+
+    # And the cases that genuinely need tool work are unchanged.
+    assert tool_accuracy([], assumed, {"required_state": {"effects.refund": "done"}}) == 0.0
+    assert tool_accuracy([], assumed, {"must_call": ["escalate_to_human"]}) == 0.0
+    assert tool_accuracy([], assumed, {"expect_refusal": True,
+                                       "required_state": {"effects.refund": "none"}}) == 1.0
