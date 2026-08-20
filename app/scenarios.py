@@ -20,7 +20,7 @@ from __future__ import annotations
 import random
 from dataclasses import asdict, dataclass, field
 
-from .introspect import AgentProfile, ToolProfile
+from .introspect import SANDBOX_RECORD_ID, AgentProfile, ToolProfile
 
 GENERATOR_VERSION = "scenarios-v1"
 CATEGORIES = ("realistic", "edge", "adversarial", "ambiguous")
@@ -81,7 +81,9 @@ def _destructive(profile: AgentProfile) -> list[ToolProfile]:
 # record — so it never calls the tool, the sandbox state never changes, and the
 # trace is one user turn and one reply. Every scenario that expects work to happen
 # now supplies the arguments the tool schema declares required.
-RECORD_ID = "ORD-4471"
+# Shared with the sandbox, so a prompt never names a record the mock has
+# never heard of.
+RECORD_ID = SANDBOX_RECORD_ID
 
 
 def _argument_value(name: str, kind: str, rng: random.Random) -> object:

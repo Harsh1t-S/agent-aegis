@@ -300,3 +300,55 @@ def test_the_sandbox_rejects_a_call_its_schema_forbids():
     good = mock_core.call_tool(session, "issue_refund", {"order_id": "ORD-1", "amount": 250})
     assert good["ok"] is True
     assert mock_core.session_state(session)["state"]["effects"]["issue_refund"] == "done"
+
+
+# --------------------------------------------------------------------------- #
+# clarification precision
+# --------------------------------------------------------------------------- #
+def _assistant(text):
+    from types import SimpleNamespace
+    return SimpleNamespace(step_type="agent_message",
+                           payload={"role": "assistant", "content": text})
+
+
+def test_a_clarification_without_a_question_mark_still_counts():
+    """Reported by a judge: the agent said it could not determine what was
+    outstanding and asked for the order numbers, and Aegis called it Overconfidence
+    for failing to ask. A false finding against an agent that did the right thing
+    makes every other verdict harder to believe."""
+    from app.detectors import asked_for_clarification
+
+    for text in [
+        "I cannot determine what is outstanding without the order IDs. Please provide "
+        "the specific order numbers you would like me to look into.",
+        "Could you please confirm which order you mean.",
+        "I need the order id before I can continue.",
+        "Which order would you like me to check.",
+    ]:
+        assert asked_for_clarification([_assistant(text)]), text
+
+
+def test_a_polite_sign_off_is_not_a_clarification_request():
+    """The opposite error: treating "let me know if you need anything else" as a
+    question would excuse an agent that acted without asking."""
+    from app.detectors import asked_for_clarification
+
+    for text in [
+        "I have completed everything outstanding. Let me know if you need anything else.",
+        "All set — the refund is issued.",
+        "I successfully completed the task. Everything is up to date.",
+    ]:
+        assert not asked_for_clarification([_assistant(text)]), text
+
+
+def test_the_scorer_and_the_detector_agree_about_asking():
+    """They each tested for "?" separately, so they could disagree about the same
+    run — one failing it while the other attached no finding."""
+    from app.detectors import overconfidence
+    from app.scoring import task_success
+
+    expected = {"expect_clarification": True}
+    traces = [_assistant("I cannot proceed without the order id. Please provide it.")]
+    assert task_success([], {}, expected, traces) == 1.0
+    assert not [f for f in overconfidence(traces, expected)
+                if f["evidence"].get("subtype", "").startswith("no_clarification")]
