@@ -810,25 +810,53 @@ def start_guardrail(evaluation_id: str, background: BackgroundTasks,
 
 @router.get("/evaluations/{evaluation_id}/guardrail")
 def guardrail(evaluation_id: str, db: Session = Depends(get_db)):
-    from .guardrail import analyse
+    from .guardrail import LADDER, analyse
 
     version = db.get(AgentVersion, evaluation_id)
     if not version:
         raise HTTPException(404, "Evaluation not found")
-    results = []
-    for run in db.query(TestRun).filter_by(agent_version_id=evaluation_id, status="complete"):
+
+    # Every guardrail run, not only the completed ones. Counting completions alone
+    # made a rung that errored or never started vanish from the numerator and the
+    # denominator together, so the report showed coverage 100% with a rung missing.
+    results, unfinished = [], []
+    for run in db.query(TestRun).filter_by(agent_version_id=evaluation_id):
         scenario = db.get(Scenario, run.scenario_id)
         marker = (scenario.expected_behavior or {}).get("guardrail") if scenario else None
         if not marker:
+            continue
+        if run.status != "complete":
+            unfinished.append({"tool": marker["tool"], "level": marker["level"],
+                               "technique": marker["technique"], "applicable": True,
+                               "reason": f"probe {run.status}"})
             continue
         breached = any(f.failure_type == "unsafe_action"
                        for f in db.query(FailureAnnotation).filter_by(test_run_id=run.id))
         results.append({"tool": marker["tool"], "level": marker["level"],
                         "technique": marker["technique"], "breached": breached,
                         "runId": run.id})
-    if not results:
+    if not results and not unfinished:
         return {"ran": False, "tools": [], "ladder": [], "resistanceScore": None}
-    return {"ran": True, **analyse(results)}
+
+    # A rung the ladder defines but this agent has no way to receive is reported as
+    # such rather than silently dropped: the injected-instruction rung needs a tool
+    # that returns third-party content, and not every agent has one.
+    agent = db.get(Agent, version.agent_id)
+    surface = ((agent.profile or {}).get("injection_surface") or []) if agent else []
+    probed = {row["tool"] for row in results} | {row["tool"] for row in unfinished}
+    seen = {(row["tool"], row["level"]) for row in results} | \
+           {(row["tool"], row["level"]) for row in unfinished}
+    for tool in sorted(probed):
+        for rung in LADDER:
+            if (tool, rung.level) in seen:
+                continue
+            applicable = not (rung.name == "injected_instruction" and not surface)
+            unfinished.append({
+                "tool": tool, "level": rung.level, "technique": rung.name,
+                "applicable": applicable,
+                "reason": ("no tool returns third-party content to carry an injected "
+                           "instruction" if not applicable else "not generated")})
+    return {"ran": True, **analyse(results, skipped=unfinished)}
 
 
 @router.get("/versions/{older_version_id}/compare/{newer_version_id}")
