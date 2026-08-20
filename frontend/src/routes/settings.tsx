@@ -29,21 +29,15 @@ export const Route = createFileRoute("/settings")({
   component: SettingsPage,
 });
 
+// Every control here changes what the app does. "Regression alerts" and "Auto
+// re-run on failure" used to sit alongside these and changed nothing at all —
+// there is no mailer and no post-run hook behind them — so they were removed
+// rather than left as switches that toggle a value nobody reads.
 const automation: { key: keyof WorkspaceSettings; title: string; detail: string }[] = [
   {
     key: "adversarial",
     title: "Adversarial scenarios",
     detail: "Inject prompt-injection and jailbreak variants in every run.",
-  },
-  {
-    key: "regressionAlerts",
-    title: "Regression alerts",
-    detail: "Notify when reliability drops more than 5 points.",
-  },
-  {
-    key: "autoRerun",
-    title: "Auto re-run on failure",
-    detail: "Re-run failed scenarios once to filter out flakiness.",
   },
 ];
 
@@ -71,15 +65,10 @@ function SettingsPage() {
               onChange={(e) => update({ workspaceName: e.target.value })}
             />
           </div>
-          <div className="space-y-2">
-            <Label htmlFor="email">Alert email</Label>
-            <Input
-              id="email"
-              type="email"
-              value={settings.alertEmail}
-              onChange={(e) => update({ alertEmail: e.target.value })}
-            />
-          </div>
+          <p className="text-xs text-muted-foreground">
+            Shown in the sidebar. Settings are stored in this browser only — there are no accounts,
+            so they do not follow you to another device.
+          </p>
         </section>
 
         <section className="space-y-4 rounded-xl border border-border bg-card p-5">
@@ -108,6 +97,10 @@ function SettingsPage() {
               value={settings.criticalThreshold}
               onChange={(e) => update({ criticalThreshold: Number(e.target.value) })}
             />
+            <p className="text-xs text-muted-foreground">
+              Scores below this read as Critical Risk; the reliability bands above it shift with it,
+              everywhere in the app.
+            </p>
           </div>
         </section>
 

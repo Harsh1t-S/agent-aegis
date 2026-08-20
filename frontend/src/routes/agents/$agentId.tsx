@@ -7,8 +7,14 @@ import { StatusBadge, statusLabel, statusTone } from "@/components/aegis/StatusB
 import { ReliabilityScore, scoreLabel } from "@/components/aegis/ReliabilityScore";
 import { MetricBars, TrendChart } from "@/components/aegis/Charts";
 import { EvaluationTable } from "@/components/aegis/EvaluationTable";
-import { EmptyState } from "@/components/aegis/EmptyState";
-import { EMPTY_AGENT, EMPTY_EVALUATION, useAgent, useAgentEvaluations } from "@/lib/live-data";
+import { EmptyState, LoadingState } from "@/components/aegis/EmptyState";
+import {
+  EMPTY_AGENT,
+  EMPTY_EVALUATION,
+  useAgent,
+  useAgentEvaluations,
+  useEvaluation,
+} from "@/lib/live-data";
 import { nextVersionLabel, useRunEvaluation } from "@/lib/use-run-evaluation";
 import type { TestResult } from "@/lib/types";
 
@@ -37,13 +43,34 @@ const riskTone = { low: "info", medium: "warning", high: "danger" } as const;
 
 function AgentDetails() {
   const { agentId } = useParams({ from: "/agents/$agentId" });
-  const { data: loadedAgent } = useAgent(agentId);
+  const { data: loadedAgent, loading: agentLoading } = useAgent(agentId);
   const agent = loadedAgent ?? EMPTY_AGENT;
   const { data: agentEvals } = useAgentEvaluations(agentId);
   const latest = agentEvals[0] ?? EMPTY_EVALUATION;
-  const scenarios: TestResult[] = latest.tests.slice(0, 12);
+  // The list endpoint returns `tests: []` by design, so reading scenarios off the
+  // summary left this tab permanently empty even for a fully completed run. The
+  // scenarios only exist on the evaluation detail.
+  const { data: latestDetail } = useEvaluation(latest.id || undefined);
+  const scenarios: TestResult[] = (latestDetail?.tests ?? []).slice(0, 12);
   const { run, runningAgentId } = useRunEvaluation();
   const startRun = () => run(agentId, nextVersionLabel(agent.versions.map((v) => v.version)));
+
+  // Without this the page first paints "— / Never evaluated / 0" for an agent
+  // that has been evaluated many times.
+  if (agentLoading && !loadedAgent) {
+    return (
+      <AppLayout
+        title="Agent"
+        crumbs={[
+          { label: "Aegis", to: "/dashboard" },
+          { label: "Agents", to: "/agents" },
+          { label: agentId },
+        ]}
+      >
+        <LoadingState rows={5} title="Loading agent…" />
+      </AppLayout>
+    );
+  }
 
   return (
     <AppLayout
@@ -178,6 +205,13 @@ function AgentDetails() {
         </TabsContent>
 
         <TabsContent value="scenarios" className="mt-4">
+          {scenarios.length === 0 ? (
+            <EmptyState
+              icon={Wrench}
+              title="No scenarios yet"
+              description="Scenarios appear once this agent has a completed evaluation."
+            />
+          ) : null}
           <div className="grid gap-3 md:grid-cols-2">
             {scenarios.map((s) => (
               <div key={s.id} className="rounded-xl border border-border bg-card p-4">

@@ -1,4 +1,5 @@
 import { cn } from "@/lib/utils";
+import { loadSettings } from "@/lib/workspace-settings";
 
 interface Props {
   score: number;
@@ -7,17 +8,26 @@ interface Props {
   className?: string;
 }
 
+// The critical threshold is a workspace setting. It used to be hard-coded at 65
+// here while the settings page offered a control for it, so changing that number
+// did nothing anywhere in the app.
+function criticalAt(): number {
+  return loadSettings().criticalThreshold;
+}
+
 export function scoreTone(score: number): "success" | "warning" | "danger" {
-  if (score >= 80) return "success";
-  if (score >= 65) return "warning";
+  const critical = criticalAt();
+  if (score >= Math.max(critical + 15, critical)) return "success";
+  if (score >= critical) return "warning";
   return "danger";
 }
 
 export function scoreLabel(score: number): string {
-  if (score >= 90) return "Highly Reliable";
-  if (score >= 80) return "Reliable";
-  if (score >= 65) return "Moderately Reliable";
-  if (score >= 50) return "Needs Attention";
+  const critical = criticalAt();
+  if (score >= critical + 25) return "Highly Reliable";
+  if (score >= critical + 15) return "Reliable";
+  if (score >= critical) return "Moderately Reliable";
+  if (score >= critical - 15) return "Needs Attention";
   return "Critical Risk";
 }
 
@@ -35,7 +45,10 @@ export function ReliabilityScore({ score, size = 180, label, className }: Props)
   const tone = scoreTone(score);
 
   return (
-    <div className={cn("relative grid place-items-center", className)} style={{ width: size, height: size }}>
+    <div
+      className={cn("relative grid place-items-center", className)}
+      style={{ width: size, height: size }}
+    >
       <svg width={size} height={size} className="-rotate-90">
         <circle
           cx={size / 2}

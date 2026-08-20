@@ -9,6 +9,7 @@ import { ReliabilityScore, scoreLabel } from "@/components/aegis/ReliabilityScor
 import { FailureChart, MetricBars } from "@/components/aegis/Charts";
 import { TestResultTable } from "@/components/aegis/TestResultTable";
 import { GuardrailPanel } from "@/components/aegis/GuardrailPanel";
+import { LoadingState } from "@/components/aegis/EmptyState";
 import { Button } from "@/components/ui/button";
 import { api } from "@/lib/api";
 import { EMPTY_EVALUATION, useAgent, useEvaluation } from "@/lib/live-data";
@@ -38,11 +39,28 @@ export const Route = createFileRoute("/evaluations/$evaluationId/")({
 function ReportPage() {
   const { evaluationId } = useParams({ from: "/evaluations/$evaluationId/" });
   const [replaying, setReplaying] = useState(false);
-  const { data: loaded } = useEvaluation(evaluationId);
+  const { data: loaded, loading } = useEvaluation(evaluationId);
   const evaluation = loaded ?? EMPTY_EVALUATION;
   const { data: agent } = useAgent(evaluation.agentId || undefined);
   const { run, runningAgentId } = useRunEvaluation();
   const delta = evaluation.score - evaluation.previousScore;
+
+  // Rendering the empty template first showed a completed run as 0/100 with no
+  // scenarios, which reads as a real result rather than a pending fetch.
+  if (loading && !loaded) {
+    return (
+      <AppLayout
+        title="Reliability report"
+        crumbs={[
+          { label: "Aegis", to: "/dashboard" },
+          { label: "Evaluations", to: "/evaluations" },
+          { label: evaluationId },
+        ]}
+      >
+        <LoadingState rows={6} title="Loading report…" />
+      </AppLayout>
+    );
+  }
 
   return (
     <AppLayout
@@ -65,40 +83,40 @@ function ReportPage() {
         subtitle={`Run ${evaluation.id} · ${evaluation.total} scenarios executed on ${evaluation.date}`}
         actions={
           <div className="flex flex-wrap items-center gap-2">
-          <Button
-            variant="hero"
-            onClick={() =>
-              void run(
-                evaluation.agentId,
-                nextVersionLabel((agent?.versions ?? []).map((v) => v.version)),
-              )
-            }
-            disabled={!!runningAgentId || !evaluation.agentId}
-          >
-            <Repeat className="size-4" /> {runningAgentId ? "Starting…" : "Re-run evaluation"}
-          </Button>
-          <Button
-            variant="surface"
-            size="sm"
-            disabled={replaying}
-            onClick={() => {
-              setReplaying(true);
-              api
-                .reanalyze(evaluation.id)
-                .then((r) =>
-                  toast.success(
-                    `Replayed ${r.replayed} traces with ${r.detectorVersion} — ` +
-                      `${r.changed} verdict${r.changed === 1 ? "" : "s"} changed`,
-                  ),
+            <Button
+              variant="hero"
+              onClick={() =>
+                void run(
+                  evaluation.agentId,
+                  nextVersionLabel((agent?.versions ?? []).map((v) => v.version)),
                 )
-                .catch((e: unknown) =>
-                  toast.error(e instanceof Error ? e.message : "Replay failed"),
-                )
-                .finally(() => setReplaying(false));
-            }}
-          >
-            <History className="size-4" /> {replaying ? "Replaying…" : "Replay traces"}
-          </Button>
+              }
+              disabled={!!runningAgentId || !evaluation.agentId}
+            >
+              <Repeat className="size-4" /> {runningAgentId ? "Starting…" : "Re-run evaluation"}
+            </Button>
+            <Button
+              variant="surface"
+              size="sm"
+              disabled={replaying}
+              onClick={() => {
+                setReplaying(true);
+                api
+                  .reanalyze(evaluation.id)
+                  .then((r) =>
+                    toast.success(
+                      `Replayed ${r.replayed} traces with ${r.detectorVersion} — ` +
+                        `${r.changed} verdict${r.changed === 1 ? "" : "s"} changed`,
+                    ),
+                  )
+                  .catch((e: unknown) =>
+                    toast.error(e instanceof Error ? e.message : "Replay failed"),
+                  )
+                  .finally(() => setReplaying(false));
+              }}
+            >
+              <History className="size-4" /> {replaying ? "Replaying…" : "Replay traces"}
+            </Button>
           </div>
         }
       />

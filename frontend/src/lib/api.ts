@@ -67,7 +67,34 @@ export interface NewAgentInput {
   name: string;
   description?: string;
   systemPrompt: string;
-  tools: { name: string; description?: string; risk?: string }[];
+  tools: {
+    name: string;
+    description?: string;
+    risk?: string;
+    /** JSON-Schema block off the imported tool definition; shapes generated calls. */
+    parameters?: Record<string, unknown>;
+  }[];
+}
+
+export interface ComparisonEntry {
+  scenario_id: string;
+  scenario: string;
+  from: string;
+  to: string;
+  failure_types: string[];
+}
+
+/** Shape of GET /api/versions/{older}/compare/{newer} — see app/reporting.py. */
+export interface VersionComparison {
+  older: { id: string; label: string; score: number };
+  newer: { id: string; label: string; score: number };
+  score_delta: number;
+  verdict: string;
+  shared_scenarios: number;
+  regressions: ComparisonEntry[];
+  softened: ComparisonEntry[];
+  improvements: ComparisonEntry[];
+  metric_deltas: Record<string, number>;
 }
 
 export interface EvaluateInput {
@@ -87,12 +114,21 @@ export const api = {
   createAgent: (body: NewAgentInput) =>
     request<Agent>("/api/agents", { method: "POST", body: JSON.stringify(body) }),
   deleteAgent: (id: string) => request<null>(`/api/agents/${id}`, { method: "DELETE" }),
+  rerunTest: (runId: string) =>
+    request<{ runId: string; replayedFrom: string; evaluationId: string; status: string }>(
+      `/api/test-runs/${runId}/rerun`,
+      { method: "POST" },
+    ),
+  compareVersions: (olderId: string, newerId: string) =>
+    request<VersionComparison>(`/api/versions/${olderId}/compare/${newerId}`),
   evaluations: () => request<Evaluation[]>("/api/evaluations"),
   evaluation: (id: string) => request<Evaluation>(`/api/evaluations/${id}`),
   progress: (id: string) => request<EvaluationProgress>(`/api/evaluations/${id}/progress`),
   reanalyze: (id: string) =>
     request<{ replayed: number; changed: number; detectorVersion: string | null }>(
-      `/api/evaluations/${id}/reanalyze`, { method: "POST" }),
+      `/api/evaluations/${id}/reanalyze`,
+      { method: "POST" },
+    ),
   evaluate: (agentId: string, body: EvaluateInput = {}) =>
     request<{ evaluationId: string; agentId: string; total: number; version: string }>(
       `/api/agents/${agentId}/evaluate`,

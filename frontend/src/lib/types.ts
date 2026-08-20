@@ -19,6 +19,8 @@ export interface Tool {
 }
 
 export interface AgentVersion {
+  /** Version id, needed to reach the scenario-level comparison endpoint. */
+  id: string;
   version: string;
   createdAt: string;
   reliability: number;

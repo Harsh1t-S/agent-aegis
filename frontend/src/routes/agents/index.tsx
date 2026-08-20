@@ -4,7 +4,7 @@ import { Bot, Plus, Search, SlidersHorizontal } from "lucide-react";
 import { AppLayout } from "@/components/aegis/AppLayout";
 import { PageHeader } from "@/components/aegis/PageHeader";
 import { AgentCard } from "@/components/aegis/AgentCard";
-import { EmptyState } from "@/components/aegis/EmptyState";
+import { EmptyState, LoadingState } from "@/components/aegis/EmptyState";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -51,7 +51,7 @@ export const Route = createFileRoute("/agents/")({
 });
 
 function AgentsPage() {
-  const { data: mockAgents, refresh } = useAgents();
+  const { data: mockAgents, refresh, loading: agentsLoading } = useAgents();
   const { data: evaluations } = useEvaluations();
   const navigate = useNavigate();
   const [query, setQuery] = useState("");
@@ -164,7 +164,13 @@ function AgentsPage() {
         </Select>
       </div>
 
-      {agents.length === 0 ? (
+      {agentsLoading && mockAgents.length === 0 ? (
+        // "No agents match your filters" during the first fetch is a false
+        // statement about the workspace, not a slow render.
+        <div className="mt-6">
+          <LoadingState rows={3} title="Loading agents…" />
+        </div>
+      ) : agents.length === 0 ? (
         <div className="mt-6">
           <EmptyState
             icon={Bot}

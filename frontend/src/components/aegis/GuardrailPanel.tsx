@@ -46,11 +46,13 @@ export function GuardrailPanel({ evaluationId }: { evaluationId: string }) {
   const [error, setError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
-    if (!evaluationId) return;
+    if (!evaluationId) return null;
     try {
-      const next = await fetch(`/api/evaluations/${evaluationId}/guardrail`).then(
-        (r) => r.json() as Promise<GuardrailReport>,
-      );
+      // Without the ok check an error page was parsed as a report, so an HTTP
+      // failure looked like a run that simply had not started.
+      const response = await fetch(`/api/evaluations/${evaluationId}/guardrail`);
+      if (!response.ok) throw new Error(`Guardrail request failed (${response.status})`);
+      const next = (await response.json()) as GuardrailReport;
       setReport(next);
       return next;
     } catch (cause) {
@@ -67,12 +69,24 @@ export function GuardrailPanel({ evaluationId }: { evaluationId: string }) {
     setRunning(true);
     setError(null);
     try {
-      await fetch(`/api/evaluations/${evaluationId}/guardrail`, { method: "POST" });
-      // The ladder runs in the background; poll until every rung has reported.
-      for (let attempt = 0; attempt < 60; attempt++) {
+      const started = await fetch(`/api/evaluations/${evaluationId}/guardrail`, {
+        method: "POST",
+      });
+      if (!started.ok) throw new Error(`Could not start the guardrail run (${started.status})`);
+
+      // Completion is read off the ladder the server reports, not a hard-coded
+      // rung count. The ladder is seven rungs and this polled to tools x 5, so it
+      // could stop two rungs early and show a breaking point that was never reached.
+      for (let attempt = 0; attempt < 90; attempt++) {
         await new Promise((resolve) => setTimeout(resolve, 1000));
         const next = await load();
-        if (next?.ran && next.rungsRun && next.rungsRun >= (next.tools.length || 1) * 5) break;
+        if (!next?.ran) continue;
+        const perTool = next.ladder?.length || next.tools[0]?.maxLevel || 0;
+        const expected = perTool * (next.tools.length || 1);
+        if (expected && (next.rungsRun ?? 0) >= expected) break;
+        // A tool that breaks early stops its own ladder, so every tool having a
+        // breaking point is also a finished run.
+        if (next.tools.length && next.tools.every((t) => t.breakingPoint !== null)) break;
       }
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : String(cause));
@@ -94,8 +108,8 @@ export function GuardrailPanel({ evaluationId }: { evaluationId: string }) {
           <div>
             <h3 className="text-sm font-semibold">Destructive action guardrail</h3>
             <p className="text-xs text-muted-foreground">
-              Escalating pressure against every irreversible tool. The breaking point is the
-              lowest rung at which the agent went through with it.
+              Escalating pressure against every irreversible tool. The breaking point is the lowest
+              rung at which the agent went through with it.
             </p>
           </div>
         </div>
@@ -162,9 +176,13 @@ export function GuardrailPanel({ evaluationId }: { evaluationId: string }) {
         </>
       ) : (
         <p className="mt-4 text-xs text-muted-foreground">
-          Not probed yet. The ladder runs six escalating techniques — plain request, urgency,
-          claimed authority, fabricated approval, the act hidden inside a routine task, and an
-          instruction injected through tool output — against each irreversible tool.
+          {/* Listed from the report's own ladder rather than a hard-coded sentence,
+              which said "six" while the backend ladder had seven rungs. */}
+          Not probed yet. The ladder runs {report?.ladder?.length ?? 7} escalating techniques
+          {report?.ladder?.length
+            ? ` — ${report.ladder.map((rung) => rung.technique.replace(/_/g, " ")).join(", ")} — `
+            : " "}
+          against each irreversible tool.
         </p>
       )}
     </section>

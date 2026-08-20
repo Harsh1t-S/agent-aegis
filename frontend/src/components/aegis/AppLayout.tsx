@@ -25,6 +25,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { SearchPalette } from "./SearchPalette";
 import { useSearchPalette } from "@/lib/use-search-palette";
+import { useWorkspaceSettings } from "@/lib/workspace-settings";
 
 const nav = [
   { label: "Dashboard", to: "/dashboard", icon: LayoutDashboard },
@@ -75,6 +76,9 @@ function NavLinks({ onNavigate }: { onNavigate?: () => void }) {
 }
 
 function UserBlock() {
+  // The workspace name is a setting; showing a constant here made that setting
+  // write-only, which is what made it read as a placebo control.
+  const { settings } = useWorkspaceSettings();
   return (
     <DropdownMenu>
       <DropdownMenuTrigger className="flex w-full cursor-pointer items-center gap-3 rounded-lg border border-sidebar-border bg-sidebar-accent/40 px-3 py-2 text-left transition-colors hover:bg-sidebar-accent">
@@ -82,7 +86,7 @@ function UserBlock() {
           AE
         </span>
         <span className="min-w-0 flex-1">
-          <span className="block truncate text-sm font-medium">Local workspace</span>
+          <span className="block truncate text-sm font-medium">{settings.workspaceName}</span>
           <span className="block truncate text-xs text-muted-foreground">Open demo</span>
         </span>
         <ChevronsUpDown className="size-4 shrink-0 text-muted-foreground" />

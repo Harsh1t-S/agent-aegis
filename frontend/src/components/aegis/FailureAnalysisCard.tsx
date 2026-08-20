@@ -1,4 +1,5 @@
 import { AlertTriangle, Copy, RotateCcw, Sparkles } from "lucide-react";
+import { useState } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { StatusBadge, severityTone } from "./StatusBadge";
@@ -15,8 +16,10 @@ export function FailureAnalysisCard({
   severity: Severity | null;
   explanation: string;
   recommendation: string;
-  onRerun?: () => void;
+  /** Must actually queue the run; the card reports whatever this resolves to. */
+  onRerun?: () => Promise<void>;
 }) {
+  const [rerunning, setRerunning] = useState(false);
   return (
     <div className="space-y-4">
       <div className="rounded-xl border border-destructive/30 bg-destructive/6 p-5">
@@ -47,8 +50,17 @@ export function FailureAnalysisCard({
             size="sm"
             variant="soft"
             onClick={() => {
-              void navigator.clipboard?.writeText(recommendation);
-              toast.success("Recommendation copied to clipboard");
+              // Reporting success before the write resolves lies whenever the
+              // clipboard permission is denied or the API is missing entirely.
+              const write = navigator.clipboard?.writeText(recommendation);
+              if (!write) {
+                toast.error("Clipboard unavailable in this browser.");
+                return;
+              }
+              void write.then(
+                () => toast.success("Recommendation copied to clipboard"),
+                () => toast.error("Could not copy — clipboard permission denied."),
+              );
             }}
           >
             <Copy className="size-3.5" /> Copy recommendation
@@ -56,12 +68,14 @@ export function FailureAnalysisCard({
           <Button
             size="sm"
             variant="surface"
+            disabled={!onRerun || rerunning}
             onClick={() => {
-              onRerun?.();
-              toast.info("Re-running scenario in sandbox…");
+              if (!onRerun) return;
+              setRerunning(true);
+              void onRerun().finally(() => setRerunning(false));
             }}
           >
-            <RotateCcw className="size-3.5" /> Re-run test
+            <RotateCcw className="size-3.5" /> {rerunning ? "Re-running…" : "Re-run test"}
           </Button>
         </div>
       </div>

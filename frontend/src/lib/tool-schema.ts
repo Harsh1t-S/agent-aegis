@@ -32,7 +32,7 @@ const RISKS: RiskLevel[] = ["low", "medium", "high"];
 
 function asRisk(value: unknown): RiskLevel | undefined {
   const text = String(value ?? "").toLowerCase();
-  if (text === "critical") return "high";        // the UI scale stops at high
+  if (text === "critical") return "high"; // the UI scale stops at high
   return RISKS.includes(text as RiskLevel) ? (text as RiskLevel) : undefined;
 }
 
@@ -44,9 +44,10 @@ function one(entry: unknown, errors: string[], index: number): ParsedTool | null
   const record = entry as Record<string, unknown>;
 
   // OpenAI wraps the real definition one level down.
-  const inner = record["function"] && typeof record["function"] === "object"
-    ? (record["function"] as Record<string, unknown>)
-    : record;
+  const inner =
+    record["function"] && typeof record["function"] === "object"
+      ? (record["function"] as Record<string, unknown>)
+      : record;
 
   const name = String(inner["name"] ?? "").trim();
   if (!name) {
@@ -54,8 +55,7 @@ function one(entry: unknown, errors: string[], index: number): ParsedTool | null
     return null;
   }
   const parameters = (inner["parameters"] ?? inner["input_schema"] ?? inner["inputSchema"]) as
-    | Record<string, unknown>
-    | undefined;
+    Record<string, unknown> | undefined;
 
   return {
     name,
@@ -85,8 +85,12 @@ export function parseToolSchema(input: string): ParseResult {
   // Unwrap the common envelopes: {tools:[...]}, {functions:[...]}, {result:{tools:[...]}}
   let body = parsed;
   for (const key of ["tools", "functions", "result"]) {
-    if (body && typeof body === "object" && !Array.isArray(body)
-        && key in (body as Record<string, unknown>)) {
+    if (
+      body &&
+      typeof body === "object" &&
+      !Array.isArray(body) &&
+      key in (body as Record<string, unknown>)
+    ) {
       body = (body as Record<string, unknown>)[key];
     }
   }
@@ -122,11 +126,14 @@ export function parseToolSchema(input: string): ParseResult {
 }
 
 /** Round-trips the draft rows back out, so what you import you can also copy. */
+/** Round-trips: whatever this emits must re-import to the same tool definition,
+    so `risk` travels with the rest rather than being silently re-derived. */
 export function toolsToJson(tools: ParsedTool[]): string {
   return JSON.stringify(
     tools.map((tool) => ({
       name: tool.name,
       description: tool.description,
+      ...(tool.risk ? { risk: tool.risk } : {}),
       ...(tool.parameters ? { parameters: tool.parameters } : {}),
     })),
     null,

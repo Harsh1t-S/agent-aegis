@@ -7,24 +7,28 @@
  */
 import { useCallback, useEffect, useState } from "react";
 
+/**
+ * Only settings that something actually reads live here. Alert email, regression
+ * alerts and auto-re-run were removed rather than kept as controls that toggle
+ * nothing: this deployment has no mailer, no notification channel and no
+ * post-run hook, so each one promised behaviour that never happened.
+ */
 export interface WorkspaceSettings {
+  /** Shown in the sidebar. */
   workspaceName: string;
-  alertEmail: string;
+  /** Suite size for every run started from the UI. */
   scenariosPerRun: number;
+  /** Drives every reliability tone and label in the app. */
   criticalThreshold: number;
+  /** Gates adversarial scenario generation. */
   adversarial: boolean;
-  regressionAlerts: boolean;
-  autoRerun: boolean;
 }
 
 export const DEFAULT_SETTINGS: WorkspaceSettings = {
-  workspaceName: "Aegis Labs",
-  alertEmail: "reliability@aegis.dev",
+  workspaceName: "Local workspace",
   scenariosPerRun: 12,
   criticalThreshold: 65,
   adversarial: true,
-  regressionAlerts: true,
-  autoRerun: false,
 };
 
 const KEY = "aegis.settings.v1";

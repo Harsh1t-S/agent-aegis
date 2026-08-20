@@ -242,6 +242,7 @@ function version(
   f: Partial<Record<FailureCategory, number>>,
 ): AgentVersion {
   return {
+    id: `${v}-${createdAt}`,
     version: v,
     createdAt,
     reliability,

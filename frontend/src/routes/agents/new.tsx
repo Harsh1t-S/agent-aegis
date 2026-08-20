@@ -57,6 +57,9 @@ interface DraftTool {
   name: string;
   description: string;
   risk: RiskLevel;
+  /** Parsed JSON-Schema block, carried through to the API so scenarios get the
+      real argument shape instead of a bare call. */
+  parameters?: Record<string, unknown>;
 }
 
 const domains = [
@@ -88,6 +91,9 @@ function Section({
 }
 
 const DRAFT_KEY = "aegis.agent-draft.v1";
+/** Drafts hold a full system prompt in plaintext. Expiring them bounds how long
+    that sits in a shared browser; there is no server-side store to fall back on. */
+const DRAFT_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 
 interface Draft {
   name: string;
@@ -95,6 +101,7 @@ interface Draft {
   domain: string;
   prompt: string;
   tools: DraftTool[];
+  savedAt?: number;
 }
 
 function NewAgentPage() {
@@ -107,6 +114,9 @@ function NewAgentPage() {
     { key: "tool-1", name: "", description: "", risk: "low" },
   ]);
   const [saving, setSaving] = useState(false);
+  // Set once the agent exists, so a retry after a failed evaluation start does
+  // not create a duplicate agent.
+  const [createdAgentId, setCreatedAgentId] = useState<string | null>(null);
   const [showSchema, setShowSchema] = useState(false);
   const [schemaText, setSchemaText] = useState("");
   const [schemaErrors, setSchemaErrors] = useState<string[]>([]);
@@ -120,13 +130,16 @@ function NewAgentPage() {
       toast.error(errors[0] ?? "No tools found in that schema.");
       return;
     }
-    setTools(parsed.map((tool, index) => ({
-      key: `imported-${index}-${Date.now()}`,
-      name: tool.name,
-      description: tool.description,
-      // Risk is only a hint here; the backend re-derives it from the tool's verb.
-      risk: tool.risk ?? "low",
-    })));
+    setTools(
+      parsed.map((tool, index) => ({
+        key: `imported-${index}-${Date.now()}`,
+        name: tool.name,
+        description: tool.description,
+        // Risk is only a hint here; the backend re-derives it from the tool's verb.
+        risk: tool.risk ?? "low",
+        ...(tool.parameters ? { parameters: tool.parameters } : {}),
+      })),
+    );
     setShowSchema(false);
     toast.success(
       `Imported ${parsed.length} tool${parsed.length === 1 ? "" : "s"}` +
@@ -140,6 +153,10 @@ function NewAgentPage() {
       const raw = localStorage.getItem(DRAFT_KEY);
       if (!raw) return;
       const draft = JSON.parse(raw) as Draft;
+      if (draft.savedAt && Date.now() - draft.savedAt > DRAFT_TTL_MS) {
+        localStorage.removeItem(DRAFT_KEY);
+        return;
+      }
       setName(draft.name ?? "");
       setDescription(draft.description ?? "");
       setDomain(draft.domain ?? "");
@@ -155,9 +172,19 @@ function NewAgentPage() {
     try {
       localStorage.setItem(
         DRAFT_KEY,
-        JSON.stringify({ name, description, domain, prompt, tools } satisfies Draft),
+        JSON.stringify({
+          name,
+          description,
+          domain,
+          prompt,
+          tools,
+          savedAt: Date.now(),
+        } satisfies Draft),
       );
-      toast.success("Draft saved on this device");
+      toast.success("Draft saved in this browser", {
+        description:
+          "Stored unencrypted in local storage, including the system prompt. Cleared after 7 days or when the agent is created.",
+      });
     } catch {
       toast.error("Could not save the draft.");
     }
@@ -179,21 +206,30 @@ function NewAgentPage() {
     setSaving(true);
     try {
       // Register, profile, generate a suite and queue the whole run in two calls.
-      const created = await api.createAgent({
-        name: name.trim(),
-        description: description.trim() || domain,
-        systemPrompt: prompt.trim(),
-        tools: named.map((t) => ({
-          name: t.name.trim(),
-          description: t.description.trim(),
-          risk: t.risk,
-        })),
-      });
-      toast.success(`Agent created — ${created.tools.length} tools profiled`);
-      localStorage.removeItem(DRAFT_KEY);
+      // The id is held across attempts: if the agent was created and only the
+      // evaluation failed, pressing the button again must retry the evaluation,
+      // not register a second copy of the same agent.
+      let agentId = createdAgentId;
+      if (!agentId) {
+        const created = await api.createAgent({
+          name: name.trim(),
+          description: description.trim() || domain,
+          systemPrompt: prompt.trim(),
+          tools: named.map((t) => ({
+            name: t.name.trim(),
+            description: t.description.trim(),
+            risk: t.risk,
+            ...(t.parameters ? { parameters: t.parameters } : {}),
+          })),
+        });
+        agentId = created.id;
+        setCreatedAgentId(created.id);
+        toast.success(`Agent created — ${created.tools.length} tools profiled`);
+        localStorage.removeItem(DRAFT_KEY);
+      }
 
       const settings = loadSettings();
-      const started = await api.evaluate(created.id, {
+      const started = await api.evaluate(agentId, {
         versionLabel: "v1",
         // Same rule as useRunEvaluation: the toggle gates scenario generation and
         // must not change the agent under test, or switching it off raises the score.
@@ -206,7 +242,10 @@ function NewAgentPage() {
         params: { evaluationId: started.evaluationId },
       });
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Could not create the agent.");
+      const message = error instanceof Error ? error.message : "Could not create the agent.";
+      toast.error(
+        createdAgentId ? `${message} The agent exists — retrying will only re-run it.` : message,
+      );
       setSaving(false);
     }
   };
@@ -315,6 +354,9 @@ function NewAgentPage() {
                       if (!file) return;
                       if (file.size > 512_000) {
                         toast.error("That file is larger than 500 KB.");
+                        // Clear first: leaving the rejected file selected means
+                        // picking it again fires no change event at all.
+                        event.target.value = "";
                         return;
                       }
                       const reader = new FileReader();
@@ -356,9 +398,26 @@ function NewAgentPage() {
                           toast.error("No tools to copy yet.");
                           return;
                         }
-                        setSchemaText(toolsToJson(named.map((t) => ({
-                          name: t.name, description: t.description,
-                        }))));
+                        // Risk and parameters have to travel too, or an export ->
+                        // re-import cycle quietly rewrites the tool definition.
+                        const json = toolsToJson(
+                          named.map((t) => ({
+                            name: t.name,
+                            description: t.description,
+                            risk: t.risk,
+                            ...(t.parameters ? { parameters: t.parameters } : {}),
+                          })),
+                        );
+                        setSchemaText(json);
+                        const write = navigator.clipboard?.writeText(json);
+                        if (!write) {
+                          toast.success("Tools written to the box above.");
+                          return;
+                        }
+                        void write.then(
+                          () => toast.success("Tools copied to clipboard"),
+                          () => toast.success("Tools written to the box above."),
+                        );
                       }}
                     >
                       Copy current tools out

@@ -1,6 +1,7 @@
 import { createFileRoute, Link, useParams } from "@tanstack/react-router";
 import { ArrowLeft } from "lucide-react";
 import { toast } from "sonner";
+import { api } from "@/lib/api";
 import { AppLayout } from "@/components/aegis/AppLayout";
 import { PageHeader } from "@/components/aegis/PageHeader";
 import { TraceTimeline } from "@/components/aegis/TraceTimeline";
@@ -34,7 +35,7 @@ function TraceDetail() {
   const { evaluationId, testId } = useParams({
     from: "/evaluations/$evaluationId/tests/$testId",
   });
-  const { data: loaded, loading, error } = useEvaluation(evaluationId);
+  const { data: loaded, loading, error, refresh } = useEvaluation(evaluationId);
   const evaluation = loaded ?? EMPTY_EVALUATION;
   // `evaluation.tests[0]!` asserted non-null over an array that is empty on the
   // first render and for an evaluation with no completed runs, so `test.id` in the
@@ -82,7 +83,9 @@ function TraceDetail() {
       <PageHeader
         title={test.title}
         subtitle={`${test.category} · ${test.durationMs} ms · scenario ${test.scenarioId}`}
-        actions={<StatusBadge tone={statusTone(test.status)}>{statusLabel(test.status)}</StatusBadge>}
+        actions={
+          <StatusBadge tone={statusTone(test.status)}>{statusLabel(test.status)}</StatusBadge>
+        }
       />
 
       <div className="grid gap-4 lg:grid-cols-[1.2fr_1fr]">
@@ -104,7 +107,17 @@ function TraceDetail() {
               severity={test.severity}
               explanation={test.explanation}
               recommendation={test.recommendation}
-              onRerun={() => toast.success("Scenario queued for re-run")}
+              onRerun={async () => {
+                try {
+                  await api.rerunTest(test.id);
+                  toast.success("Scenario re-run queued — refreshing the report");
+                  refresh();
+                } catch (cause) {
+                  toast.error(
+                    cause instanceof Error ? cause.message : "Could not queue the re-run.",
+                  );
+                }
+              }}
             />
           )}
         </div>

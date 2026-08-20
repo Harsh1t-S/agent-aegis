@@ -1,4 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
+import { useMemo } from "react";
 import { ArrowRight, FileBarChart } from "lucide-react";
 import { AppLayout } from "@/components/aegis/AppLayout";
 import { PageHeader } from "@/components/aegis/PageHeader";
@@ -33,10 +34,29 @@ function ReportsPage() {
   const { data: evaluations } = useEvaluations();
   const { data: dashboard } = useDashboard();
   const reliabilityTrend = dashboard.trend;
-  const aggregated = (evaluations[0] ?? EMPTY_EVALUATION).failureBreakdown;
+  // Summing every run: the page promises a workspace failure distribution, and
+  // showing only the newest evaluation's breakdown misrepresented the whole
+  // picture whenever the latest run was unrepresentative.
+  const aggregated = useMemo(() => {
+    const totals = new Map<string, { category: string; count: number; severity: string }>();
+    for (const evaluation of evaluations) {
+      for (const row of evaluation.failureBreakdown ?? []) {
+        const seen = totals.get(row.category);
+        if (seen) seen.count += row.count;
+        else totals.set(row.category, { ...row });
+      }
+    }
+    const rows = [...totals.values()];
+    return (
+      rows.length ? rows : EMPTY_EVALUATION.failureBreakdown
+    ) as typeof EMPTY_EVALUATION.failureBreakdown;
+  }, [evaluations]);
 
   return (
-    <AppLayout title="Reports" crumbs={[{ label: "Aegis", to: "/dashboard" }, { label: "Reports" }]}>
+    <AppLayout
+      title="Reports"
+      crumbs={[{ label: "Aegis", to: "/dashboard" }, { label: "Reports" }]}
+    >
       <PageHeader
         title="Reports"
         subtitle="Workspace-wide reliability trends and per-run summaries."
@@ -49,6 +69,9 @@ function ReportsPage() {
         </div>
         <div className="rounded-xl border border-border bg-card p-5">
           <h2 className="mb-4 text-sm font-medium">Failure distribution</h2>
+          <p className="-mt-3 mb-3 text-xs text-muted-foreground">
+            Every completed run in this workspace, {evaluations.length} in total.
+          </p>
           <FailureChart data={aggregated} />
         </div>
       </div>
