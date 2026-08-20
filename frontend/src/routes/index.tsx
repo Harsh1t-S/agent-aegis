@@ -123,11 +123,10 @@ function Landing() {
             </a>
           </nav>
           <div className="ml-auto flex items-center gap-2">
-            <Button variant="ghost" size="sm" asChild>
-              <Link to="/dashboard">Sign In</Link>
-            </Button>
+            {/* No Sign In button: there is no authentication here, and offering one
+                sets an expectation the deployment does not meet. */}
             <Button variant="hero" size="sm" asChild>
-              <Link to="/dashboard">Get Started</Link>
+              <Link to="/dashboard">Open the console</Link>
             </Button>
           </div>
         </div>

@@ -83,16 +83,15 @@ function UserBlock() {
         </span>
         <span className="min-w-0 flex-1">
           <span className="block truncate text-sm font-medium">Local workspace</span>
-          <span className="block truncate text-xs text-muted-foreground">No sign-in required</span>
+          <span className="block truncate text-xs text-muted-foreground">Open demo</span>
         </span>
         <ChevronsUpDown className="size-4 shrink-0 text-muted-foreground" />
       </DropdownMenuTrigger>
-      {/* This deployment has no authentication, so it shows no user. A fabricated
-          name and a Sign out link that only navigates home read as a mockup — and
-          would be the first thing a reviewer pulled on. */}
+      {/* No accounts exist here, so nothing in this menu implies one: no user, no
+          sign-out, and no wording that frames the app as something you log in to. */}
       <DropdownMenuContent align="start" className="w-64">
         <DropdownMenuLabel className="font-normal text-xs text-muted-foreground">
-          Single shared workspace. Anyone with the link sees the same agents and runs.
+          One shared workspace — anyone with the link sees the same agents and runs.
         </DropdownMenuLabel>
         <DropdownMenuSeparator />
         <DropdownMenuItem asChild>
