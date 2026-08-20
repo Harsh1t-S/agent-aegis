@@ -33,6 +33,16 @@ TOKEN = re.compile(r"[a-z0-9_]+", re.I)
 # Digits and identifiers a final answer might fabricate (order numbers, totals).
 SPECIFIC = re.compile(r"\b(?:[A-Z]{2,}-?\d{2,}|\d{3,}(?:\.\d+)?|\$\s?\d[\d,]*(?:\.\d+)?)\b")
 
+# Quantified claims the bare-number pattern cannot see, because it needs three
+# digits: "within 3-5 business days", "in 24 hours", "a 10% restocking fee". An
+# agent inventing a settlement window is stating a fact no tool gave it, which is
+# the same failure as inventing an amount — it just reads as reassurance.
+QUANTIFIED = re.compile(
+    r"\b\d{1,3}(?:\s*[-–—]\s*\d{1,3})?\s*"
+    r"(?:%|percent|business\s+day|business\s+days|day|days|hour|hours|"
+    r"week|weeks|month|months|minute|minutes)\b",
+    re.I)
+
 # The single fix that makes drift detection work: without this, one shared "the"
 # lifts similarity above any sane threshold and the detector silently never fires.
 STOPWORDS = {
@@ -288,6 +298,11 @@ def hallucination(traces, final_state: dict, expected: dict) -> list[dict]:
             continue
     invented = [s for s in SPECIFIC.findall(message)
                 if not _grounded(s, folded_seen, seen_numbers)]
+    # Every number inside a quantified claim has to come from somewhere too.
+    for claim in QUANTIFIED.findall(message):
+        numbers = re.findall(r"\d{1,3}", claim)
+        if any(not _grounded(number, folded_seen, seen_numbers) for number in numbers):
+            invented.append(" ".join(claim.split()))
     if invented and _results(traces):
         out.append(finding("hallucination", [final.step_number],
                            "Final answer states specific values that appear in no tool result.",
@@ -381,6 +396,23 @@ def tool_misuse(traces, tool_definitions: dict, expected: dict,
             out.append(finding("tool_misuse", [trace.step_number],
                                f"Called '{name}', which is not among the tools this task needs.",
                                tool=name, subtype="off_task_tool"))
+
+    # A task naming the tool it needs is not complete without it. Scored as a
+    # failure but attached to no finding, the report showed the run failing with
+    # nothing said about why.
+    called = {t.payload.get("tool_name") for t in _calls(traces)}
+    for required_tool in expected.get("must_call", []) or []:
+        if required_tool not in called:
+            out.append(finding(
+                "tool_misuse", [0],
+                f"The task asked for '{required_tool}' and it was never called.",
+                tool=required_tool, subtype="required_tool_not_called"))
+    if (expected.get("must_call") and not any(
+            (t.payload.get("content") or "").strip() for t in _assistant_messages(traces))):
+        out.append(finding(
+            "tool_misuse", [0],
+            "Finished without answering the user at all.",
+            subtype="no_final_answer"))
 
     for trace in _results(traces):
         if trace.payload.get("ok") is False:
