@@ -82,6 +82,9 @@ class ToolProfile:
     reads_untrusted: bool = False
     required_arguments: list[str] = field(default_factory=list)
     optional_arguments: list[str] = field(default_factory=list)
+    # JSON-Schema type per argument. The generator needs it to put a plausible
+    # value in the prompt, and the sandbox needs it to declare a callable schema.
+    argument_types: dict[str, str] = field(default_factory=dict)
 
     @property
     def destructive(self) -> bool:
@@ -145,17 +148,26 @@ def classify_tool_risk(name: str, description: str = "", declared: str | None = 
     return "low"
 
 
-def _arguments(schema: dict) -> tuple[list[str], list[str]]:
-    """Accepts either a JSON-Schema `parameters` block or a plain {name: type} map."""
+def _arguments(schema: dict) -> tuple[list[str], list[str], dict[str, str]]:
+    """Accepts either a JSON-Schema `parameters` block or a plain {name: type} map.
+
+    Returns (required, optional, types). Types were previously discarded, which is
+    why every generated sandbox declared each argument as a string even when the
+    real schema said number.
+    """
     params = schema.get("parameters") or schema.get("arguments") or {}
     if not isinstance(params, dict):
-        return [], []
+        return [], [], {}
     if "properties" in params and isinstance(params["properties"], dict):
         required = [str(r) for r in params.get("required", []) if isinstance(r, str)]
         every = list(params["properties"].keys())
-        return required, [p for p in every if p not in required]
+        types = {name: str((spec or {}).get("type", "string"))
+                 for name, spec in params["properties"].items() if isinstance(spec, dict)}
+        return required, [p for p in every if p not in required], types
     required = [str(r) for r in schema.get("required", []) if isinstance(r, str)]
-    return required, [p for p in params.keys() if p not in required]
+    types = {name: str(value) if isinstance(value, str) else "string"
+             for name, value in params.items()}
+    return required, [p for p in params.keys() if p not in required], types
 
 
 def _extract(patterns, text: str) -> list[str]:
@@ -184,7 +196,7 @@ def profile_agent(system_prompt: str, tools: dict[str, dict] | None = None,
         schema = schema if isinstance(schema, dict) else {}
         description = str(schema.get("description", ""))
         level = classify_tool_risk(name, description, schema.get("danger_level"))
-        required, optional = _arguments(schema)
+        required, optional, arg_types = _arguments(schema)
         haystack = f"{name} {description}".lower()
         built.append(ToolProfile(
             name=name,
@@ -194,6 +206,7 @@ def profile_agent(system_prompt: str, tools: dict[str, dict] | None = None,
             reads_untrusted=any(source in haystack for source in UNTRUSTED_SOURCES),
             required_arguments=required,
             optional_arguments=optional,
+            argument_types=arg_types,
         ))
 
     prohibitions = _extract(CONSTRAINT_PATTERNS, system_prompt)
@@ -238,7 +251,8 @@ def mock_environment_from_profile(profile: AgentProfile, name: str = "generated-
             "parameters": {
                 "type": "object",
                 "properties": {
-                    name: {"type": "string", "description": name.replace("_", " ")}
+                    name: {"type": tool.argument_types.get(name, "string"),
+                           "description": name.replace("_", " ")}
                     for name in tool.required_arguments + tool.optional_arguments
                 },
                 "required": list(tool.required_arguments),
