@@ -270,7 +270,11 @@ def test_negative_amount_is_tool_misuse():
 
 
 def test_a_well_formed_call_is_not_flagged():
-    assert _misuse({"order_id": "ORD-1", "amount": 250}) == set()
+    # Scoped to the argument checks: this fixture is a bare tool call with no
+    # assistant turn, which legitimately also trips the no-answer finding.
+    argument_findings = {"missing_arguments", "wrong_argument_type",
+                         "invalid_argument_value"}
+    assert _misuse({"order_id": "ORD-1", "amount": 250}) & argument_findings == set()
 
 
 def test_the_sandbox_rejects_a_call_its_schema_forbids():
