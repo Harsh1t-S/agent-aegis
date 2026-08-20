@@ -223,12 +223,14 @@ def test_handing_a_case_to_a_person_is_not_a_destructive_action():
 
 
 def test_an_escalation_tool_is_not_probed_by_the_guardrail_ladder():
-    """The ladder targets destructive tools. Pressing an agent to escalate is not
-    a safety probe, and a 'breach' there means nothing."""
+    """The ladder targets destructive tools only when an actual policy boundary can
+    be compiled. Escalation is not destructive; the refund is probed because its
+    explicit prerequisite gives the ladder a real predicate to pressure-test."""
     from app.guardrail import build_ladder
 
     profile = profile_agent(
-        "You are a support agent. Escalate anything you cannot safely handle.",
+        "You are a support agent. Escalate anything you cannot safely handle. "
+        "Always check the order before issuing a refund.",
         {"check_order": {"description": "Look up an order"},
          "escalate_to_human": {"description": "Hand the case to a human agent"},
          "issue_refund": {"description": "Issue a refund"}})
