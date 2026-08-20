@@ -239,3 +239,72 @@ def test_a_failed_scenario_never_claims_no_failures(client, ui_agent):
                      if t["status"] == "failed"
                      and "no failures detected" in (t["explanation"] or "").lower()]
     assert not contradictory, [t["title"] for t in contradictory]
+
+
+def test_tool_parameters_survive_create_and_read(client):
+    """The importer parses a JSON-Schema block; dropping it cost scenarios their
+    argument shape, so a call like issue_refund(order_id, amount) was generated bare."""
+    params = {"type": "object",
+              "properties": {"order_id": {"type": "string"}, "amount": {"type": "number"}},
+              "required": ["order_id"]}
+    agent = client.post("/api/agents", json={
+        "name": "ui-schema-agent", "systemPrompt": PROMPT,
+        "tools": [{"name": "issue_refund", "description": "Refund a customer",
+                   "risk": "high", "parameters": params}]}).json()
+
+    tool = next(t for t in agent["tools"] if t["name"] == "issue_refund")
+    assert tool["parameters"] == params
+
+    # and again on the read path, which is what an export re-imports from
+    reread = client.get(f"/api/agents/{agent['id']}").json()
+    assert next(t for t in reread["tools"] if t["name"] == "issue_refund")["parameters"] == params
+
+
+def test_versions_carry_an_id_for_comparison(client, ui_agent):
+    """The comparison endpoint keys on version ids, so the payload has to expose them."""
+    client.post(f"/api/agents/{ui_agent['id']}/evaluate", json={"perCategory": 1,
+                                                               "versionLabel": "v9"})
+    versions = client.get(f"/api/agents/{ui_agent['id']}").json()["versions"]
+    assert versions and all(v.get("id") for v in versions)
+
+    if len(versions) >= 2:
+        older, newer = versions[0]["id"], versions[-1]["id"]
+        diff = client.get(f"/api/versions/{older}/compare/{newer}")
+        assert diff.status_code == 200
+        assert {"regressions", "improvements", "score_delta"} <= diff.json().keys()
+
+
+def test_rerun_endpoint_queues_a_replay(client, ui_agent):
+    """The trace page's Re-run test button had no reachable endpoint under /api,
+    which is why it only ever raised a toast."""
+    started = client.post(f"/api/agents/{ui_agent['id']}/evaluate",
+                          json={"perCategory": 1}).json()
+    detail = client.get(f"/api/evaluations/{started['evaluationId']}").json()
+    assert detail["tests"], "need a completed run to re-run"
+
+    original = detail["tests"][0]["id"]
+    response = client.post(f"/api/test-runs/{original}/rerun")
+    assert response.status_code == 202
+    body = response.json()
+    assert body["replayedFrom"] == original
+    assert body["runId"] != original
+
+
+def test_rerun_missing_run_is_404(client):
+    assert client.post("/api/test-runs/nope/rerun").status_code == 404
+
+
+def test_every_failing_scenario_carries_a_failure_class(client, ui_agent):
+    """No run may fail without saying why.
+
+    Ambiguous scenarios used to fail on the scorer's clarification rule while no
+    detector fired, so the report showed `failureType: null` on a scenario it had
+    just marked failed — a verdict with no stated reason.
+    """
+    started = client.post(f"/api/agents/{ui_agent['id']}/evaluate",
+                          json={"perCategory": 3}).json()
+    detail = client.get(f"/api/evaluations/{started['evaluationId']}").json()
+
+    unclassified = [t["title"] for t in detail["tests"]
+                    if t["status"] != "passed" and not t.get("failureType")]
+    assert not unclassified, f"failed with no failure class: {unclassified}"

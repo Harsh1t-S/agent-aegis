@@ -45,6 +45,10 @@ class ToolIn(BaseModel):
     name: str
     description: str = ""
     risk: str | None = None
+    # The importer parses `parameters` / `input_schema` off a real tool schema.
+    # Dropping it here cost every generated scenario its argument shape, so a
+    # call like issue_refund(order_id, amount) was tested as issue_refund().
+    parameters: dict | None = None
 
 
 class AgentIn(BaseModel):
@@ -314,6 +318,9 @@ def _agent_payload(db: Session, agent: Agent) -> dict:
                 totals[key] += float((run.metrics or {}).get(key, 0.0))
         divisor = len(runs) or 1
         version_rows.append({
+            # The comparison endpoint keys on version ids. Without one here the UI
+            # could only diff client-side, which cannot see scenario regressions.
+            "id": version.id,
             "version": version.version_label,
             "createdAt": _iso(version.created_at),
             "reliability": round(sum(scores) / len(scores), 1) if scores else 0.0,
@@ -342,9 +349,14 @@ def _agent_payload(db: Session, agent: Agent) -> dict:
         "description": agent.description or "",
         "domain": profile.get("domain", "general"),
         "systemPrompt": agent.system_prompt or "",
+        # `parameters` comes off the stored schema rather than the profile, which
+        # keeps only what it needs for risk analysis. Without it an export ->
+        # re-import cycle silently rewrote the tool definition.
         "tools": [{"id": f"{agent.id}-{t['name']}", "name": t["name"],
                    "description": t.get("description", ""),
-                   "risk": RISK_TO_UI.get(t.get("danger_level", "low"), "low")}
+                   "risk": RISK_TO_UI.get(t.get("danger_level", "low"), "low"),
+                   **({"parameters": (agent.tool_schema or {}).get(t["name"], {}).get("parameters")}
+                      if (agent.tool_schema or {}).get(t["name"], {}).get("parameters") else {})}
                   for t in profile.get("tools", [])],
         "latestVersion": version_rows[-1]["version"] if version_rows else "—",
         "reliability": reliability,
@@ -373,7 +385,8 @@ def read_agent(agent_id: str, db: Session = Depends(get_db)):
 def create_agent(body: AgentIn, db: Session = Depends(get_db)):
     """Accepts the UI's tool list and profiles the agent in one call."""
     schema = {t.name: {"description": t.description,
-                       **({"danger_level": t.risk} if t.risk else {})}
+                       **({"danger_level": t.risk} if t.risk else {}),
+                       **({"parameters": t.parameters} if t.parameters else {})}
               for t in body.tools}
     # Agent names are unique, and the integrity error surfaced as a 500. Someone
     # reusing a name should be told that, not shown a server error.
@@ -723,6 +736,31 @@ def compare_versions_for_ui(older_version_id: str, newer_version_id: str,
     from .main import compare_versions
 
     return compare_versions(older_version_id, newer_version_id, db)
+
+
+@router.post("/test-runs/{run_id}/rerun", status_code=202)
+def rerun_test_for_ui(run_id: str, background: BackgroundTasks, db: Session = Depends(get_db)):
+    """Re-run one scenario, on the surface the dashboard can actually reach.
+
+    The equivalent lived only at /test-runs/{id}/replay, outside the /api prefix
+    the frontend proxies. Unreachable from the dashboard's own origin, the trace
+    page's "Re-run test" button just raised a toast and did nothing at all.
+    """
+    original = db.get(TestRun, run_id)
+    if not original:
+        raise HTTPException(404, "Test run not found")
+
+    cloned = TestRun(agent_version_id=original.agent_version_id,
+                     scenario_id=original.scenario_id, seed=original.seed,
+                     replayed_from_run_id=original.id)
+    db.add(cloned); db.commit(); db.refresh(cloned)
+
+    if SYNC_RUNS:
+        drain_pending(db, cloned.agent_version_id)
+    else:
+        dispatch(background, cloned.id)
+    return {"runId": cloned.id, "replayedFrom": original.id,
+            "evaluationId": cloned.agent_version_id, "status": cloned.status}
 
 
 @router.get("/dashboard")
