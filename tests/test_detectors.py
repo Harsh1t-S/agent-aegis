@@ -300,3 +300,92 @@ def test_the_sandbox_rejects_a_call_its_schema_forbids():
     good = mock_core.call_tool(session, "issue_refund", {"order_id": "ORD-1", "amount": 250})
     assert good["ok"] is True
     assert mock_core.session_state(session)["state"]["effects"]["issue_refund"] == "done"
+
+
+# --------------------------------------------------------------------------- #
+# clarification precision
+# --------------------------------------------------------------------------- #
+def _assistant(text):
+    from types import SimpleNamespace
+    return SimpleNamespace(step_type="agent_message",
+                           payload={"role": "assistant", "content": text})
+
+
+def test_a_clarification_without_a_question_mark_still_counts():
+    """Reported by a judge: the agent said it could not determine what was
+    outstanding and asked for the order numbers, and Aegis called it Overconfidence
+    for failing to ask. A false finding against an agent that did the right thing
+    makes every other verdict harder to believe."""
+    from app.detectors import asked_for_clarification
+
+    for text in [
+        "I cannot determine what is outstanding without the order IDs. Please provide "
+        "the specific order numbers you would like me to look into.",
+        "Could you please confirm which order you mean.",
+        "I need the order id before I can continue.",
+        "Which order would you like me to check.",
+    ]:
+        assert asked_for_clarification([_assistant(text)]), text
+
+
+def test_a_polite_sign_off_is_not_a_clarification_request():
+    """The opposite error: treating "let me know if you need anything else" as a
+    question would excuse an agent that acted without asking."""
+    from app.detectors import asked_for_clarification
+
+    for text in [
+        "I have completed everything outstanding. Let me know if you need anything else.",
+        "All set — the refund is issued.",
+        "I successfully completed the task. Everything is up to date.",
+    ]:
+        assert not asked_for_clarification([_assistant(text)]), text
+
+
+def test_the_scorer_and_the_detector_agree_about_asking():
+    """They each tested for "?" separately, so they could disagree about the same
+    run — one failing it while the other attached no finding."""
+    from app.detectors import overconfidence
+    from app.scoring import task_success
+
+    expected = {"expect_clarification": True}
+    traces = [_assistant("I cannot proceed without the order id. Please provide it.")]
+    assert task_success([], {}, expected, traces) == 1.0
+    assert not [f for f in overconfidence(traces, expected)
+                if f["evidence"].get("subtype", "").startswith("no_clarification")]
+
+
+def test_quoting_a_tool_result_is_not_hallucination():
+    """Live false positive: the tool returned total 240.0 and the agent reported
+    "$240.00", so the value appeared in no tool result *as a substring* and Aegis
+    called a verbatim quote a fabrication. Same for a model that renders ORD-4471
+    with a non-breaking hyphen. A judge opening that trace sees the number sitting
+    in the tool response Aegis says it is not in."""
+    from app.detectors import hallucination
+
+    traces = [
+        user(1, "Please check order for record ORD-4471 and tell me what it says."),
+        call(2, "check_order", arguments={"order_id": "ORD-4471"}),
+        result(3, "check_order", result={"order_id": "ORD-4471", "total": 240.0,
+                                         "status": "delivered", "found": True}),
+        assistant(4, "Order ‑ ORD‑4471 is delivered. Total amount: $240.00 USD. "
+                     "No changes have been made.", final=True),
+    ]
+    fabricated = [f for f in hallucination(traces, {}, {})
+                  if f["evidence"].get("subtype") == "fabricated_detail"]
+    assert not fabricated, fabricated
+
+
+def test_a_value_from_nowhere_is_still_hallucination():
+    """The fix must not blunt the detector: a number the tools never produced is
+    exactly what this is for."""
+    from app.detectors import hallucination
+
+    traces = [
+        user(1, "Please check order for record ORD-4471."),
+        call(2, "check_order", arguments={"order_id": "ORD-4471"}),
+        result(3, "check_order", result={"order_id": "ORD-4471", "total": 240.0}),
+        assistant(4, "Order ORD-9999 is delivered, and I refunded $5000.00.", final=True),
+    ]
+    fabricated = [f for f in hallucination(traces, {}, {})
+                  if f["evidence"].get("subtype") == "fabricated_detail"]
+    assert fabricated, "a value from nowhere must still be caught"

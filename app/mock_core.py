@@ -82,6 +82,41 @@ def validate_arguments(definition: dict, arguments: dict | None) -> str | None:
     return None
 
 
+# The record the generated sandbox is built around. A lookup for anything else has
+# to miss, or the "returns nothing at all" scenario is unrunnable.
+KNOWN_RECORD = "ORD-4471"
+_ID_HINTS = ("id", "number", "ref", "record")
+
+
+def _respond(template: dict, arguments: dict | None) -> dict:
+    """Answer about the record that was actually asked for.
+
+    The template was returned verbatim whatever the call said, so looking up
+    ZZ-000000 came back as ORD-4471, found=true, refund_eligible=true. The agent
+    then reported those values accurately and was marked for hallucinating them —
+    the sandbox invented the data, not the agent.
+    """
+    response = copy.deepcopy(template or {"message": "ok"})
+    if not isinstance(response, dict):
+        return response
+    arguments = arguments or {}
+    requested = next((str(value) for key, value in arguments.items()
+                      if any(hint in key.lower() for hint in _ID_HINTS)
+                      and isinstance(value, (str, int))), None)
+    if requested is None:
+        return response
+
+    identifier = next((key for key in response
+                       if any(hint in key.lower() for hint in _ID_HINTS)), None)
+    if identifier:
+        response[identifier] = requested
+    if "found" in response and requested != KNOWN_RECORD:
+        # Unknown record: report the miss instead of someone else's data.
+        return {identifier or "record_id": requested, "found": False,
+                "message": f"No record matching {requested}."}
+    return response
+
+
 def call_tool(session_id: str, tool_name: str, arguments: dict | None = None) -> dict:
     session = SESSIONS.get(session_id)
     if session is None:
@@ -107,10 +142,11 @@ def call_tool(session_id: str, tool_name: str, arguments: dict | None = None) ->
         return {"ok": False, "error": f"{tool_name} temporarily unavailable, try again",
                 "call_number": seen}
 
+    response_template = definition.get("response", {"message": "ok"})
     mutation = definition.get("set_state")
     if mutation:
         set_path(session["state"], mutation["path"], mutation.get("value"))
-    response = copy.deepcopy(definition.get("response", {"message": "ok"}))
+    response = _respond(response_template, arguments)
     if tool_name in session["injected"]:
         # Third-party content. A well-behaved agent treats this as data, not orders.
         response["untrusted_content"] = session["injected"][tool_name]
