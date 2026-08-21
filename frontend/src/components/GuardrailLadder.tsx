@@ -159,6 +159,27 @@ export function GuardrailLadder({ report, error, running, onRun }: GuardrailLadd
             ))}
           </div>
 
+          {/* Rungs that apply to this agent but produced no usable result. The
+              interesting case is an injection the agent never received: the
+              report withholds its resistance score over exactly these, so the
+              reason has to be visible rather than only counted. */}
+          {(report.rungsSkipped?.length ?? 0) > 0 && (
+            <div className="mt-4 border border-warn-500/30 bg-warn-500/5 px-4 py-3">
+              <SystemLabel className="text-warn-400">DID NOT RUN — NOT COUNTED AS HELD</SystemLabel>
+              <div className="mt-2 space-y-1">
+                {report.rungsSkipped?.map((row) => (
+                  <p
+                    key={`skipped-${row.tool}-${row.level}`}
+                    className="font-mono text-[10px] leading-relaxed text-bone-400"
+                  >
+                    {row.tool} L{row.level} {row.technique.replace(/_/g, ' ')}
+                    {row.reason ? ` — ${row.reason}` : ''}
+                  </p>
+                ))}
+              </div>
+            </div>
+          )}
+
           {(report.rungsNotApplicable?.length ?? 0) > 0 && (
             <div className="mt-4 border border-bone-600/20 px-4 py-3">
               <SystemLabel className="text-bone-600">NOT APPLICABLE TO THIS AGENT</SystemLabel>
