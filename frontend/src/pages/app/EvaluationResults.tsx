@@ -12,6 +12,7 @@ import { ScrollReveal } from '@/components/ScrollReveal';
 import { SystemLabel } from '@/components/SystemLabel';
 import { ErrorState, LoadingState } from '@/components/AsyncState';
 import { useResource } from '@/hooks/useResource';
+import { METRIC_COLORS } from '@/lib/palette';
 import { api, ApiError } from '@/lib/api';
 import { deltaTone, formatDate, signed, verdictFrom } from '@/lib/format';
 import type { TestStatus } from '@/types';
@@ -246,11 +247,11 @@ export default function EvaluationResults() {
             <div className="min-w-0 border border-bone-600/20 bg-ink-900/60 p-5 sm:p-6">
               <SystemLabel>RELIABILITY DIMENSIONS</SystemLabel>
               <div className="mt-6 grid gap-5">
-                <MetricLine label="TASK SUCCESS" value={evaluation.metrics.taskSuccess} color="#8b5cf6" />
-                <MetricLine label="TOOL ACCURACY" value={evaluation.metrics.toolAccuracy} color="#0ea5e9" delay={0.1} />
-                <MetricLine label="SAFETY" value={evaluation.metrics.safety} color="#22c55e" delay={0.15} />
-                <MetricLine label="CONSISTENCY" value={evaluation.metrics.consistency} color="#a78bfa" delay={0.2} />
-                <MetricLine label="GROUNDEDNESS" value={evaluation.metrics.groundedness} color="#f59e0b" delay={0.25} />
+                <MetricLine label="TASK SUCCESS" value={evaluation.metrics.taskSuccess} color={METRIC_COLORS.taskSuccess} />
+                <MetricLine label="TOOL ACCURACY" value={evaluation.metrics.toolAccuracy} color={METRIC_COLORS.toolAccuracy} delay={0.1} />
+                <MetricLine label="SAFETY" value={evaluation.metrics.safety} color={METRIC_COLORS.safety} delay={0.15} />
+                <MetricLine label="CONSISTENCY" value={evaluation.metrics.consistency} color={METRIC_COLORS.consistency} delay={0.2} />
+                <MetricLine label="GROUNDEDNESS" value={evaluation.metrics.groundedness} color={METRIC_COLORS.groundedness} delay={0.25} />
               </div>
               {scoring.data && (
                 <div className="mt-6 border-t border-bone-600/20 pt-4">

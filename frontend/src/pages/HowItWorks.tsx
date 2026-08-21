@@ -50,7 +50,10 @@ export default function HowItWorks() {
             <ScrollReveal key={stage.num} delay={i * 0.05}>
               <div className="grid gap-6 md:grid-cols-[auto_1fr] md:gap-12">
                 <div className="flex flex-row items-center gap-4 md:flex-col md:items-start md:gap-2">
-                  <span className="massive text-5xl text-violet-500/40 md:text-7xl">{stage.num}</span>
+                  {/* These numerals are the only thing naming each stage, so they are not
+                      allowed to be decoration: at /40 they sat at 1.98:1, under the
+                      3:1 that large text needs. */}
+                  <span className="massive text-5xl text-violet-400/70 md:text-7xl">{stage.num}</span>
                   <span className="tech-label text-violet-400">{stage.label}</span>
                 </div>
                 <div className="border-l border-bone-600/20 pl-0 md:pl-8">

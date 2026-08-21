@@ -1,4 +1,26 @@
 /** @type {import('tailwindcss').Config} */
+
+/*
+ * The palette is warm-black with cool accents, on purpose.
+ *
+ * It used to be blue-black (#050507, hue 240) with lavender #8b5cf6 on top — the
+ * same near-black-plus-purple every generated dashboard ships with, and it read as
+ * exactly that. The problem was not the purple by itself: it was that the ground,
+ * the text and the accent were all the same cool hue, so the whole screen was one
+ * colour at three lightnesses and nothing looked chosen.
+ *
+ * So the ground is warm now — graphite with brown in it, the colour of anodised
+ * metal rather than of space — and the accent is a saturated ultramarine that sits
+ * across the wheel from it. Warm ground against cool accent is what makes a screen
+ * look designed rather than defaulted, and it gives the status colours somewhere to
+ * live: amber and vermilion read as signals against warm black instead of blending
+ * into a blue field.
+ *
+ * Colour carries meaning here. Ultramarine is interactive, jade is a pass, amber a
+ * warning, vermilion a failure — nothing is tinted for decoration, because the one
+ * thing this product cannot afford is a reader who has learned to ignore its
+ * colours.
+ */
 export default {
   content: ['./index.html', './src/**/*.{js,ts,jsx,tsx}'],
   theme: {
@@ -9,57 +31,74 @@ export default {
         xs: '475px',
       },
       colors: {
-        // Near-black / deep charcoal backgrounds
+        // Warm graphite. Hue ~30 rather than ~240 — the brown keeps it from
+        // reading as "space", which is what the blue-black did.
         ink: {
-          950: '#050507',
-          900: '#0a0a0f',
-          850: '#0f0f16',
-          800: '#14141c',
-          750: '#1a1a24',
-          700: '#20202c',
-          650: '#262633',
-          600: '#2d2d3a',
+          950: '#0b0a09',
+          900: '#12100e',
+          850: '#191613',
+          800: '#211d19',
+          750: '#29241f',
+          700: '#322c26',
+          650: '#3b342d',
+          600: '#453d35',
         },
-        // Off-white / muted text
+        // Bone: warm off-white through to warm grey.
+        //
+        // 500 and 600 used to be #5a5a66 and #3e3e48 — 2.1:1 and 1.5:1 against the
+        // background. Every "small text is not visible" complaint was one of these:
+        // the labels were technically rendered and practically invisible.
+        //
+        // The two dimmest steps are now set by measurement, not by eye: 600 is
+        // 4.77:1 and 500 is 5.76:1 against ink-950, so even an 10px mono label at
+        // the quietest weight in the product clears WCAG AA for body text. Anything
+        // dimmer than 600 does not exist, because there is nothing worth saying
+        // that is not worth being able to read.
         bone: {
-          50: '#f5f5f7',
-          100: '#e8e8ec',
-          200: '#d1d1d8',
-          300: '#a8a8b2',
-          400: '#7a7a86',
-          500: '#5a5a66',
-          600: '#3e3e48',
+          50: '#f6f2ea',
+          100: '#eae4d8',
+          200: '#d6cfc0',
+          300: '#bcb3a1',
+          400: '#a1977f',
+          500: '#948a77',
+          600: '#857c6d',
         },
-        // Primary accent — vivid electric violet
+        // Interactive. A saturated ultramarine, not the washed-out lavender it
+        // replaces — it has to hold its own against a warm ground.
         violet: {
-          400: '#a78bfa',
-          500: '#8b5cf6',
-          600: '#7c3aed',
-          700: '#6d28d9',
+          300: '#a3adff',
+          400: '#8b96ff',
+          500: '#6472f5',
+          600: '#4a56db',
+          700: '#3a44b4',
         },
-        // Secondary accent — electric blue
+        // Secondary / informational — cyan.
         spark: {
-          400: '#38bdf8',
-          500: '#0ea5e9',
-          600: '#0284c7',
+          400: '#4bd6f0',
+          500: '#1cb8d8',
+          600: '#0e93b0',
         },
-        // Success — luminous green
+        // Pass — jade, warmed slightly so it belongs on this ground.
         flux: {
-          400: '#4ade80',
-          500: '#22c55e',
-          600: '#16a34a',
+          300: '#7ff0b6',
+          400: '#4ade9b',
+          500: '#22c57e',
+          600: '#16a463',
         },
-        // Failure — vivid red
+        // Failure — vermilion rather than fire-engine red; it separates cleanly
+        // from amber at small sizes, which pure red does not.
         fault: {
-          400: '#f87171',
-          500: '#ef4444',
-          600: '#dc2626',
+          300: '#ff9b8c',
+          400: '#ff7a68',
+          500: '#f05540',
+          600: '#d13d29',
         },
-        // Warning — amber
+        // Warning — amber.
         warn: {
-          400: '#fbbf24',
-          500: '#f59e0b',
-          600: '#d97706',
+          300: '#ffd97a',
+          400: '#fbc44a',
+          500: '#eda31c',
+          600: '#c88210',
         },
       },
       fontFamily: {

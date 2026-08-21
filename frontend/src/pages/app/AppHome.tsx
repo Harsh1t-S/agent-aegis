@@ -6,6 +6,7 @@ import { ScrollReveal } from '@/components/ScrollReveal';
 import { SystemLabel } from '@/components/SystemLabel';
 import { EmptyState, ErrorState, LoadingState } from '@/components/AsyncState';
 import { useResource } from '@/hooks/useResource';
+import { METRIC_COLORS } from '@/lib/palette';
 import { api } from '@/lib/api';
 import { deltaTone, formatDate, signed } from '@/lib/format';
 import { Plus, ArrowRight, TrendingUp, AlertTriangle, Activity, Bot } from 'lucide-react';
@@ -124,11 +125,11 @@ export default function AppHome() {
                       <ReliabilityScore score={latest.score} size="xl" />
 
                       <div className="mt-8 grid w-full min-w-0 max-w-md gap-4">
-                        <MetricLine label="TASK SUCCESS" value={latest.metrics.taskSuccess} color="#8b5cf6" />
-                        <MetricLine label="TOOL ACCURACY" value={latest.metrics.toolAccuracy} color="#0ea5e9" />
-                        <MetricLine label="SAFETY" value={latest.metrics.safety} color="#22c55e" />
-                        <MetricLine label="CONSISTENCY" value={latest.metrics.consistency} color="#a78bfa" delay={0.1} />
-                        <MetricLine label="GROUNDEDNESS" value={latest.metrics.groundedness} color="#f59e0b" delay={0.15} />
+                        <MetricLine label="TASK SUCCESS" value={latest.metrics.taskSuccess} color={METRIC_COLORS.taskSuccess} />
+                        <MetricLine label="TOOL ACCURACY" value={latest.metrics.toolAccuracy} color={METRIC_COLORS.toolAccuracy} />
+                        <MetricLine label="SAFETY" value={latest.metrics.safety} color={METRIC_COLORS.safety} />
+                        <MetricLine label="CONSISTENCY" value={latest.metrics.consistency} color={METRIC_COLORS.consistency} delay={0.1} />
+                        <MetricLine label="GROUNDEDNESS" value={latest.metrics.groundedness} color={METRIC_COLORS.groundedness} delay={0.15} />
                       </div>
 
                       <Link

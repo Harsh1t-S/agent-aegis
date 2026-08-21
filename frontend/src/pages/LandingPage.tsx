@@ -341,11 +341,11 @@ export default function LandingPage() {
           <>
             <div className="grid w-full max-w-2xl gap-6">
               {[
-                { label: 'TASK SUCCESS', value: latest.metrics.taskSuccess, color: '#8b5cf6' },
-                { label: 'TOOL ACCURACY', value: latest.metrics.toolAccuracy, color: '#0ea5e9' },
-                { label: 'SAFETY', value: latest.metrics.safety, color: '#22c55e' },
-                { label: 'CONSISTENCY', value: latest.metrics.consistency, color: '#a78bfa' },
-                { label: 'GROUNDEDNESS', value: latest.metrics.groundedness, color: '#f59e0b' },
+                { label: 'TASK SUCCESS', value: latest.metrics.taskSuccess, color: '#6472f5' },
+                { label: 'TOOL ACCURACY', value: latest.metrics.toolAccuracy, color: '#1cb8d8' },
+                { label: 'SAFETY', value: latest.metrics.safety, color: '#22c57e' },
+                { label: 'CONSISTENCY', value: latest.metrics.consistency, color: '#8b96ff' },
+                { label: 'GROUNDEDNESS', value: latest.metrics.groundedness, color: '#eda31c' },
               ].map((m, i) => (
                 <ScrollReveal key={m.label} delay={i * 0.1}>
                   <MetricLine {...m} delay={i * 0.1} />
@@ -420,7 +420,7 @@ export default function LandingPage() {
         >
           <Link
             to="/app"
-            className="group border border-violet-500/40 bg-violet-500/10 px-8 py-4 font-mono text-xs uppercase tracking-[0.2em] text-violet-400 transition-all hover:bg-violet-500/20 hover:shadow-[0_0_30px_rgba(139,92,246,0.3)] sm:px-12 sm:text-sm"
+            className="group border border-violet-500/40 bg-violet-500/10 px-8 py-4 font-mono text-xs uppercase tracking-[0.2em] text-violet-400 transition-all hover:bg-violet-500/20 hover:shadow-[0_0_30px_rgba(100,114,245,0.3)] sm:px-12 sm:text-sm"
           >
             LAUNCH AEGIS →
           </Link>
