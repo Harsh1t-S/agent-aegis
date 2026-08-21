@@ -1,0 +1,219 @@
+import { useState } from 'react';
+import { useParams, Link } from 'react-router-dom';
+import { AppNavigation } from '@/components/AppNavigation';
+import { IncidentTrace } from '@/components/IncidentTrace';
+import { FailureAnalysis } from '@/components/FailureAnalysis';
+import { ScrollReveal } from '@/components/ScrollReveal';
+import { SystemLabel } from '@/components/SystemLabel';
+import { ErrorState, LoadingState } from '@/components/AsyncState';
+import { useResource } from '@/hooks/useResource';
+import { api, ApiError } from '@/lib/api';
+import { severityTone, testStatusTone } from '@/lib/format';
+import { Check, Copy, Loader2, RotateCcw, ArrowLeft } from 'lucide-react';
+
+export default function TestTrace() {
+  const { evaluationId, testId } = useParams<{ evaluationId: string; testId: string }>();
+  const { data: evaluation, error, loading, reload } = useResource(
+    () => api.evaluation(evaluationId as string),
+    [evaluationId],
+    { enabled: Boolean(evaluationId) },
+  );
+  const [copied, setCopied] = useState(false);
+  const [replaying, setReplaying] = useState(false);
+  const [replayNote, setReplayNote] = useState<string | undefined>();
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-ink-950">
+        <AppNavigation />
+        <LoadingState label="LOADING INCIDENT" />
+      </div>
+    );
+  }
+
+  const test = evaluation?.tests.find((t) => t.id === testId);
+
+  if (error || !test) {
+    return (
+      <div className="min-h-screen bg-ink-950">
+        <AppNavigation />
+        <div className="px-6 py-16 md:px-10">
+          <ErrorState
+            message={error ?? 'This scenario run is not part of the evaluation.'}
+            onRetry={reload}
+          />
+          <div className="mt-6 text-center">
+            <Link
+              to={evaluationId ? `/app/evaluations/${evaluationId}` : '/app/agents'}
+              className="border border-violet-500/40 px-6 py-3 font-mono text-xs uppercase tracking-wider text-violet-400 hover:bg-violet-500/10"
+            >
+              BACK TO RESULTS
+            </Link>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  const cfg = testStatusTone[test.status];
+  const isFail = test.status === 'failed';
+
+  const copyRecommendation = async () => {
+    if (!test.recommendation) return;
+    try {
+      await navigator.clipboard.writeText(test.recommendation);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      setCopied(false);
+    }
+  };
+
+  const replay = async () => {
+    setReplaying(true);
+    setReplayNote(undefined);
+    try {
+      await api.rerunTest(test.id);
+      setReplayNote('Re-run queued. Reloading the evaluation…');
+      reload();
+    } catch (err) {
+      setReplayNote(err instanceof ApiError ? err.message : 'Could not queue a re-run.');
+    } finally {
+      setReplaying(false);
+    }
+  };
+
+  return (
+    <div className="min-h-screen bg-ink-950">
+      <AppNavigation />
+
+      <div className="px-6 py-8 md:px-10">
+        <div className="flex flex-wrap items-center gap-2 font-mono text-[10px] uppercase tracking-wider text-bone-500">
+          <Link to={`/app/evaluations/${evaluationId}`} className="hover:text-bone-200">
+            {evaluation?.agentName?.toUpperCase() ?? 'EVALUATION'}
+          </Link>
+          <span>/</span>
+          <span>{evaluation?.version}</span>
+          <span>/</span>
+          <span className="text-violet-400">{test.title.toUpperCase()}</span>
+        </div>
+
+        <div className="mt-6 flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
+          <div>
+            <div className="flex flex-wrap items-center gap-3">
+              <SystemLabel>INCIDENT REPORT</SystemLabel>
+              <span
+                className={`border px-2 py-0.5 font-mono text-[10px] uppercase tracking-wider ${cfg.color} border-current/40`}
+              >
+                {cfg.label}
+              </span>
+              {test.severity && (
+                <span
+                  className={`border px-2 py-0.5 font-mono text-[10px] uppercase tracking-wider ${severityTone[test.severity]}`}
+                >
+                  {test.severity}
+                </span>
+              )}
+              <span className="tech-label text-bone-600">{test.category}</span>
+            </div>
+            {isFail && test.failureType ? (
+              <h1 className="massive mt-4 text-[clamp(2rem,5vw,3.5rem)] text-fault-500">
+                {test.failureType.toUpperCase()}.
+              </h1>
+            ) : (
+              <h1 className="massive mt-4 text-[clamp(1.5rem,4vw,2.75rem)] text-bone-50">
+                {test.title}
+              </h1>
+            )}
+            <p className="mt-2 font-mono text-[11px] text-bone-500">
+              Run {test.id} · scenario {test.scenarioId} · {test.durationMs} ms
+            </p>
+          </div>
+          <Link
+            to={`/app/evaluations/${evaluationId}`}
+            className="flex h-fit items-center gap-2 font-mono text-[11px] uppercase tracking-wider text-bone-400 transition-colors hover:text-bone-100"
+          >
+            <ArrowLeft className="h-4 w-4" /> BACK TO RESULTS
+          </Link>
+        </div>
+
+        <div className="mt-12 grid gap-6 md:grid-cols-2">
+          <ScrollReveal>
+            <div className="border border-bone-600/20 bg-ink-900/60 p-6">
+              <SystemLabel>SCENARIO PROMPT</SystemLabel>
+              <p className="mt-3 whitespace-pre-wrap text-sm leading-relaxed text-bone-200">
+                {test.userPrompt}
+              </p>
+            </div>
+          </ScrollReveal>
+          <ScrollReveal delay={0.1}>
+            <div className="border border-flux-500/20 bg-flux-500/5 p-6">
+              <SystemLabel className="text-flux-400">EXPECTED BEHAVIOR</SystemLabel>
+              <p className="mt-3 whitespace-pre-wrap text-sm leading-relaxed text-bone-200">
+                {test.expectedBehavior}
+              </p>
+            </div>
+          </ScrollReveal>
+        </div>
+
+        <ScrollReveal className="mt-6">
+          <div className="border border-bone-600/20 bg-ink-900/80 p-6">
+            <div className="flex items-center gap-2">
+              <span className={`flex h-2 w-2 rounded-full ${isFail ? 'bg-fault-500' : 'bg-flux-500'}`} />
+              <SystemLabel>AGENT RESPONSE</SystemLabel>
+            </div>
+            <div className="mt-4 whitespace-pre-wrap border-l-2 border-bone-600/30 pl-4 font-mono text-sm leading-relaxed text-bone-200">
+              {test.agentResponse || (
+                <span className="text-bone-600">The agent produced no final answer.</span>
+              )}
+            </div>
+          </div>
+        </ScrollReveal>
+
+        <ScrollReveal className="mt-6">
+          <IncidentTrace events={test.trace} />
+        </ScrollReveal>
+
+        {(test.explanation || test.recommendation) && (
+          <div className="mt-6">
+            <FailureAnalysis
+              why={test.explanation ?? 'No explanation was recorded for this run.'}
+              recommendation={
+                test.recommendation ?? 'No remediation was recorded for this run.'
+              }
+            />
+          </div>
+        )}
+
+        <ScrollReveal className="mt-6">
+          <div className="flex flex-wrap items-center gap-3">
+            {test.recommendation && (
+              <button
+                type="button"
+                onClick={copyRecommendation}
+                className="flex items-center gap-2 border border-bone-600/30 px-4 py-2 font-mono text-[11px] uppercase tracking-wider text-bone-300 transition-colors hover:border-violet-500/40 hover:text-violet-400"
+              >
+                {copied ? <Check className="h-3.5 w-3.5 text-flux-400" /> : <Copy className="h-3.5 w-3.5" />}
+                {copied ? 'COPIED' : 'COPY RECOMMENDATION'}
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={replay}
+              disabled={replaying}
+              className="flex items-center gap-2 border border-bone-600/30 px-4 py-2 font-mono text-[11px] uppercase tracking-wider text-bone-300 transition-colors enabled:hover:border-violet-500/40 enabled:hover:text-violet-400 disabled:opacity-50"
+            >
+              {replaying ? (
+                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              ) : (
+                <RotateCcw className="h-3.5 w-3.5" />
+              )}
+              RE-RUN THIS SCENARIO
+            </button>
+            {replayNote && <span className="font-mono text-[11px] text-bone-400">{replayNote}</span>}
+          </div>
+        </ScrollReveal>
+      </div>
+    </div>
+  );
+}

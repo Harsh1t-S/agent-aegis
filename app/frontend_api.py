@@ -197,13 +197,32 @@ def _test_result(run: TestRun, scenario: Scenario, traces: list, failures: list)
     }
 
 
+GUARDRAIL_GENERATOR = "guardrail-v1"
+
+
+def _exclude_guardrail(query):
+    """Drop pressure-ladder probes from a TestRun query.
+
+    The ladder writes its rungs against the same agent_version_id as the scored
+    suite, so counting them as scenarios made running the ladder change the very
+    evaluation it was diagnosing: on a 7-scenario run, total went to 13,
+    adversarial from 1 to 8 and passed from 1 to 5. The ladder is a diagnostic
+    with its own report and its own resistance score; it must not move the
+    reliability score, the pass rate or the category breakdown.
+    """
+    return (query.outerjoin(Scenario, TestRun.scenario_id == Scenario.id)
+                 .filter((Scenario.generator_version.is_(None))
+                         | (Scenario.generator_version != GUARDRAIL_GENERATOR)))
+
+
 def _version_evaluation(db: Session, version: AgentVersion, agent: Agent,
                         include_tests: bool = False) -> dict:
-    runs = (db.query(TestRun)
-              .filter_by(agent_version_id=version.id, status="complete")
+    runs = (_exclude_guardrail(db.query(TestRun))
+              .filter(TestRun.agent_version_id == version.id,
+                      TestRun.status == "complete")
               .order_by(TestRun.completed_at).all())
     latest: dict[str, TestRun] = {r.scenario_id: r for r in runs}
-    pending = (db.query(TestRun)
+    pending = (_exclude_guardrail(db.query(TestRun))
                  .filter(TestRun.agent_version_id == version.id,
                          TestRun.status.in_(["pending", "running"])).count())
 
@@ -309,8 +328,9 @@ def _version_reliability(db: Session, version_id: str) -> float:
     the agent page and contributed an uncapped score to the dashboard average.
     Nothing derives reliability independently any more.
     """
-    runs = (db.query(TestRun)
-              .filter_by(agent_version_id=version_id, status="complete")
+    runs = (_exclude_guardrail(db.query(TestRun))
+              .filter(TestRun.agent_version_id == version_id,
+                      TestRun.status == "complete")
               .order_by(TestRun.completed_at).all())
     latest = {r.scenario_id: r for r in runs}          # latest run per scenario
     scores = [r.reliability_score for r in latest.values() if r.reliability_score is not None]
@@ -347,7 +367,9 @@ def _agent_payload(db: Session, agent: Agent) -> dict:
 
     version_rows, last_evaluated = [], None
     for version in versions:
-        runs = db.query(TestRun).filter_by(agent_version_id=version.id, status="complete").all()
+        runs = (_exclude_guardrail(db.query(TestRun))
+                  .filter(TestRun.agent_version_id == version.id,
+                          TestRun.status == "complete").all())
         failures = _empty_failures()
         for run in runs:
             for annotation in db.query(FailureAnnotation).filter_by(test_run_id=run.id):
@@ -621,9 +643,10 @@ def list_evaluations(db: Session = Depends(get_db)):
     # Aggregating over *every* completed run instead meant a re-run scenario was
     # counted twice here and once there, so the table and the report disagreed on
     # the score, the scenario count and every metric for the same evaluation id.
-    rows = db.query(TestRun.id, TestRun.agent_version_id, TestRun.scenario_id,
-                    TestRun.completed_at, TestRun.outcome, TestRun.reliability_score,
-                    TestRun.metrics).filter(TestRun.status == "complete").all()
+    rows = _exclude_guardrail(
+        db.query(TestRun.id, TestRun.agent_version_id, TestRun.scenario_id,
+                 TestRun.completed_at, TestRun.outcome, TestRun.reliability_score,
+                 TestRun.metrics)).filter(TestRun.status == "complete").all()
     latest_run: dict[tuple[str, str], tuple] = {}
     for row in rows:
         key = (row.agent_version_id, row.scenario_id)
@@ -657,7 +680,7 @@ def list_evaluations(db: Session = Depends(get_db)):
 
     pending = {
         row[0]: row[1] for row in
-        db.query(TestRun.agent_version_id, func.count(TestRun.id))
+        _exclude_guardrail(db.query(TestRun.agent_version_id, func.count(TestRun.id)))
           .filter(TestRun.status.in_(["pending", "running"]))
           .group_by(TestRun.agent_version_id)
     }
@@ -1052,8 +1075,9 @@ def reanalyze_evaluation(evaluation_id: str, db: Session = Depends(get_db)):
     if not version:
         raise HTTPException(404, "Evaluation not found")
 
-    runs = db.query(TestRun).filter_by(agent_version_id=evaluation_id,
-                                       status="complete").all()
+    runs = (_exclude_guardrail(db.query(TestRun))
+              .filter(TestRun.agent_version_id == evaluation_id,
+                      TestRun.status == "complete").all())
     if not runs:
         raise HTTPException(400, "No completed runs to replay")
 

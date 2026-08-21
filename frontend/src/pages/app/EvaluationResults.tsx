@@ -1,0 +1,310 @@
+import { useState } from 'react';
+import { useParams, Link } from 'react-router-dom';
+import { AppNavigation } from '@/components/AppNavigation';
+import { MetricLine } from '@/components/MetricLine';
+import { FailureReveal } from '@/components/FailureReveal';
+import { TestResult } from '@/components/TestResult';
+import { CiGatePanel } from '@/components/CiGatePanel';
+import { GuardrailLadder } from '@/components/GuardrailLadder';
+import { ScrollReveal } from '@/components/ScrollReveal';
+import { SystemLabel } from '@/components/SystemLabel';
+import { ErrorState, LoadingState } from '@/components/AsyncState';
+import { useResource } from '@/hooks/useResource';
+import { api } from '@/lib/api';
+import { deltaTone, formatDate, signed, verdictFor } from '@/lib/format';
+import type { TestStatus } from '@/types';
+import { ArrowRight } from 'lucide-react';
+
+type Filter = 'all' | TestStatus;
+
+export default function EvaluationResults() {
+  const { id } = useParams<{ id: string }>();
+  const { data: evaluation, error, loading, reload } = useResource(
+    () => api.evaluation(id as string),
+    [id],
+    { enabled: Boolean(id) },
+  );
+  const scoring = useResource(() => api.scoring(), []);
+  const [filter, setFilter] = useState<Filter>('all');
+  const [ladderRunning, setLadderRunning] = useState(false);
+
+  const ciGate = useResource(() => api.ciGate(id as string), [id], { enabled: Boolean(id) });
+  // Polls only while probes are in flight; the ladder is queued server-side and
+  // rungs land one at a time.
+  const guardrail = useResource(
+    () => api.guardrail(id as string),
+    [id],
+    { enabled: Boolean(id), pollMs: ladderRunning ? 2000 : undefined },
+  );
+
+  const runLadder = async () => {
+    if (!id) return;
+    setLadderRunning(true);
+    try {
+      await api.startGuardrail(id);
+    } finally {
+      // Stop polling once every expected rung has reported.
+      setTimeout(() => setLadderRunning(false), 30000);
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-ink-950">
+        <AppNavigation />
+        <LoadingState label="LOADING REPORT" />
+      </div>
+    );
+  }
+
+  if (error || !evaluation) {
+    return (
+      <div className="min-h-screen bg-ink-950">
+        <AppNavigation />
+        <div className="px-6 py-16 md:px-10">
+          <ErrorState message={error ?? 'Evaluation not found.'} onRetry={reload} />
+          <div className="mt-6 text-center">
+            <Link
+              to="/app/agents"
+              className="border border-violet-500/40 px-6 py-3 font-mono text-xs uppercase tracking-wider text-violet-400 hover:bg-violet-500/10"
+            >
+              BACK TO AGENTS
+            </Link>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  const counts: Record<Filter, number> = {
+    all: evaluation.tests.length,
+    passed: evaluation.tests.filter((t) => t.status === 'passed').length,
+    failed: evaluation.tests.filter((t) => t.status === 'failed').length,
+    warning: evaluation.tests.filter((t) => t.status === 'warning').length,
+  };
+  const filteredTests = evaluation.tests.filter((t) => filter === 'all' || t.status === filter);
+  const filters: { key: Filter; label: string }[] = [
+    { key: 'all', label: 'ALL' },
+    { key: 'passed', label: 'PASSED' },
+    { key: 'failed', label: 'FAILED' },
+    { key: 'warning', label: 'WARNING' },
+  ];
+
+  const delta = evaluation.score - evaluation.previousScore;
+  // criticalCount is what the gate acts on; the plain count includes findings
+  // that only cap the score at 80. Reporting one as the other made the dashboard
+  // and the CI gate disagree.
+  const criticalFindings = evaluation.failureBreakdown.reduce(
+    (sum, item) => sum + (item.criticalCount ?? 0),
+    0,
+  );
+  // Which ceiling actually bound this run. The gates are ordered strictest
+  // first, and only the unsafe-action one caps at 30 — treating any critical
+  // finding as that gate would misreport a capped-at-60 run as capped at 30.
+  const criticalUnsafe = evaluation.failureBreakdown.some(
+    (item) => item.category === 'Unsafe Action' && (item.criticalCount ?? 0) > 0,
+  );
+  const highFindings = evaluation.failureBreakdown.some(
+    (item) => item.count > 0 && item.severity === 'high',
+  );
+  const gates = scoring.data?.gates ?? [];
+  const gateApplied = criticalUnsafe
+    ? gates[0]
+    : criticalFindings > 0
+      ? gates[1]
+      : highFindings
+        ? gates[2]
+        : undefined;
+
+  return (
+    <div className="min-h-screen bg-ink-950">
+      <AppNavigation />
+
+      <div className="px-6 py-8 md:px-10">
+        <div className="flex flex-wrap items-center gap-2 font-mono text-[10px] uppercase tracking-wider text-bone-500">
+          <Link to={`/app/agents/${evaluation.agentId}`} className="hover:text-bone-200">
+            {evaluation.agentName.toUpperCase()}
+          </Link>
+          <span>/</span>
+          <span className="text-violet-400">{evaluation.version}</span>
+          <span>/</span>
+          <span>{formatDate(evaluation.date)}</span>
+        </div>
+
+        <div className="mt-6 grid gap-8 lg:grid-cols-[1fr_auto] lg:items-center">
+          <div>
+            <SystemLabel>RELIABILITY REPORT</SystemLabel>
+            <div className="mt-4 flex flex-wrap items-center gap-6">
+              <div className="flex items-baseline gap-2">
+                <span className="massive text-7xl text-bone-50">{evaluation.score.toFixed(1)}</span>
+                <span className="font-mono text-xl text-bone-500">/100</span>
+              </div>
+              <div className="border-l border-bone-600/30 pl-6">
+                <SystemLabel className="text-bone-600">PREVIOUS</SystemLabel>
+                <div className="mt-1 font-mono text-lg text-bone-300">
+                  {evaluation.previousScore.toFixed(1)}
+                </div>
+                <div className={`mt-1 font-mono text-xs ${deltaTone(delta)}`}>{signed(delta)}</div>
+              </div>
+              <div className="border-l border-bone-600/30 pl-6">
+                <SystemLabel className="text-bone-600">VERDICT</SystemLabel>
+                <div className="mt-1 font-mono text-sm text-bone-200">
+                  {verdictFor(evaluation.score)}
+                </div>
+              </div>
+              <div className="border-l border-bone-600/30 pl-6">
+                <SystemLabel className="text-bone-600">OUTCOMES</SystemLabel>
+                <div className="mt-1 font-mono text-sm text-bone-200">
+                  <span className="text-flux-400">{evaluation.passed} passed</span>
+                  {' · '}
+                  <span className="text-fault-400">{evaluation.failed} failed</span>
+                  {evaluation.warnings > 0 && (
+                    <>
+                      {' · '}
+                      <span className="text-warn-400">{evaluation.warnings} warning</span>
+                    </>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+          <Link
+            to={`/app/compare?agent=${evaluation.agentId}`}
+            className="group flex h-fit items-center gap-2 border border-violet-500/40 bg-violet-500/10 px-6 py-3 font-mono text-xs uppercase tracking-wider text-violet-400 transition-colors hover:bg-violet-500/20"
+          >
+            COMPARE VERSIONS{' '}
+            <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-1" />
+          </Link>
+        </div>
+
+        {gateApplied && (
+          <ScrollReveal className="mt-8">
+            <div className="border border-fault-500/30 bg-fault-500/5 p-5">
+              <SystemLabel className="text-fault-400">SEVERITY CEILING APPLIED</SystemLabel>
+              <p className="mt-2 text-sm text-bone-200">
+                This run carries {gateApplied.when}
+                {criticalFindings > 0 && ` (${criticalFindings} critical)`}, so its reliability is
+                capped at {gateApplied.atMost} regardless of pass rate. A high pass rate cannot buy
+                back a failure of this severity.
+              </p>
+            </div>
+          </ScrollReveal>
+        )}
+
+        <div className="mt-8 grid gap-6 lg:grid-cols-2">
+          <ScrollReveal>
+            <div className="border border-bone-600/20 bg-ink-900/60 p-6">
+              <SystemLabel>RELIABILITY DIMENSIONS</SystemLabel>
+              <div className="mt-6 grid gap-5">
+                <MetricLine label="TASK SUCCESS" value={evaluation.metrics.taskSuccess} color="#8b5cf6" />
+                <MetricLine label="TOOL ACCURACY" value={evaluation.metrics.toolAccuracy} color="#0ea5e9" delay={0.1} />
+                <MetricLine label="SAFETY" value={evaluation.metrics.safety} color="#22c55e" delay={0.15} />
+                <MetricLine label="CONSISTENCY" value={evaluation.metrics.consistency} color="#a78bfa" delay={0.2} />
+                <MetricLine label="GROUNDEDNESS" value={evaluation.metrics.groundedness} color="#f59e0b" delay={0.25} />
+              </div>
+              {scoring.data && (
+                <p className="mt-6 border-t border-bone-600/20 pt-4 font-mono text-[10px] uppercase leading-relaxed tracking-wider text-bone-600">
+                  Weighted{' '}
+                  {Object.entries(scoring.data.weights)
+                    .map(([key, weight]) => `${key.replace(/_/g, ' ')} ${Math.round(weight * 100)}%`)
+                    .join(' · ')}
+                </p>
+              )}
+            </div>
+          </ScrollReveal>
+
+          <ScrollReveal delay={0.1}>
+            <div className="border border-bone-600/20 bg-ink-900/60 p-6">
+              <SystemLabel>FAILURE CLASSES DETECTED</SystemLabel>
+              <div className="mt-6">
+                <FailureReveal
+                  items={evaluation.failureBreakdown}
+                  tests={evaluation.tests}
+                  evaluationId={evaluation.id}
+                />
+              </div>
+            </div>
+          </ScrollReveal>
+        </div>
+
+        {evaluation.categories && evaluation.categories.length > 0 && (
+          <ScrollReveal className="mt-6">
+            <div className="border border-bone-600/20 bg-ink-900/60 p-6">
+              <SystemLabel>BY SCENARIO CATEGORY</SystemLabel>
+              <div className="mt-6 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+                {evaluation.categories.map((c) => (
+                  <div key={c.category} className="border border-bone-600/20 bg-ink-850/40 p-4">
+                    <SystemLabel className="text-bone-500">{c.category.toUpperCase()}</SystemLabel>
+                    <div className="mt-2 font-mono text-2xl font-bold text-bone-50">
+                      {c.score.toFixed(1)}
+                    </div>
+                    <div className="mt-1 font-mono text-[10px] text-bone-500">
+                      {c.passed}/{c.total} passed
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </ScrollReveal>
+        )}
+
+        {ciGate.data && (
+          <ScrollReveal className="mt-6">
+            <CiGatePanel gate={ciGate.data} />
+          </ScrollReveal>
+        )}
+
+        <ScrollReveal className="mt-6">
+          <GuardrailLadder
+            report={guardrail.data}
+            error={guardrail.error}
+            running={ladderRunning}
+            onRun={runLadder}
+          />
+        </ScrollReveal>
+
+        <ScrollReveal className="mt-6">
+          <div className="border border-bone-600/20 bg-ink-900/60 p-6">
+            <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+              <SystemLabel>
+                TEST RESULTS — {evaluation.tests.length} OF {evaluation.total} SCENARIOS
+              </SystemLabel>
+              <div className="flex flex-wrap items-center gap-2">
+                {filters.map((f) => (
+                  <button
+                    key={f.key}
+                    type="button"
+                    onClick={() => setFilter(f.key)}
+                    className={`border px-3 py-1 font-mono text-[10px] uppercase tracking-wider transition-colors ${
+                      filter === f.key
+                        ? 'border-violet-500/50 bg-violet-500/10 text-violet-400'
+                        : 'border-bone-600/30 text-bone-500 hover:text-bone-200'
+                    }`}
+                  >
+                    {f.label} {counts[f.key]}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="mt-6 space-y-2">
+              {filteredTests.map((test) => (
+                <TestResult key={test.id} test={test} evaluationId={evaluation.id} />
+              ))}
+            </div>
+
+            {filteredTests.length === 0 && (
+              <div className="py-12 text-center">
+                <SystemLabel className="text-bone-600">
+                  {evaluation.tests.length === 0
+                    ? 'THIS RUN RETURNED NO SCENARIO RESULTS'
+                    : 'NO TESTS MATCH THIS FILTER'}
+                </SystemLabel>
+              </div>
+            )}
+          </div>
+        </ScrollReveal>
+      </div>
+    </div>
+  );
+}

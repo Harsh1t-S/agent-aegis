@@ -1,0 +1,138 @@
+import { useEffect } from 'react';
+import { useParams, useNavigate, Link } from 'react-router-dom';
+import { motion } from 'framer-motion';
+import { AppNavigation } from '@/components/AppNavigation';
+import { EvaluationProgress } from '@/components/EvaluationProgress';
+import { LiveActivityStream } from '@/components/LiveActivityStream';
+import { MassiveHeading } from '@/components/MassiveHeading';
+import { SystemLabel } from '@/components/SystemLabel';
+import { ErrorState, LoadingState } from '@/components/AsyncState';
+import { useResource } from '@/hooks/useResource';
+import { api } from '@/lib/api';
+
+export default function EvaluationRunning() {
+  const { id } = useParams<{ id: string }>();
+  const navigate = useNavigate();
+
+  const { data, error, loading, reload } = useResource(
+    () => api.progress(id as string),
+    [id],
+    { enabled: Boolean(id), pollMs: 1500 },
+  );
+
+  const done = data?.status === 'completed';
+
+  useEffect(() => {
+    if (!done) return;
+    // Let the last bar animation land before swapping screens.
+    const timer = setTimeout(() => navigate(`/app/evaluations/${id}`), 900);
+    return () => clearTimeout(timer);
+  }, [done, id, navigate]);
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-ink-950">
+        <AppNavigation />
+        <LoadingState label="ATTACHING TO RUN" />
+      </div>
+    );
+  }
+
+  if (error || !data) {
+    return (
+      <div className="min-h-screen bg-ink-950">
+        <AppNavigation />
+        <div className="px-6 py-16 md:px-10">
+          <ErrorState message={error ?? 'Evaluation not found.'} onRetry={reload} />
+          <div className="mt-6 text-center">
+            <Link
+              to="/app/agents"
+              className="border border-violet-500/40 px-6 py-3 font-mono text-xs uppercase tracking-wider text-violet-400 hover:bg-violet-500/10"
+            >
+              BACK TO AGENTS
+            </Link>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="min-h-screen bg-ink-950">
+      <AppNavigation />
+
+      <div className="px-6 py-8 md:px-10">
+        <div className="flex items-center gap-2 font-mono text-[10px] uppercase tracking-wider text-bone-500">
+          <Link to="/app/agents" className="hover:text-bone-200">
+            {data.agentName.toUpperCase() || 'AGENTS'}
+          </Link>
+          <span>/</span>
+          <span className="text-violet-400">
+            {done ? 'EVALUATION COMPLETE' : 'EVALUATION IN PROGRESS'}
+          </span>
+        </div>
+
+        <MassiveHeading
+          lines={done ? ['EVALUATION', 'COMPLETE.'] : ['EVALUATION', 'IN PROGRESS.']}
+          className="mt-2 text-[clamp(2rem,6vw,4rem)] text-bone-50"
+        />
+
+        <div className="mt-12 grid gap-6 lg:grid-cols-2">
+          <div className="border border-bone-600/20 bg-ink-900/60 p-8">
+            <div className="flex items-center gap-3">
+              <motion.div
+                className={`h-3 w-3 rounded-full ${done ? 'bg-flux-500' : 'bg-violet-500'}`}
+                animate={done ? { opacity: 1 } : { opacity: [1, 0.3, 1] }}
+                transition={done ? undefined : { duration: 1, repeat: Infinity }}
+              />
+              <SystemLabel className={done ? 'text-flux-400' : 'text-violet-400'}>
+                {done ? 'DONE' : 'LIVE'}
+              </SystemLabel>
+            </div>
+
+            <div className="mt-8">
+              <EvaluationProgress
+                complete={data.completed}
+                total={data.total}
+                status={data.status}
+              />
+            </div>
+
+            {done && (
+              <Link
+                to={`/app/evaluations/${id}`}
+                className="mt-8 inline-block border border-violet-500/40 bg-violet-500/10 px-5 py-2 font-mono text-[11px] uppercase tracking-wider text-violet-400 hover:bg-violet-500/20"
+              >
+                VIEW REPORT →
+              </Link>
+            )}
+          </div>
+
+          <div className="border border-bone-600/20 bg-ink-900/60 p-6">
+            <SystemLabel>ACTIVITY LOG</SystemLabel>
+            <div className="mt-4">
+              <LiveActivityStream events={data.events} />
+            </div>
+            <p className="mt-3 font-mono text-[10px] uppercase tracking-wider text-bone-600">
+              Reported by the evaluation API, most recent last.
+            </p>
+          </div>
+        </div>
+
+        <div className="mt-6 grid grid-cols-2 gap-px border border-bone-600/20 bg-bone-600/20 md:grid-cols-4">
+          {[
+            { label: 'AGENT', value: data.agentName || '—' },
+            { label: 'VERSION', value: data.version },
+            { label: 'SCENARIOS', value: String(data.total) },
+            { label: 'COMPLETED', value: `${data.completed} / ${data.total}` },
+          ].map((item) => (
+            <div key={item.label} className="bg-ink-900/80 p-4">
+              <SystemLabel className="text-bone-600">{item.label}</SystemLabel>
+              <div className="mt-1 truncate font-mono text-sm text-bone-100">{item.value}</div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}

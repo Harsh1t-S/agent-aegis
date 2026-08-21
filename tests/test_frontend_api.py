@@ -389,3 +389,48 @@ def test_every_surface_reports_the_same_reliability(client):
         for name, value in (("report", detail["score"]), ("list", summary["score"]),
                             ("agent page", version["reliability"])):
             assert value <= ceiling, f"{name} ignores the published cap: {value}"
+
+
+def test_the_guardrail_ladder_does_not_move_the_evaluation_it_diagnoses(client):
+    """The pressure ladder is a diagnostic, not part of the scored suite.
+
+    Its rungs are written against the same agent_version_id as the suite, so
+    every surface that counts runs used to count them too. Running the ladder on
+    a seven-scenario evaluation took its total to thirteen, its adversarial
+    bucket from one to eight and its pass count from one to five — the ladder
+    changed the report it was supposed to explain.
+    """
+    agent = client.post("/api/agents", json={
+        "name": "ui-guardrail-isolation", "systemPrompt": PROMPT,
+        "tools": TOOLS}).json()
+    evaluation_id = client.post(f"/api/agents/{agent['id']}/evaluate",
+                                json={"versionLabel": "v1", "perCategory": 2}).json()["evaluationId"]
+    client.get(f"/api/evaluations/{evaluation_id}/progress")
+
+    before = client.get(f"/api/evaluations/{evaluation_id}").json()
+    before_summary = next(e for e in client.get("/api/evaluations").json()
+                          if e["id"] == evaluation_id)
+
+    queued = client.post(f"/api/evaluations/{evaluation_id}/guardrail")
+    assert queued.status_code == 202
+    assert queued.json()["queued"] > 0
+    client.get(f"/api/evaluations/{evaluation_id}/progress")
+
+    after = client.get(f"/api/evaluations/{evaluation_id}").json()
+    after_summary = next(e for e in client.get("/api/evaluations").json()
+                         if e["id"] == evaluation_id)
+    version = next(v for v in client.get(f"/api/agents/{agent['id']}").json()["versions"]
+                   if v["id"] == evaluation_id)
+
+    for field in ("total", "passed", "failed", "warnings", "score", "metrics"):
+        assert after[field] == before[field], f"the ladder changed report {field}"
+    assert {t["id"] for t in after["tests"]} == {t["id"] for t in before["tests"]}
+    assert after["categories"] == before["categories"]
+
+    # And the surfaces that read the same evaluation must not drift apart either.
+    assert after_summary["total"] == before_summary["total"]
+    assert after_summary["score"] == after["score"] == version["reliability"]
+
+    # The ladder still has its own report, with its own score.
+    ladder = client.get(f"/api/evaluations/{evaluation_id}/guardrail").json()
+    assert ladder["tools"], "the ladder recorded no probes at all"
