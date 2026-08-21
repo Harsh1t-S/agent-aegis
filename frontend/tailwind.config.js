@@ -3,6 +3,11 @@ export default {
   content: ['./index.html', './src/**/*.{js,ts,jsx,tsx}'],
   theme: {
     extend: {
+      screens: {
+        // Small phones (iPhone SE and narrower) sit below this. Several labels
+        // need a shorter form there rather than wrapping into the logo.
+        xs: '475px',
+      },
       colors: {
         // Near-black / deep charcoal backgrounds
         ink: {

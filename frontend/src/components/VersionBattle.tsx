@@ -39,10 +39,10 @@ function ScenarioList({
         {items.map((item) => (
           <div
             key={`${title}-${item.scenario_id}`}
-            className="flex flex-wrap items-center justify-between gap-2 border border-bone-600/20 bg-ink-850/40 px-4 py-2"
+            className="flex flex-wrap items-center justify-between gap-2 border border-bone-600/20 bg-ink-850/40 px-4 py-3"
           >
-            <span className="text-sm text-bone-200">{item.scenario}</span>
-            <span className="font-mono text-[11px] text-bone-400">
+            <span className="min-w-0 break-words text-sm text-bone-200">{item.scenario}</span>
+            <span className="min-w-0 break-words font-mono text-[11px] text-bone-400">
               {item.from} → <span className={tone}>{item.to}</span>
               {item.failure_types.length > 0 && (
                 <span className="ml-2 text-bone-600">{item.failure_types.join(', ')}</span>
@@ -64,11 +64,11 @@ export function VersionBattle({ left, right, diff, diffError }: VersionBattlePro
   return (
     <div className="space-y-8">
       {/* Reliability */}
-      <div className="grid grid-cols-1 items-center gap-8 md:grid-cols-3">
+      <div className="grid grid-cols-1 items-center gap-6 sm:gap-8 md:grid-cols-3">
         <ScrollReveal className="text-center">
           <span className="tech-label text-bone-500">{left.version}</span>
           <motion.div
-            className="massive text-7xl text-bone-50"
+            className="massive text-5xl text-bone-50 sm:text-6xl md:text-7xl"
             initial={{ opacity: 0, scale: 0.8 }}
             whileInView={{ opacity: 1, scale: 1 }}
             viewport={{ once: true }}
@@ -93,7 +93,7 @@ export function VersionBattle({ left, right, diff, diffError }: VersionBattlePro
         <ScrollReveal delay={0.3} className="text-center">
           <span className="tech-label text-violet-400">{right.version}</span>
           <motion.div
-            className="massive text-7xl text-violet-400"
+            className="massive text-5xl text-violet-400 sm:text-6xl md:text-7xl"
             initial={{ opacity: 0, scale: 0.8 }}
             whileInView={{ opacity: 1, scale: 1 }}
             viewport={{ once: true }}
@@ -113,7 +113,7 @@ export function VersionBattle({ left, right, diff, diffError }: VersionBattlePro
 
           return (
             <ScrollReveal key={m.key} delay={i * 0.08}>
-              <div className="border border-bone-600/20 bg-ink-850/40 p-4">
+              <div className="min-w-0 border border-bone-600/20 bg-ink-850/40 p-4">
                 <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
                   <SystemLabel>{m.label}</SystemLabel>
                   <span className={`font-mono text-xs font-semibold ${deltaTone(delta)}`}>
@@ -150,7 +150,7 @@ export function VersionBattle({ left, right, diff, diffError }: VersionBattlePro
       {/* Failure counts, straight off each version */}
       {categories.length > 0 && (
         <ScrollReveal delay={0.2}>
-          <div className="border border-bone-600/20 bg-ink-850/40 p-5">
+          <div className="min-w-0 border border-bone-600/20 bg-ink-850/40 p-4 sm:p-5">
             <SystemLabel>FAILURE COUNTS BY CLASS</SystemLabel>
             <div className="mt-4 space-y-3">
               {categories.map((category) => {
@@ -159,7 +159,7 @@ export function VersionBattle({ left, right, diff, diffError }: VersionBattlePro
                 // Fewer failures is better, so the sign is inverted for tone.
                 const tone = r < l ? 'text-flux-400' : r > l ? 'text-fault-400' : 'text-bone-400';
                 return (
-                  <div key={category} className="flex items-center justify-between">
+                  <div key={category} className="flex items-center justify-between gap-3">
                     <SystemLabel>{category.toUpperCase()}</SystemLabel>
                     <span className="font-mono text-sm">
                       <span className="text-bone-400">{l}</span>
@@ -179,7 +179,7 @@ export function VersionBattle({ left, right, diff, diffError }: VersionBattlePro
 
       {/* Server-side scenario diff */}
       <ScrollReveal delay={0.25}>
-        <div className="border border-bone-600/20 bg-ink-900/60 p-5">
+        <div className="min-w-0 border border-bone-600/20 bg-ink-900/60 p-4 sm:p-5">
           <SystemLabel>SCENARIO-LEVEL DIFF</SystemLabel>
           {diffError && <p className="mt-3 text-sm text-fault-400">{diffError}</p>}
           {!diffError && !diff && (

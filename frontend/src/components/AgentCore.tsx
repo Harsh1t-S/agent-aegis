@@ -1,12 +1,28 @@
 import { motion } from 'framer-motion';
-import { useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 
 interface AgentCoreProps {
   destabilized?: boolean;
   size?: number;
 }
 
-export function AgentCore({ destabilized = false, size = 400 }: AgentCoreProps) {
+function useFittedSize(requested: number) {
+  const [fitted, setFitted] = useState(requested);
+
+  useEffect(() => {
+    // The rings breathe out to about 1.1x the box, so leave headroom rather
+    // than letting a rotating decorative layer widen the document.
+    const fit = () => setFitted(Math.min(requested, Math.round(window.innerWidth * 0.78)));
+    fit();
+    window.addEventListener('resize', fit);
+    return () => window.removeEventListener('resize', fit);
+  }, [requested]);
+
+  return fitted;
+}
+
+export function AgentCore({ destabilized = false, size: requested = 400 }: AgentCoreProps) {
+  const size = useFittedSize(requested);
   const orbits = useMemo(
     () => [
       { radius: size * 0.28, duration: 18, points: 6, reverse: false },
@@ -34,7 +50,7 @@ export function AgentCore({ destabilized = false, size = 400 }: AgentCoreProps) 
 
   return (
     <div
-      className="relative flex items-center justify-center"
+      className="relative flex max-w-full items-center justify-center"
       style={{ width: size, height: size }}
       aria-hidden
     >

@@ -11,7 +11,7 @@ import { Check, X } from 'lucide-react';
 export function CiGatePanel({ gate }: { gate: CiGate }) {
   return (
     <div
-      className={`border p-6 ${
+      className={`min-w-0 border p-5 sm:p-6 ${
         gate.passed
           ? 'border-flux-500/30 bg-flux-500/5'
           : 'border-fault-500/30 bg-fault-500/5'
@@ -37,7 +37,7 @@ export function CiGatePanel({ gate }: { gate: CiGate }) {
               {check.ok ? <Check className="h-2.5 w-2.5" /> : <X className="h-2.5 w-2.5" />}
             </span>
             <span
-              className={`font-mono text-xs ${check.ok ? 'text-bone-300' : 'text-fault-300'}`}
+              className={`min-w-0 break-words font-mono text-xs ${check.ok ? 'text-bone-300' : 'text-fault-300'}`}
             >
               {check.check}
             </span>

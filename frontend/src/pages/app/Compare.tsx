@@ -45,7 +45,7 @@ export default function Compare() {
     <div className="min-h-screen bg-ink-950">
       <AppNavigation />
 
-      <div className="px-6 py-8 md:px-10">
+      <div className="px-4 py-8 sm:px-6 md:px-10">
         <SystemLabel>VERSION COMPARISON</SystemLabel>
         <h1 className="massive mt-2 text-[clamp(2rem,6vw,4rem)] text-bone-50">COMPARE.</h1>
 
@@ -73,7 +73,7 @@ export default function Compare() {
                         key={a.id}
                         type="button"
                         onClick={() => setParams({ agent: a.id })}
-                        className={`border px-3 py-1.5 font-mono text-xs uppercase tracking-wider transition-colors ${
+                        className={`flex min-h-11 items-center border px-3 font-mono text-xs uppercase tracking-wider transition-colors ${
                           a.id === agent.id
                             ? 'border-violet-500/50 bg-violet-500/10 text-violet-400'
                             : 'border-bone-600/30 text-bone-500 hover:text-bone-200'
@@ -88,7 +88,7 @@ export default function Compare() {
             )}
 
             <ScrollReveal className="mt-6">
-              <div className="grid gap-6 md:grid-cols-2">
+              <div className="grid min-w-0 gap-6 md:grid-cols-2">
                 <div className="border border-bone-600/20 bg-ink-900/60 p-5">
                   <SystemLabel className="text-bone-600">BASELINE VERSION</SystemLabel>
                   <div className="mt-3 flex flex-wrap gap-2">
@@ -98,7 +98,7 @@ export default function Compare() {
                         type="button"
                         onClick={() => setLeftId(v.id)}
                         disabled={v.id === rightId}
-                        className={`border px-3 py-1.5 font-mono text-xs uppercase tracking-wider transition-colors disabled:opacity-30 ${
+                        className={`flex min-h-11 items-center border px-3 font-mono text-xs uppercase tracking-wider transition-colors disabled:opacity-30 ${
                           v.id === leftId
                             ? 'border-bone-400 bg-bone-600/20 text-bone-100'
                             : 'border-bone-600/30 text-bone-500 hover:text-bone-200'
@@ -118,7 +118,7 @@ export default function Compare() {
                         type="button"
                         onClick={() => setRightId(v.id)}
                         disabled={v.id === leftId}
-                        className={`border px-3 py-1.5 font-mono text-xs uppercase tracking-wider transition-colors disabled:opacity-30 ${
+                        className={`flex min-h-11 items-center border px-3 font-mono text-xs uppercase tracking-wider transition-colors disabled:opacity-30 ${
                           v.id === rightId
                             ? 'border-violet-500/50 bg-violet-500/10 text-violet-400'
                             : 'border-bone-600/30 text-bone-500 hover:text-bone-200'

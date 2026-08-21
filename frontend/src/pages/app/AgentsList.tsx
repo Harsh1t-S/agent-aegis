@@ -14,7 +14,7 @@ export default function AgentsList() {
     <div className="min-h-screen bg-ink-950">
       <AppNavigation />
 
-      <div className="px-6 py-8 md:px-10">
+      <div className="px-4 py-8 sm:px-6 md:px-10">
         <div className="flex flex-wrap items-center justify-between gap-4">
           <div>
             <SystemLabel>AGENTS / REGISTERED</SystemLabel>
@@ -48,7 +48,7 @@ export default function AgentsList() {
             />
           )}
           {agents && agents.length > 0 && (
-            <div className="grid gap-6 md:grid-cols-2 xl:grid-cols-3">
+            <div className="grid min-w-0 gap-6 md:grid-cols-2 xl:grid-cols-3">
               {agents.map((agent, i) => (
                 <AgentModule key={agent.id} agent={agent} index={i} />
               ))}

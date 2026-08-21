@@ -37,15 +37,15 @@ export function FailureReveal({ items, tests = [], evaluationId }: FailureReveal
             <div className="border border-bone-600/30 bg-ink-850/50">
               <button
                 type="button"
-                className="flex w-full items-center justify-between p-5 text-left transition-colors hover:bg-ink-800/50"
+                className="flex w-full items-center justify-between gap-3 p-4 text-left transition-colors hover:bg-ink-800/50 sm:p-5"
                 onClick={() => setActive(open ? null : item.category)}
               >
-                <div className="flex items-center gap-6">
+                <div className="flex min-w-0 items-center gap-4 sm:gap-6">
                   <span className="font-mono text-2xl font-bold text-bone-500">
                     {String(item.count).padStart(2, '0')}
                   </span>
                   <div>
-                    <div className="font-display text-lg font-semibold text-bone-100">
+                    <div className="break-words font-display text-base font-semibold text-bone-100 sm:text-lg">
                       {item.category.toUpperCase()}
                     </div>
                     <span className={`tech-label border-l pl-2 ${severityTone[item.severity]}`}>
@@ -74,7 +74,7 @@ export function FailureReveal({ items, tests = [], evaluationId }: FailureReveal
                     ) : (
                       <div className="divide-y divide-bone-600/15">
                         {examples.map((test) => (
-                          <div key={test.id} className="grid gap-4 p-5 md:grid-cols-2">
+                          <div key={test.id} className="grid min-w-0 gap-4 p-4 sm:p-5 md:grid-cols-2">
                             <div>
                               <SystemLabel>{test.title}</SystemLabel>
                               <p className="mt-2 whitespace-pre-wrap text-sm text-bone-200">
@@ -90,7 +90,7 @@ export function FailureReveal({ items, tests = [], evaluationId }: FailureReveal
                             <div className="space-y-3">
                               <div className="border-l-2 border-fault-500/50 pl-3">
                                 <SystemLabel className="text-fault-400">Agent response</SystemLabel>
-                                <p className="mt-1 whitespace-pre-wrap font-mono text-xs text-bone-300">
+                                <p className="mt-1 whitespace-pre-wrap break-words font-mono text-xs text-bone-300">
                                   {test.agentResponse || '(no final answer)'}
                                 </p>
                               </div>
@@ -103,7 +103,7 @@ export function FailureReveal({ items, tests = [], evaluationId }: FailureReveal
                               {evaluationId && (
                                 <Link
                                   to={`/app/evaluations/${evaluationId}/tests/${test.id}`}
-                                  className="inline-block font-mono text-[11px] uppercase tracking-wider text-violet-400 hover:text-violet-300"
+                                  className="inline-flex min-h-11 items-center font-mono text-[11px] uppercase tracking-wider text-violet-400 hover:text-violet-300"
                                 >
                                   FULL TRACE →
                                 </Link>

@@ -90,9 +90,9 @@ export default function AgentDetail() {
     <div className="min-h-screen bg-ink-950">
       <AppNavigation />
 
-      <div className="px-6 py-8 md:px-10">
+      <div className="px-4 py-8 sm:px-6 md:px-10">
         <div className="flex items-center gap-2 font-mono text-[10px] uppercase tracking-wider text-bone-500">
-          <Link to="/app/agents" className="hover:text-bone-200">
+          <Link to="/app/agents" className="inline-flex min-h-9 items-center hover:text-bone-200">
             AGENTS
           </Link>
           <span>/</span>
@@ -131,9 +131,9 @@ export default function AgentDetail() {
           </div>
         </div>
 
-        <div className="mt-12 grid gap-6 lg:grid-cols-3">
-          <ScrollReveal className="lg:col-span-1">
-            <div className="flex min-h-[320px] flex-col items-center justify-center border border-bone-600/20 bg-ink-900/60 p-8">
+        <div className="mt-12 grid min-w-0 gap-6 lg:grid-cols-3">
+          <ScrollReveal className="min-w-0 lg:col-span-1">
+            <div className="flex min-h-[240px] min-w-0 flex-col items-center justify-center border border-bone-600/20 bg-ink-900/60 p-5 sm:min-h-[320px] sm:p-8">
               {hasRun ? (
                 <>
                   <ReliabilityScore score={agent.reliability} size="lg" />
@@ -156,8 +156,8 @@ export default function AgentDetail() {
             </div>
           </ScrollReveal>
 
-          <ScrollReveal delay={0.1} className="lg:col-span-2">
-            <div className="border border-bone-600/20 bg-ink-900/60 p-8">
+          <ScrollReveal delay={0.1} className="min-w-0 lg:col-span-2">
+            <div className="min-w-0 border border-bone-600/20 bg-ink-900/60 p-5 sm:p-8">
               <SystemLabel>RELIABILITY DIMENSIONS</SystemLabel>
               {hasRun ? (
                 <>
@@ -202,9 +202,9 @@ export default function AgentDetail() {
         <ScrollReveal className="mt-6">
           <div className="border border-bone-600/20 bg-ink-900/60 p-6">
             <SystemLabel>AVAILABLE TOOLS — {agent.tools.length}</SystemLabel>
-            <div className="mt-4 grid gap-3 md:grid-cols-3">
+            <div className="mt-4 grid min-w-0 gap-3 md:grid-cols-3">
               {agent.tools.map((tool) => (
-                <div key={tool.id} className="border border-bone-600/20 bg-ink-850/40 p-4">
+                <div key={tool.id} className="min-w-0 border border-bone-600/20 bg-ink-850/40 p-4">
                   <div className="flex items-center justify-between gap-2">
                     <span className="truncate font-mono text-sm text-violet-400">{tool.name}</span>
                     <span
@@ -242,7 +242,7 @@ export default function AgentDetail() {
               {agent.versions.length > 1 && (
                 <Link
                   to={`/app/compare?agent=${agent.id}`}
-                  className="group flex items-center gap-1 font-mono text-[11px] uppercase tracking-wider text-violet-400 hover:text-violet-300"
+                  className="group flex min-h-11 items-center gap-1 font-mono text-[11px] uppercase tracking-wider text-violet-400 hover:text-violet-300"
                 >
                   COMPARE VERSIONS{' '}
                   <ArrowRight className="h-3 w-3 transition-transform group-hover:translate-x-1" />
@@ -288,7 +288,7 @@ export default function AgentDetail() {
                   type="button"
                   onClick={remove}
                   disabled={deleting}
-                  className="flex items-center gap-2 border border-fault-500/50 bg-fault-500/10 px-4 py-2 font-mono text-[11px] uppercase tracking-wider text-fault-300 transition-colors enabled:hover:bg-fault-500/20 disabled:opacity-50"
+                  className="flex min-h-11 items-center gap-2 border border-fault-500/50 bg-fault-500/10 px-4 font-mono text-[11px] uppercase tracking-wider text-fault-300 transition-colors enabled:hover:bg-fault-500/20 disabled:opacity-50"
                 >
                   {deleting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
                   DELETE PERMANENTLY
@@ -297,7 +297,7 @@ export default function AgentDetail() {
                   type="button"
                   onClick={() => setConfirmingDelete(false)}
                   disabled={deleting}
-                  className="font-mono text-[11px] uppercase tracking-wider text-bone-400 hover:text-bone-100"
+                  className="min-h-11 px-2 font-mono text-[11px] uppercase tracking-wider text-bone-400 hover:text-bone-100"
                 >
                   CANCEL
                 </button>
@@ -306,7 +306,7 @@ export default function AgentDetail() {
               <button
                 type="button"
                 onClick={() => setConfirmingDelete(true)}
-                className="flex items-center gap-2 border border-bone-600/30 px-4 py-2 font-mono text-[11px] uppercase tracking-wider text-bone-400 transition-colors hover:border-fault-500/40 hover:text-fault-300"
+                className="flex min-h-11 items-center gap-2 border border-bone-600/30 px-4 font-mono text-[11px] uppercase tracking-wider text-bone-400 transition-colors hover:border-fault-500/40 hover:text-fault-300"
               >
                 <Trash2 className="h-3.5 w-3.5" /> DELETE
               </button>

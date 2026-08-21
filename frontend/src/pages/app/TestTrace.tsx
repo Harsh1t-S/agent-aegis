@@ -87,9 +87,12 @@ export default function TestTrace() {
     <div className="min-h-screen bg-ink-950">
       <AppNavigation />
 
-      <div className="px-6 py-8 md:px-10">
+      <div className="px-4 py-8 sm:px-6 md:px-10">
         <div className="flex flex-wrap items-center gap-2 font-mono text-[10px] uppercase tracking-wider text-bone-500">
-          <Link to={`/app/evaluations/${evaluationId}`} className="hover:text-bone-200">
+          <Link
+            to={`/app/evaluations/${evaluationId}`}
+            className="inline-flex min-h-9 items-center hover:text-bone-200"
+          >
             {evaluation?.agentName?.toUpperCase() ?? 'EVALUATION'}
           </Link>
           <span>/</span>
@@ -137,7 +140,7 @@ export default function TestTrace() {
           </Link>
         </div>
 
-        <div className="mt-12 grid gap-6 md:grid-cols-2">
+        <div className="mt-12 grid min-w-0 gap-6 md:grid-cols-2">
           <ScrollReveal>
             <div className="border border-bone-600/20 bg-ink-900/60 p-6">
               <SystemLabel>SCENARIO PROMPT</SystemLabel>

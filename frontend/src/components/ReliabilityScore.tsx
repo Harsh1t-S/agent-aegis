@@ -1,5 +1,6 @@
 import { motion, useMotionValue, useTransform, animate } from 'framer-motion';
 import { useEffect, useState } from 'react';
+import { verdictFor } from '@/lib/format';
 
 interface ReliabilityScoreProps {
   score: number;
@@ -9,11 +10,14 @@ interface ReliabilityScoreProps {
   sublabel?: string;
 }
 
+// Fixed type sizes were the single biggest source of horizontal bleed on a
+// phone: `xl` rendered 192px digits, so the score alone was wider than a 375px
+// viewport before any padding was added around it.
 const sizeMap = {
-  sm: 'text-5xl',
-  md: 'text-7xl',
-  lg: 'text-8xl',
-  xl: 'text-[12rem] md:text-[16rem]',
+  sm: 'text-4xl sm:text-5xl',
+  md: 'text-5xl sm:text-6xl md:text-7xl',
+  lg: 'text-6xl sm:text-7xl md:text-8xl',
+  xl: 'text-[4.5rem] sm:text-[7rem] md:text-[12rem] lg:text-[16rem]',
 };
 
 export function ReliabilityScore({
@@ -36,13 +40,15 @@ export function ReliabilityScore({
     };
   }, [score, count, rounded]);
 
-  const tier =
-    score >= 85 ? 'HIGHLY RELIABLE' : score >= 70 ? 'MODERATELY RELIABLE' : 'NEEDS IMPROVEMENT';
+  // These thresholds used to be 85/70 with their own wording, so the same score
+  // read "NEEDS IMPROVEMENT" on the control centre and "Needs Attention" on its
+  // own report. One score, one published set of bands.
+  const tier = verdictFor(score).toUpperCase();
   const tierColor =
-    score >= 85 ? 'text-flux-400' : score >= 70 ? 'text-warn-400' : 'text-fault-400';
+    score >= 90 ? 'text-flux-400' : score >= 75 ? 'text-warn-400' : 'text-fault-400';
 
   return (
-    <div className="flex flex-col items-center text-center">
+    <div className="flex w-full min-w-0 flex-col items-center text-center">
       <div className="flex items-start">
         <motion.span
           className={`massive ${sizeMap[size]} text-bone-50`}
@@ -53,11 +59,15 @@ export function ReliabilityScore({
         >
           {display}
         </motion.span>
-        <span className={`font-mono mt-2 ${size === 'xl' ? 'text-3xl' : 'text-lg'} text-bone-500`}>
+        <span
+          className={`font-mono mt-2 ${
+            size === 'xl' ? 'text-lg sm:text-2xl md:text-3xl' : 'text-base sm:text-lg'
+          } text-bone-500`}
+        >
           /{max}
         </span>
       </div>
-      {label && <span className="tech-label mt-2">{label}</span>}
+      {label && <span className="tech-label mt-2 break-words">{label}</span>}
       {sublabel && <span className="tech-label mt-1 text-bone-600">{sublabel}</span>}
       <span className={`tech-label mt-3 ${tierColor}`}>{tier}</span>
     </div>

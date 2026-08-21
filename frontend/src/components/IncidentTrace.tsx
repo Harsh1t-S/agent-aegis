@@ -22,7 +22,7 @@ export function IncidentTrace({ events }: { events: TraceEvent[] }) {
   }
 
   return (
-    <div className="relative border border-bone-600/20 bg-ink-900/60 p-6">
+    <div className="relative min-w-0 border border-bone-600/20 bg-ink-900/60 p-4 sm:p-6">
       <span className="tech-label text-bone-500">EXECUTION TRACE — {events.length} EVENTS</span>
       <div className="relative mt-4">
         <div className="absolute left-[11px] bottom-3 top-3 w-px bg-gradient-to-b from-violet-500/30 via-bone-600/30 to-fault-500/30" />
@@ -45,7 +45,7 @@ export function IncidentTrace({ events }: { events: TraceEvent[] }) {
                 {event.failed ? '✕' : '✓'}
               </span>
               <div className="flex-1 pt-0.5">
-                <div className="flex flex-wrap items-baseline gap-3">
+                <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
                   <span className="font-mono text-[10px] text-bone-600">
                     {String(i + 1).padStart(2, '0')}
                   </span>
@@ -53,12 +53,12 @@ export function IncidentTrace({ events }: { events: TraceEvent[] }) {
                     {event.label}
                   </span>
                   <span className="tech-label text-bone-600">{kindLabel[event.kind] ?? event.kind}</span>
-                  <span className="ml-auto font-mono text-[10px] text-bone-600">
+                  <span className="font-mono text-[10px] text-bone-600 sm:ml-auto">
                     {formatTime(event.timestamp)}
                   </span>
                 </div>
                 {event.detail && (
-                  <p className="mt-1 whitespace-pre-wrap break-words font-mono text-xs text-bone-400">
+                  <p className="mt-1 whitespace-pre-wrap break-all font-mono text-xs text-bone-400">
                     {event.detail}
                   </p>
                 )}

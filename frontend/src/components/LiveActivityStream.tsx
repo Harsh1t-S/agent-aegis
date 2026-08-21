@@ -16,7 +16,7 @@ export function LiveActivityStream({ events }: { events: string[] }) {
   }, [events]);
 
   return (
-    <div className="h-64 overflow-y-auto border border-bone-600/20 bg-ink-900/80 p-4 font-mono text-xs">
+    <div className="h-64 min-w-0 overflow-y-auto overflow-x-hidden border border-bone-600/20 bg-ink-900/80 p-3 font-mono text-[11px] sm:p-4 sm:text-xs">
       {events.length === 0 ? (
         <span className="text-bone-600">Waiting for the first scenario to finish…</span>
       ) : (
@@ -37,7 +37,7 @@ export function LiveActivityStream({ events }: { events: string[] }) {
                 </span>
                 <span
                   className={
-                    failed ? 'text-fault-400' : detection ? 'text-warn-400' : 'text-bone-400'
+                    `min-w-0 break-words ${failed ? 'text-fault-400' : detection ? 'text-warn-400' : 'text-bone-400'}`
                   }
                 >
                   {event}

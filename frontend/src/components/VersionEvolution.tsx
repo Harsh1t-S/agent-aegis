@@ -29,14 +29,14 @@ export function VersionEvolution({ versions }: { versions: AgentVersion[] }) {
 
   return (
     <div className="relative">
-      <div className="flex flex-col gap-8 md:flex-row md:items-end md:gap-4">
+      <div className="grid grid-cols-2 gap-6 sm:grid-cols-3 md:flex md:flex-row md:items-end md:gap-4">
         {versions.map((v, i) => (
-          <ScrollReveal key={v.id} delay={Math.min(i, 6) * 0.1} className="flex-1">
+          <ScrollReveal key={v.id} delay={Math.min(i, 6) * 0.1} className="min-w-0 flex-1">
             <div className="flex flex-col items-center">
               <span className="font-mono text-3xl font-bold text-bone-50">
                 {v.reliability.toFixed(1)}
               </span>
-              <SystemLabel className="mt-1">{v.version}</SystemLabel>
+              <SystemLabel className="mt-1 max-w-full break-words text-center">{v.version}</SystemLabel>
               <div className="relative mt-3 h-32 w-full">
                 <motion.div
                   className="absolute bottom-0 left-0 w-full bg-gradient-to-t from-violet-600/40 to-violet-500/80"
@@ -56,13 +56,13 @@ export function VersionEvolution({ versions }: { versions: AgentVersion[] }) {
       </div>
 
       {versions.length > 1 && (
-        <div className="mt-10 grid gap-3 md:grid-cols-3">
+        <div className="mt-10 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
           {metricLabels.map((m) => {
             const delta = last.metrics[m.key] - first.metrics[m.key];
             return (
               <div
                 key={m.key}
-                className="flex items-center justify-between border border-bone-600/20 px-4 py-3"
+                className="flex items-center justify-between gap-3 border border-bone-600/20 px-4 py-3"
               >
                 <SystemLabel>{m.label}</SystemLabel>
                 <span className={`font-mono text-sm font-semibold ${deltaTone(delta)}`}>

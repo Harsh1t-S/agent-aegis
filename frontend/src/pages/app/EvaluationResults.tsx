@@ -120,9 +120,12 @@ export default function EvaluationResults() {
     <div className="min-h-screen bg-ink-950">
       <AppNavigation />
 
-      <div className="px-6 py-8 md:px-10">
-        <div className="flex flex-wrap items-center gap-2 font-mono text-[10px] uppercase tracking-wider text-bone-500">
-          <Link to={`/app/agents/${evaluation.agentId}`} className="hover:text-bone-200">
+      <div className="px-4 py-8 sm:px-6 md:px-10">
+        <div className="flex flex-wrap items-center gap-x-2 gap-y-1 font-mono text-[10px] uppercase tracking-wider text-bone-500">
+          <Link
+            to={`/app/agents/${evaluation.agentId}`}
+            className="inline-flex min-h-9 items-center hover:text-bone-200"
+          >
             {evaluation.agentName.toUpperCase()}
           </Link>
           <span>/</span>
@@ -134,12 +137,14 @@ export default function EvaluationResults() {
         <div className="mt-6 grid gap-8 lg:grid-cols-[1fr_auto] lg:items-center">
           <div>
             <SystemLabel>RELIABILITY REPORT</SystemLabel>
-            <div className="mt-4 flex flex-wrap items-center gap-6">
+            <div className="mt-4 flex flex-wrap items-center gap-x-6 gap-y-4">
               <div className="flex items-baseline gap-2">
-                <span className="massive text-7xl text-bone-50">{evaluation.score.toFixed(1)}</span>
-                <span className="font-mono text-xl text-bone-500">/100</span>
+                <span className="massive text-5xl text-bone-50 sm:text-6xl md:text-7xl">
+                  {evaluation.score.toFixed(1)}
+                </span>
+                <span className="font-mono text-lg text-bone-500 sm:text-xl">/100</span>
               </div>
-              <div className="border-l border-bone-600/30 pl-6">
+              <div className="border-l border-bone-600/30 pl-4 sm:pl-6">
                 <SystemLabel className="text-bone-600">PREVIOUS</SystemLabel>
                 <div className="mt-1 font-mono text-lg text-bone-300">
                   {evaluation.previousScore.toFixed(1)}
@@ -170,7 +175,7 @@ export default function EvaluationResults() {
           </div>
           <Link
             to={`/app/compare?agent=${evaluation.agentId}`}
-            className="group flex h-fit items-center gap-2 border border-violet-500/40 bg-violet-500/10 px-6 py-3 font-mono text-xs uppercase tracking-wider text-violet-400 transition-colors hover:bg-violet-500/20"
+            className="group flex h-fit min-h-11 items-center gap-2 border border-violet-500/40 bg-violet-500/10 px-6 py-3 font-mono text-xs uppercase tracking-wider text-violet-400 transition-colors hover:bg-violet-500/20"
           >
             COMPARE VERSIONS{' '}
             <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-1" />
@@ -193,7 +198,7 @@ export default function EvaluationResults() {
 
         <div className="mt-8 grid gap-6 lg:grid-cols-2">
           <ScrollReveal>
-            <div className="border border-bone-600/20 bg-ink-900/60 p-6">
+            <div className="min-w-0 border border-bone-600/20 bg-ink-900/60 p-5 sm:p-6">
               <SystemLabel>RELIABILITY DIMENSIONS</SystemLabel>
               <div className="mt-6 grid gap-5">
                 <MetricLine label="TASK SUCCESS" value={evaluation.metrics.taskSuccess} color="#8b5cf6" />
@@ -203,18 +208,27 @@ export default function EvaluationResults() {
                 <MetricLine label="GROUNDEDNESS" value={evaluation.metrics.groundedness} color="#f59e0b" delay={0.25} />
               </div>
               {scoring.data && (
-                <p className="mt-6 border-t border-bone-600/20 pt-4 font-mono text-[10px] uppercase leading-relaxed tracking-wider text-bone-600">
-                  Weighted{' '}
-                  {Object.entries(scoring.data.weights)
-                    .map(([key, weight]) => `${key.replace(/_/g, ' ')} ${Math.round(weight * 100)}%`)
-                    .join(' · ')}
-                </p>
+                <div className="mt-6 border-t border-bone-600/20 pt-4">
+                  <p className="font-mono text-[10px] uppercase tracking-wider text-bone-600">
+                    Weighted
+                  </p>
+                  <ul className="mt-2 flex flex-wrap gap-x-3 gap-y-1">
+                    {Object.entries(scoring.data.weights).map(([key, weight]) => (
+                      <li
+                        key={key}
+                        className="font-mono text-[10px] uppercase tracking-wider text-bone-600"
+                      >
+                        {key.replace(/_/g, ' ')} {Math.round(weight * 100)}%
+                      </li>
+                    ))}
+                  </ul>
+                </div>
               )}
             </div>
           </ScrollReveal>
 
           <ScrollReveal delay={0.1}>
-            <div className="border border-bone-600/20 bg-ink-900/60 p-6">
+            <div className="min-w-0 border border-bone-600/20 bg-ink-900/60 p-5 sm:p-6">
               <SystemLabel>FAILURE CLASSES DETECTED</SystemLabel>
               <div className="mt-6">
                 <FailureReveal
@@ -231,7 +245,7 @@ export default function EvaluationResults() {
           <ScrollReveal className="mt-6">
             <div className="border border-bone-600/20 bg-ink-900/60 p-6">
               <SystemLabel>BY SCENARIO CATEGORY</SystemLabel>
-              <div className="mt-6 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+              <div className="mt-6 grid grid-cols-2 gap-3 md:grid-cols-2 xl:grid-cols-4">
                 {evaluation.categories.map((c) => (
                   <div key={c.category} className="border border-bone-600/20 bg-ink-850/40 p-4">
                     <SystemLabel className="text-bone-500">{c.category.toUpperCase()}</SystemLabel>
@@ -275,7 +289,7 @@ export default function EvaluationResults() {
                     key={f.key}
                     type="button"
                     onClick={() => setFilter(f.key)}
-                    className={`border px-3 py-1 font-mono text-[10px] uppercase tracking-wider transition-colors ${
+                    className={`flex min-h-10 items-center border px-3 font-mono text-[10px] uppercase tracking-wider transition-colors ${
                       filter === f.key
                         ? 'border-violet-500/50 bg-violet-500/10 text-violet-400'
                         : 'border-bone-600/30 text-bone-500 hover:text-bone-200'
