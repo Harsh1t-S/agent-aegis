@@ -43,3 +43,28 @@ export function EmptyState({ title, hint, action }: { title: string; hint?: stri
     </div>
   );
 }
+
+/**
+ * The three states in one place.
+ *
+ * Every screen repeated the same `loading ? … : error ? … : children` ladder, and
+ * the ones that got it slightly wrong rendered a chart against undefined data for
+ * one frame. Wrapping it means a screen cannot forget a state.
+ */
+export function AsyncBoundary({
+  loading,
+  error,
+  onRetry,
+  label,
+  children,
+}: {
+  loading: boolean;
+  error?: string;
+  onRetry?: () => void;
+  label?: string;
+  children: React.ReactNode;
+}) {
+  if (loading) return <LoadingState label={label} />;
+  if (error) return <ErrorState message={error} onRetry={onRetry} />;
+  return <>{children}</>;
+}

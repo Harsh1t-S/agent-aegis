@@ -62,6 +62,12 @@ export interface ToolDraft {
   name: string;
   description: string;
   risk: RiskLevel;
+  /**
+   * The JSON-Schema block off a real tool definition. Dropping it cost every
+   * generated scenario its argument shape, so a call like
+   * issue_refund(order_id, amount) was tested as issue_refund().
+   */
+  parameters?: Record<string, unknown>;
 }
 
 export interface AgentDraft {
@@ -69,6 +75,13 @@ export interface AgentDraft {
   description: string;
   systemPrompt: string;
   tools: ToolDraft[];
+}
+
+export interface AgentPatch {
+  name?: string;
+  description?: string;
+  systemPrompt?: string;
+  tools?: ToolDraft[];
 }
 
 export interface EvaluateOptions {
@@ -87,6 +100,8 @@ export const api = {
   agent: (id: string) => request<Agent>(`/agents/${id}`),
   createAgent: (draft: AgentDraft) =>
     request<Agent>('/agents', { method: 'POST', body: JSON.stringify(draft) }),
+  updateAgent: (id: string, patch: AgentPatch) =>
+    request<Agent>(`/agents/${id}`, { method: 'PATCH', body: JSON.stringify(patch) }),
   deleteAgent: (id: string) => request<void>(`/agents/${id}`, { method: 'DELETE' }),
 
   evaluations: () => request<Evaluation[]>('/evaluations'),
@@ -125,4 +140,16 @@ export const api = {
 
   compare: (olderVersionId: string, newerVersionId: string) =>
     request<VersionDiff>(`/versions/${olderVersionId}/compare/${newerVersionId}`),
+
+  /**
+   * Re-grade every stored trace in an evaluation with the current detectors.
+   * No model is called, so an improved detector can be applied to history for
+   * free — and a report graded by an older evaluator can be brought up to date
+   * without inventing new evidence.
+   */
+  reanalyze: (evaluationId: string) =>
+    request<{ replayed: number; changed: number; detectorVersion: string | null }>(
+      `/evaluations/${evaluationId}/reanalyze`,
+      { method: 'POST' },
+    ),
 };

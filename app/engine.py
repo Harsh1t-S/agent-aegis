@@ -10,6 +10,7 @@ from .adapters import adapter_for
 from .classifier import classify
 from .database import SessionLocal
 from .detectors import DETECTOR_VERSION, detect_all
+from .provenance import evaluator_stamp
 from .models import (Agent, AgentVersion, ExecutionTrace, FailureAnnotation,
                      MockEnvironment, Scenario, TestRun)
 from .scoring import score_run
@@ -233,6 +234,9 @@ async def run_test(run_id: str) -> None:
         run.outcome, run.reliability_score, run.metrics = outcome, score, breakdown
         run.final_state, run.status, run.completed_at = final_state, "complete", now()
         run.duration_ms = int((time.monotonic() - began_run) * 1000)
+        # Stamp what graded it. A verdict nobody can trace back to a specific
+        # evaluator is a verdict nobody can reproduce.
+        run.provenance = evaluator_stamp(scenario.generator_version)
         db.commit()
 
     except Exception as exc:

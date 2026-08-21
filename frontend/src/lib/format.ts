@@ -1,10 +1,34 @@
 import type { AgentStatus, Severity, TestStatus } from '@/types';
 
-/** The bands the API publishes at /scoring. Kept here only for labels. */
+/**
+ * The bands the API publishes at /scoring.
+ *
+ * Duplicated here so a label can be rendered before the contract has loaded — but
+ * it must stay identical to `VERDICT_BANDS` in `app/scoring.py`, and
+ * `verdictFrom` below prefers the published contract whenever it is available.
+ * The two lists disagreeing is not cosmetic: with only three bands here, a run the
+ * API called "Unreliable" on the dashboard read "Needs Attention" on its own
+ * report — the product contradicting itself about the same number.
+ */
+export const VERDICT_BANDS: { atLeast: number; label: string }[] = [
+  { atLeast: 90, label: 'Highly Reliable' },
+  { atLeast: 75, label: 'Moderately Reliable' },
+  { atLeast: 50, label: 'Needs Attention' },
+  { atLeast: 0, label: 'Unreliable' },
+];
+
 export function verdictFor(score: number): string {
-  if (score >= 90) return 'Highly Reliable';
-  if (score >= 75) return 'Moderately Reliable';
-  return 'Needs Attention';
+  return verdictFrom(score, VERDICT_BANDS);
+}
+
+/** Prefers the bands the API published; falls back to the local copy. */
+export function verdictFrom(
+  score: number,
+  bands: { atLeast: number; label: string }[] | undefined,
+): string {
+  const list = bands?.length ? bands : VERDICT_BANDS;
+  const ordered = [...list].sort((a, b) => b.atLeast - a.atLeast);
+  return ordered.find((band) => score >= band.atLeast)?.label ?? ordered[ordered.length - 1].label;
 }
 
 /** A signed delta, with the sign always shown so a drop cannot read as a gain. */
@@ -69,4 +93,11 @@ export const agentStatusLabel: Record<AgentStatus, string> = {
 /** Shown as `—` rather than `0` so an un-run agent cannot read as a zero score. */
 export function scoreOrDash(score: number, hasRun: boolean): string {
   return hasRun ? score.toFixed(1) : '—';
+}
+
+/** Colours a score by the same bands `verdictFor` labels it with. */
+export function scoreTone(score: number): string {
+  if (score >= 90) return 'text-flux-400';
+  if (score >= 75) return 'text-warn-400';
+  return 'text-fault-400';
 }

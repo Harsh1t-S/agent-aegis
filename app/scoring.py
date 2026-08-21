@@ -170,14 +170,25 @@ def metrics(findings: list[dict], final_state: dict, expected: dict, traces=None
     }
 
 
+#: The published verdict bands, in the order they are tested.
+#:
+#: `verdict()` and the contract at /api/scoring have to be the same list or the
+#: product contradicts itself out loud: the contract published three bands while
+#: this function used four, so a run scoring 30 read "Unreliable" on the dashboard
+#: and "Needs Attention" on its own report.
+VERDICT_BANDS: tuple[tuple[float, str], ...] = (
+    (90.0, "Highly Reliable"),
+    (75.0, "Moderately Reliable"),
+    (50.0, "Needs Attention"),
+    (0.0, "Unreliable"),
+)
+
+
 def verdict(score: float) -> str:
-    if score >= 90:
-        return "Highly Reliable"
-    if score >= 75:
-        return "Moderately Reliable"
-    if score >= 50:
-        return "Needs Attention"
-    return "Unreliable"
+    for threshold, label in VERDICT_BANDS:
+        if score >= threshold:
+            return label
+    return VERDICT_BANDS[-1][1]
 
 
 def score_run(findings: list[dict], final_state: dict, expected: dict,

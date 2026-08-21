@@ -1,17 +1,19 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { AppNavigation } from '@/components/AppNavigation';
 import { MetricLine } from '@/components/MetricLine';
 import { FailureReveal } from '@/components/FailureReveal';
 import { TestResult } from '@/components/TestResult';
 import { CiGatePanel } from '@/components/CiGatePanel';
+import { ProvenancePanel } from '@/components/ProvenancePanel';
+import { useToast } from '@/components/Toaster';
 import { GuardrailLadder } from '@/components/GuardrailLadder';
 import { ScrollReveal } from '@/components/ScrollReveal';
 import { SystemLabel } from '@/components/SystemLabel';
 import { ErrorState, LoadingState } from '@/components/AsyncState';
 import { useResource } from '@/hooks/useResource';
-import { api } from '@/lib/api';
-import { deltaTone, formatDate, signed, verdictFor } from '@/lib/format';
+import { api, ApiError } from '@/lib/api';
+import { deltaTone, formatDate, signed, verdictFrom } from '@/lib/format';
 import type { TestStatus } from '@/types';
 import { ArrowRight } from 'lucide-react';
 
@@ -19,6 +21,7 @@ type Filter = 'all' | TestStatus;
 
 export default function EvaluationResults() {
   const { id } = useParams<{ id: string }>();
+  const toast = useToast();
   const { data: evaluation, error, loading, reload } = useResource(
     () => api.evaluation(id as string),
     [id],
@@ -37,16 +40,48 @@ export default function EvaluationResults() {
     { enabled: Boolean(id), pollMs: ladderRunning ? 2000 : undefined },
   );
 
+  // Stop polling when the ladder reports every expected rung, not on a timer.
+  // A fixed 30s window quietly abandoned a slow ladder mid-run and left the
+  // report showing a partial result as though it were the final one.
+  const ladderComplete =
+    ladderRunning &&
+    Boolean(guardrail.data?.rungsExpected) &&
+    (guardrail.data?.rungsRun ?? 0) >= (guardrail.data?.rungsExpected ?? 0);
+  useEffect(() => {
+    if (ladderComplete) setLadderRunning(false);
+  }, [ladderComplete]);
+
   const runLadder = async () => {
     if (!id) return;
     setLadderRunning(true);
     try {
-      await api.startGuardrail(id);
-    } finally {
-      // Stop polling once every expected rung has reported.
-      setTimeout(() => setLadderRunning(false), 30000);
+      const queued = await api.startGuardrail(id);
+      toast.success(
+        `Queued ${queued.queued} pressure probe${queued.queued === 1 ? '' : 's'}`,
+        'Rungs appear as each one completes.',
+      );
+    } catch (err) {
+      // An agent with no irreversible tool has nothing to pressure-test, and the
+      // API says so with a 400. Swallowing it left the button spinning against a
+      // rejected promise and told the user nothing.
+      setLadderRunning(false);
+      toast.error(
+        'Ladder not started',
+        err instanceof ApiError ? err.message : 'The guardrail probes were not queued.',
+      );
     }
   };
+
+  // A ladder that never reports is still a stuck spinner; give up after five
+  // minutes and say so rather than spinning forever.
+  useEffect(() => {
+    if (!ladderRunning) return;
+    const timer = setTimeout(() => {
+      setLadderRunning(false);
+      toast.info('Still waiting on the ladder', 'Reload the report to pick up any later rungs.');
+    }, 300_000);
+    return () => clearTimeout(timer);
+  }, [ladderRunning]); // eslint-disable-line react-hooks/exhaustive-deps
 
   if (loading) {
     return (
@@ -154,7 +189,7 @@ export default function EvaluationResults() {
               <div className="border-l border-bone-600/30 pl-6">
                 <SystemLabel className="text-bone-600">VERDICT</SystemLabel>
                 <div className="mt-1 font-mono text-sm text-bone-200">
-                  {verdictFor(evaluation.score)}
+                  {verdictFrom(evaluation.score, scoring.data?.verdictBands)}
                 </div>
               </div>
               <div className="border-l border-bone-600/30 pl-6">
@@ -181,6 +216,16 @@ export default function EvaluationResults() {
             <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-1" />
           </Link>
         </div>
+
+        {evaluation.evaluator && (
+          <ScrollReveal className="mt-8">
+            <ProvenancePanel
+              evaluationId={evaluation.id}
+              provenance={evaluation.evaluator}
+              onReanalyzed={reload}
+            />
+          </ScrollReveal>
+        )}
 
         {gateApplied && (
           <ScrollReveal className="mt-8">

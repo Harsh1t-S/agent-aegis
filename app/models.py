@@ -58,6 +58,10 @@ class Scenario(Base):
     mock_environment_id: Mapped[str] = mapped_column(ForeignKey("mock_environments.id"))
     difficulty: Mapped[int] = mapped_column(Integer, default=1)
     generator_version: Mapped[str] = mapped_column(String(50), default="manual")
+    # What this scenario is *for*, kept separate from which generator wrote it.
+    # Reliability scoring excludes diagnostics by kind, so bumping the guardrail
+    # compiler's version can no longer change which rows are scored.
+    run_kind: Mapped[str] = mapped_column(String(20), default="suite", index=True)
     # Injection payloads belong to the scenario that tests them. Held on the
     # environment they leaked into every other scenario sharing the same sandbox.
     injected_content: Mapped[dict] = mapped_column(JSON, default=dict)
@@ -83,6 +87,10 @@ class TestRun(Base):
     metrics: Mapped[dict | None] = mapped_column(JSON, nullable=True)
     final_state: Mapped[dict | None] = mapped_column(JSON, nullable=True)
     duration_ms: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    # Which evaluator graded this run: generator / guardrail / detector / profile
+    # versions plus the commit. Without it a stored verdict cannot be traced to the
+    # code that produced it, and results from older semantics look current.
+    provenance: Mapped[dict | None] = mapped_column(JSON, nullable=True)
 
 
 class ExecutionTrace(Base):

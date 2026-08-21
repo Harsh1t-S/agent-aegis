@@ -9,12 +9,15 @@ import { SystemLabel } from '@/components/SystemLabel';
 import { ErrorState, LoadingState } from '@/components/AsyncState';
 import { useResource } from '@/hooks/useResource';
 import { api, ApiError } from '@/lib/api';
+import { runOptionsFor } from '@/lib/workspace-settings';
+import { useToast } from '@/components/Toaster';
 import { agentStatusLabel, agentStatusTone, formatDate } from '@/lib/format';
-import { Play, ArrowRight, Clock, Loader2, Trash2 } from 'lucide-react';
+import { Play, ArrowRight, Clock, Loader2, Pencil, Trash2 } from 'lucide-react';
 
 export default function AgentDetail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const toast = useToast();
   const { data: agent, error, loading, reload } = useResource(
     () => api.agent(id as string),
     [id],
@@ -33,10 +36,16 @@ export default function AgentDetail() {
       // Version labels advance with the run count so a second evaluation is
       // comparable against the first instead of overwriting it.
       const label = `v${agent.versions.length + 1}`;
-      const created = await api.evaluate(agent.id, { versionLabel: label });
+      // Suite size, adversarial coverage and which agent answers all come from
+      // Settings. A run button that ignored them made the settings screen a lie.
+      const created = await api.evaluate(agent.id, runOptionsFor(label));
+      toast.success(`Generated ${created.total} scenarios — evaluation running`);
       navigate(`/app/evaluations/${created.evaluationId}/running`);
     } catch (err) {
-      setStartError(err instanceof ApiError ? err.message : 'Could not start the evaluation.');
+      const message =
+        err instanceof ApiError ? err.message : 'Could not start the evaluation.';
+      setStartError(message);
+      toast.error('Evaluation not started', message);
       setStarting(false);
     }
   };
@@ -47,6 +56,7 @@ export default function AgentDetail() {
     setStartError(undefined);
     try {
       await api.deleteAgent(agent.id);
+      toast.success(`${agent.name} deleted`);
       navigate('/app/agents');
     } catch (err) {
       setStartError(err instanceof ApiError ? err.message : 'Could not delete the agent.');
@@ -111,6 +121,13 @@ export default function AgentDetail() {
             <p className="mt-2 max-w-lg text-sm text-bone-400">{agent.description}</p>
           </div>
           <div className="flex flex-col items-start gap-2">
+            <div className="flex flex-wrap items-center gap-2">
+            <Link
+              to={`/app/agents/${agent.id}/edit`}
+              className="flex min-h-11 items-center gap-2 border border-bone-600/35 px-4 font-mono text-xs uppercase tracking-wider text-bone-300 transition-colors hover:border-violet-400/50 hover:text-violet-300"
+            >
+              <Pencil className="h-3.5 w-3.5" /> EDIT
+            </Link>
             <button
               type="button"
               onClick={runEvaluation}
@@ -127,6 +144,7 @@ export default function AgentDetail() {
                 </>
               )}
             </button>
+            </div>
             {startError && <span className="font-mono text-[11px] text-fault-400">{startError}</span>}
           </div>
         </div>
