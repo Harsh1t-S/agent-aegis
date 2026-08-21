@@ -38,20 +38,26 @@ export function AgentModule({ agent, index }: { agent: Agent; index: number }) {
 
         <div className="mt-6 grid grid-cols-3 gap-2 border-t border-bone-600/20 pt-4 sm:gap-4">
           <div>
-            <span className="tech-label text-bone-600">RELIABILITY</span>
-            <div className="mt-1 font-mono text-2xl font-bold text-bone-50">
+            <span className="tech-label block text-[9px] tracking-[0.12em] text-bone-600 sm:text-[11px] sm:tracking-[0.25em]">
+              RELIABILITY
+            </span>
+            <div className="mt-1 font-mono text-xl font-bold text-bone-50 sm:text-2xl">
               {scoreOrDash(agent.reliability, hasRun)}
             </div>
           </div>
           <div>
-            <span className="tech-label text-bone-600">VERSION</span>
-            <div className="mt-1 truncate font-mono text-lg text-bone-200">
+            <span className="tech-label block text-[9px] tracking-[0.12em] text-bone-600 sm:text-[11px] sm:tracking-[0.25em]">
+              VERSION
+            </span>
+            <div className="mt-1 truncate font-mono text-base text-bone-200 sm:text-lg">
               {agent.latestVersion}
             </div>
           </div>
           <div>
-            <span className="tech-label text-bone-600">PASS RATE</span>
-            <div className="mt-1 font-mono text-lg text-bone-200">
+            <span className="tech-label block text-[9px] tracking-[0.12em] text-bone-600 sm:text-[11px] sm:tracking-[0.25em]">
+              PASS RATE
+            </span>
+            <div className="mt-1 font-mono text-base text-bone-200 sm:text-lg">
               {hasRun ? `${latest.passRate.toFixed(0)}%` : '—'}
             </div>
           </div>
