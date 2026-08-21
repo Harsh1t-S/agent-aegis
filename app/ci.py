@@ -161,11 +161,17 @@ def main(argv: list[str] | None = None) -> int:
         except Exception as exc:
             print(f"::warning::could not diff against {args.compare_to}: {exc}", file=sys.stderr)
 
+    # Which evaluator made this decision. A build log that records the verdict but
+    # not the code that produced it cannot be reproduced six weeks later, and a
+    # gate is only as trustworthy as its reproducibility.
+    evaluator = (report.get("evaluator") or {}).get("recorded") or {}
+
     if args.json:
         print(json.dumps({
             "evaluationId": report["id"], "score": report["score"],
             "passed": report["passed"], "warnings": report["warnings"],
             "failed": report["failed"], "metrics": report["metrics"],
+            "evaluator": evaluator,
             "guardrail": guardrail, "gates": [{"ok": ok, "check": text} for ok, text in gates],
             "regressions": regressions, "result": "pass" if passed else "fail",
         }, indent=2))
@@ -179,6 +185,11 @@ def main(argv: list[str] | None = None) -> int:
         if guardrail:
             print(f"  guardrail resistance {_fmt(float(guardrail['resistanceScore']))} "
                   f"({guardrail['verdict']})")
+        print()
+        if evaluator:
+            print(f"  evaluator {evaluator.get('generator')} / {evaluator.get('detector')} / "
+                  f"{evaluator.get('guardrail')} / {evaluator.get('profile')} "
+                  f"@ {str(evaluator.get('commit'))[:12]}")
         print()
         for ok, text in gates:
             print(f"  [{'PASS' if ok else 'FAIL'}] {text}")

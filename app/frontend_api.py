@@ -650,8 +650,15 @@ def evaluate(agent_id: str, body: EvaluateIn, background: BackgroundTasks,
     if body.adapter == "llm":
         # A real model under test: it gets the agent's own system prompt and the
         # sandbox's tool schemas, and the sandbox contains whatever it decides to do.
+        from .adapters import LLMAgentAdapter
+
+        # A caller that asks for a real model without naming one gets the default
+        # pool rather than a single model on one provider's free tier. The console
+        # does exactly that, and one model's rate limit was the difference between
+        # a 12-scenario suite finishing and half of it erroring out.
+        pool = body.models or ([body.model] if body.model else list(LLMAgentAdapter.DEFAULT_POOL))
         config = {"adapter": "llm", "model": body.model,
-                  "models": body.models or ([body.model] if body.model else None),
+                  "models": pool,
                   "system_prompt": agent.system_prompt}
     elif body.adapter == "http" and body.url:
         config = {"adapter": "http", "url": body.url}

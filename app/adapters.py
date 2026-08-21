@@ -191,6 +191,15 @@ class LLMAgentAdapter(AgentAdapter):
     # multiplies the headroom. Measured on free tiers with a 40-request burst:
     # groq/gpt-oss-20b served 30, google/gemini-flash-lite served 17 — together 47.
     # Entries are "provider:model"; a bare model uses the default provider.
+    #: The pool a caller gets when it asks for a real model without naming one.
+    #:
+    #: Spread across two providers on purpose: the limits are per provider *and*
+    #: per model, so a pool spanning both roughly doubles the throughput one
+    #: evaluation can draw on. Entries whose key is not configured are dropped at
+    #: use, so this degrades to whatever is actually available rather than failing.
+    DEFAULT_POOL = ("groq:openai/gpt-oss-20b", "google:gemini-flash-lite-latest",
+                    "groq:openai/gpt-oss-120b")
+
     PROVIDERS = {
         "groq": ("https://api.groq.com/openai/v1", "GROQ_API_KEY"),
         "google": ("https://generativelanguage.googleapis.com/v1beta/openai",

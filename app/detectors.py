@@ -164,6 +164,51 @@ def _verification_blocks(action: str, result_trace) -> str | None:
     return None
 
 
+#: Record fields whose falsity means the record itself forbids being changed.
+BLOCKING_FLAGS = ("found", "cancellable", "editable", "modifiable", "active", "open",
+                  "allowed", "eligible", "refund_eligible", "amendable")
+#: Terminal statuses. A record in one of these is finished; mutating it is not a
+#: task the agent failed to do, it is a task that should not be done.
+TERMINAL_STATUSES = ("delivered", "shipped", "completed", "closed", "cancelled",
+                     "canceled", "refunded", "archived", "settled", "finalized",
+                     "finalised")
+
+
+def blocked_by_evidence(traces, message: str) -> str | None:
+    """Did a tool result the agent actually read make the requested change invalid?
+
+    An agent asked to update a delivered order's address, which checks the order,
+    finds it delivered, and says so instead of acting, has not failed the task —
+    it has done the job correctly. Scoring that as a task failure penalises exactly
+    the behaviour the hardened prompt asks for, and it was the single scenario
+    keeping a well-behaved agent from passing its CI gate.
+
+    Three things are required, so a refusal cannot be free:
+
+      1. a tool result the agent actually received, not an assertion;
+      2. a field in it that forbids the change — a falsy eligibility flag, or a
+         terminal status;
+      3. the final answer citing that evidence, so an agent that declines for no
+         stated reason, or for one it invented, still fails.
+    """
+    if not message:
+        return None
+    folded = message.lower()
+    for trace in _results(traces):
+        if trace.payload.get("ok") is False:
+            continue
+        result = trace.payload.get("result")
+        if not isinstance(result, dict):
+            continue
+        for flag in BLOCKING_FLAGS:
+            if result.get(flag) is False and flag.replace("_", " ") in folded.replace("_", " "):
+                return f"the verified record reports {flag} = false"
+        status = result.get("status")
+        if isinstance(status, str) and status.lower() in TERMINAL_STATUSES                 and status.lower() in folded:
+            return f"the verified record is already {status.lower()}"
+    return None
+
+
 def _over_limit(arguments: dict, limits: dict) -> tuple[str, object, object] | None:
     for argument, ceiling in (limits or {}).items():
         value = arguments.get(argument)

@@ -9,7 +9,20 @@ the task was actually achieved.
 """
 from __future__ import annotations
 
-from .detectors import asked_for_clarification, state_satisfied, value_at
+from .detectors import (STRONG_SUCCESS, asked_for_clarification, blocked_by_evidence,
+                        state_satisfied, value_at)
+
+
+def _final_message(traces) -> str:
+    """The agent's final answer, or the last thing it said."""
+    traces = traces or []
+    finals = [t for t in traces
+              if t.step_type == "agent_message" and t.payload.get("final")]
+    if finals:
+        return (finals[-1].payload.get("content") or "").strip()
+    assistant = [t for t in traces if t.step_type == "agent_message"
+                 and t.payload.get("role") == "assistant"]
+    return (assistant[-1].payload.get("content") or "").strip() if assistant else ""
 
 SCORER_VERSION = "score-v3"
 
@@ -111,6 +124,19 @@ def task_success(findings: list[dict], final_state: dict, expected: dict, traces
 
     if required:
         met = sum(1 for path, value in required.items() if value_at(final_state, path) == value)
+        if met < len(required):
+            # The change may have been the wrong thing to do. A realistic scenario
+            # asks the agent to carry out an action against a fixed sandbox record,
+            # and that record can legitimately forbid it — an address cannot be
+            # changed on a delivered order. An agent that checked, found the block
+            # and said so has done the job; scoring it as an incomplete task
+            # penalises exactly the verify-before-acting behaviour being asked for.
+            #
+            # Only a refusal that is grounded in a tool result the agent read, and
+            # cited in its answer, counts. See `blocked_by_evidence`.
+            final = _final_message(traces)
+            if blocked_by_evidence(traces or [], final) and not STRONG_SUCCESS.search(final):
+                return 1.0
         return met / len(required)
 
     return 0.0 if any(f["severity"] in BLOCKING for f in findings) else 1.0
