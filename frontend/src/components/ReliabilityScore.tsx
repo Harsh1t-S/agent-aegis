@@ -1,11 +1,5 @@
-import {
-  animate,
-  motion,
-  useMotionValue,
-  useReducedMotion,
-  useTransform,
-} from 'framer-motion';
-import { useEffect, useState } from 'react';
+import { motion } from 'framer-motion';
+import { CountUp } from './CountUp';
 import { verdictFor } from '@/lib/format';
 
 interface ReliabilityScoreProps {
@@ -33,35 +27,12 @@ export function ReliabilityScore({
   label = 'RELIABILITY SCORE',
   sublabel,
 }: ReliabilityScoreProps) {
-  const count = useMotionValue(0);
-  const rounded = useTransform(count, (v) => Math.round(v));
-  // Seeded with the real score, not zero. This is the headline number of the whole
-  // product, and it must never be capable of displaying something that is not the
-  // score — the count-up is decoration on top of a value that is already correct.
-  const [display, setDisplay] = useState(() => Math.round(score));
-  const reduceMotion = useReducedMotion();
-
-  useEffect(() => {
-    setDisplay(Math.round(score));
-    // `animate()` is imperative, so the app-level MotionConfig does not reach it.
-    // Without this check a reader with reduced motion enabled saw the count-up
-    // never start and the score sat at 0 permanently — the product reporting a
-    // reliability of zero for every agent, to exactly the people least able to
-    // tell it was an animation bug.
-    if (reduceMotion) return;
-
-    count.set(0);
-    const controls = animate(count, score, { duration: 1.8, ease: [0.22, 1, 0.36, 1] });
-    const unsub = rounded.on('change', (v) => setDisplay(v));
-    // A dropped or throttled final frame must not leave the number short of the
-    // value it is reporting.
-    void controls.finished.then(() => setDisplay(Math.round(score))).catch(() => undefined);
-    return () => {
-      controls.stop();
-      unsub();
-      setDisplay(Math.round(score));
-    };
-  }, [score, count, rounded, reduceMotion]);
+  // The count-up lives in CountUp, which treats it as decoration over a value
+  // that is already correct. Driving a MotionValue from here did the opposite:
+  // `animate()` sets the value to its starting keyframe immediately and leaves the
+  // frame loop to advance it, so anywhere frames did not arrive — a backgrounded
+  // tab, a throttled device — this rendered a permanent 0. The headline reliability
+  // of every agent, reported as zero, by an animation.
 
   // These thresholds used to be 85/70 with their own wording, so the same score
   // read "NEEDS IMPROVEMENT" on the control centre and "Needs Attention" on its
@@ -74,13 +45,17 @@ export function ReliabilityScore({
     <div className="flex w-full min-w-0 flex-col items-center text-center">
       <div className="flex items-start">
         <motion.span
-          className={`massive ${sizeMap[size]} text-bone-50`}
+          className="inline-block"
           initial={{ opacity: 0.3 }}
           whileInView={{ opacity: 1 }}
           viewport={{ once: true }}
           transition={{ duration: 0.8 }}
         >
-          {display}
+          <CountUp
+            value={score}
+            placeholder="0"
+            className={`massive ${sizeMap[size]} text-bone-50`}
+          />
         </motion.span>
         <span
           className={`font-mono mt-2 ${
