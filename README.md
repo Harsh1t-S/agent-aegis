@@ -20,14 +20,42 @@ Built for **OOSC 4.0, Problem Statement 4**.
 The dashboard proxies `/api/*` to the API, so there is one URL to share. The API
 runs in `hnd1` to sit next to the database.
 
-**Required environment variable on the API project** — without it the app reports
-`degraded` from `/health` and database routes fail:
+**Required environment variables on the API project** — without `DATABASE_URL` the
+app reports `degraded` from `/health`, says the database is `ephemeral`, and loses
+every write between invocations:
 
 ```
 DATABASE_URL=postgresql+psycopg://<role>:<password>@aws-0-<region>.pooler.supabase.com:6543/postgres
+GROQ_API_KEY=<key>          # optional; the `llm` adapter falls back to one provider
+GOOGLE_API_KEY=<key>        # optional; a second provider doubles the rate-limit headroom
 ```
 
-It is deliberately not in this repository. Set it in the Vercel project settings.
+### Known issue: credentials are still in this repository
+
+`app/deployment_config.py` currently holds the deployment's database URL and both
+model-provider keys, and it is committed. That is deliberate and temporary: Vercel
+builds from the repository, so a gitignored file would not exist in the deployment,
+and while this repository is private the trade bought a zero-configuration demo.
+
+It is still a real problem and it is tracked as one. `app/__init__.py` imports that
+file inside a `try/except`, so it is one deletion away from being env-only, and no
+other module in the project contains a credential.
+
+**Before this repository is shared or made public:**
+
+1. Rotate all three — `ALTER ROLE aegis_app PASSWORD '<new>';` in the Supabase SQL
+   editor, reissue at `console.groq.com/keys` and `aistudio.google.com/apikey`.
+2. Set the new values as environment variables on the `aegis-api` Vercel project.
+3. `rm app/deployment_config.py` and redeploy. `/health` should still report
+   `"database": "connected"`.
+4. Purge it from history — deleting the file does not remove it from `git log`:
+   `git filter-repo --path app/deployment_config.py --invert-paths`
+
+Step 1 is what actually matters. Steps 3 and 4 without it only hide the values.
+
+The role behind that connection string is scoped to the `aegis` schema and cannot
+read any other table in the database, so the blast radius is this application's own
+data.
 
 ## Quick start
 
