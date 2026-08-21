@@ -61,7 +61,7 @@ export default function EvaluationRunning() {
     <div className="min-h-screen bg-ink-950">
       <AppNavigation />
 
-      <div className="px-6 py-8 md:px-10">
+      <div className="px-4 py-8 sm:px-6 md:px-10">
         <div className="flex items-center gap-2 font-mono text-[10px] uppercase tracking-wider text-bone-500">
           <Link to="/app/agents" className="hover:text-bone-200">
             {data.agentName.toUpperCase() || 'AGENTS'}
@@ -77,8 +77,8 @@ export default function EvaluationRunning() {
           className="mt-2 text-[clamp(2rem,6vw,4rem)] text-bone-50"
         />
 
-        <div className="mt-12 grid gap-6 lg:grid-cols-2">
-          <div className="border border-bone-600/20 bg-ink-900/60 p-8">
+        <div className="mt-12 grid min-w-0 gap-6 lg:grid-cols-2">
+          <div className="min-w-0 border border-bone-600/20 bg-ink-900/60 p-5 sm:p-8">
             <div className="flex items-center gap-3">
               <motion.div
                 className={`h-3 w-3 rounded-full ${done ? 'bg-flux-500' : 'bg-violet-500'}`}
@@ -108,7 +108,7 @@ export default function EvaluationRunning() {
             )}
           </div>
 
-          <div className="border border-bone-600/20 bg-ink-900/60 p-6">
+          <div className="min-w-0 border border-bone-600/20 bg-ink-900/60 p-5 sm:p-6">
             <SystemLabel>ACTIVITY LOG</SystemLabel>
             <div className="mt-4">
               <LiveActivityStream events={data.events} />

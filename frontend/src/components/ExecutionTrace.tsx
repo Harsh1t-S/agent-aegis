@@ -32,7 +32,7 @@ export function ExecutionTrace({ events, compact = false }: ExecutionTraceProps)
           <div key={event.id}>
             <motion.button
               type="button"
-              className="group flex w-full items-start gap-3 text-left"
+              className="group flex w-full items-start gap-3 py-1.5 text-left"
               initial={{ opacity: 0, x: -20 }}
               whileInView={{ opacity: 1, x: 0 }}
               viewport={{ once: true }}

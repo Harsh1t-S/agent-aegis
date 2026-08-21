@@ -34,7 +34,7 @@ export default function HowItWorks() {
         </ScrollReveal>
 
         <motion.div
-          className="mt-12 opacity-40"
+          className="mt-12 max-w-full overflow-hidden opacity-40"
           initial={{ scale: 0.8, opacity: 0 }}
           animate={{ scale: 1, opacity: 0.4 }}
           transition={{ duration: 1.5 }}

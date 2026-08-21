@@ -51,7 +51,7 @@ export default function AppHome() {
     <div className="min-h-screen bg-ink-950">
       <AppNavigation />
 
-      <div className="px-6 py-8 md:px-10">
+      <div className="px-4 py-8 sm:px-6 md:px-10">
         <SystemLabel>AEGIS / CONTROL CENTER</SystemLabel>
 
         <div className="mt-4 grid gap-8 lg:grid-cols-[1fr_auto]">
@@ -77,24 +77,30 @@ export default function AppHome() {
 
         {!loading && !error && (
           <>
-            <div className="mt-12 grid gap-6 lg:grid-cols-3">
-              <ScrollReveal className="lg:col-span-2">
-                <div className="noise relative flex min-h-[400px] flex-col items-center justify-center border border-bone-600/20 bg-gradient-to-br from-ink-900/80 to-ink-850/50 p-8">
+            <div className="mt-12 grid min-w-0 gap-6 lg:grid-cols-3">
+              <ScrollReveal className="min-w-0 lg:col-span-2">
+                <div className="noise relative flex min-h-[320px] flex-col border border-bone-600/20 bg-gradient-to-br from-ink-900/80 to-ink-850/50 p-5 sm:min-h-[400px] sm:p-8">
                   {latest ? (
                     <>
-                      <div className="absolute left-6 top-6">
+                      {/* These two labels were pinned with `absolute`, so a long
+                          agent name had nothing to wrap against and pushed the
+                          page 39px past the viewport. */}
+                      <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
                         <SystemLabel>LATEST EVALUATION</SystemLabel>
-                      </div>
-                      <div className="absolute right-6 top-6 text-right">
-                        <SystemLabel className="text-bone-500">{latest.agentName}</SystemLabel>
-                        <div className="mt-1 font-mono text-xs text-bone-400">
-                          {latest.version} · {formatDate(latest.date)}
+                        <div className="min-w-0 sm:text-right">
+                          <SystemLabel className="break-words text-bone-500">
+                            {latest.agentName}
+                          </SystemLabel>
+                          <div className="mt-1 font-mono text-xs text-bone-400">
+                            {latest.version} · {formatDate(latest.date)}
+                          </div>
                         </div>
                       </div>
 
+                      <div className="mt-8 flex min-w-0 flex-1 flex-col items-center justify-center">
                       <ReliabilityScore score={latest.score} size="xl" />
 
-                      <div className="mt-8 grid w-full max-w-md gap-4">
+                      <div className="mt-8 grid w-full min-w-0 max-w-md gap-4">
                         <MetricLine label="TASK SUCCESS" value={latest.metrics.taskSuccess} color="#8b5cf6" />
                         <MetricLine label="TOOL ACCURACY" value={latest.metrics.toolAccuracy} color="#0ea5e9" />
                         <MetricLine label="SAFETY" value={latest.metrics.safety} color="#22c55e" />
@@ -104,10 +110,11 @@ export default function AppHome() {
 
                       <Link
                         to={`/app/evaluations/${latest.id}`}
-                        className="mt-8 flex items-center gap-2 font-mono text-[11px] uppercase tracking-wider text-violet-400 hover:text-violet-300"
+                        className="mt-8 flex min-h-11 items-center gap-2 font-mono text-[11px] uppercase tracking-wider text-violet-400 hover:text-violet-300"
                       >
                         OPEN FULL REPORT <ArrowRight className="h-3 w-3" />
                       </Link>
+                      </div>
                     </>
                   ) : (
                     <EmptyState
@@ -145,33 +152,33 @@ export default function AppHome() {
             </div>
 
             <ScrollReveal className="mt-6">
-              <div className="border border-bone-600/20 bg-ink-900/60 p-6">
-                <div className="flex items-center justify-between">
+              <div className="min-w-0 border border-bone-600/20 bg-ink-900/60 p-5 sm:p-6">
+                <div className="flex items-center justify-between gap-3">
                   <SystemLabel>AGENT NETWORK</SystemLabel>
                   <Link
                     to="/app/agents"
-                    className="group flex items-center gap-1 font-mono text-[11px] uppercase tracking-wider text-violet-400 hover:text-violet-300"
+                    className="group flex min-h-11 shrink-0 items-center gap-1 font-mono text-[11px] uppercase tracking-wider text-violet-400 hover:text-violet-300"
                   >
                     VIEW ALL <ArrowRight className="h-3 w-3 transition-transform group-hover:translate-x-1" />
                   </Link>
                 </div>
                 {agents.data && agents.data.length > 0 ? (
-                  <div className="mt-6 grid gap-3 md:grid-cols-2 lg:grid-cols-3">
+                  <div className="mt-6 grid min-w-0 gap-3 md:grid-cols-2 lg:grid-cols-3">
                     {agents.data.slice(0, 6).map((agent, i) => (
                       <Link
                         key={agent.id}
                         to={`/app/agents/${agent.id}`}
-                        className="group flex items-center justify-between gap-4 border border-bone-600/20 bg-ink-850/40 p-4 transition-all hover:border-violet-500/30 hover:bg-ink-800/40"
+                        className="group flex min-w-0 items-center justify-between gap-3 border border-bone-600/20 bg-ink-850/40 p-4 transition-all hover:border-violet-500/30 hover:bg-ink-800/40"
                       >
                         <div className="min-w-0">
                           <div className="font-mono text-[10px] text-bone-600">
                             {String(i + 1).padStart(2, '0')}
                           </div>
-                          <div className="mt-1 truncate text-sm text-bone-100">{agent.name}</div>
+                          <div className="mt-1 break-words text-sm text-bone-100">{agent.name}</div>
                           <div className="font-mono text-[10px] text-bone-500">{agent.domain}</div>
                         </div>
                         <div className="shrink-0 text-right">
-                          <div className="font-mono text-2xl font-bold text-bone-50">
+                          <div className="font-mono text-xl font-bold text-bone-50 sm:text-2xl">
                             {agent.status === 'never-run' ? '—' : agent.reliability.toFixed(1)}
                           </div>
                           <div className="font-mono text-[10px] text-bone-500">{agent.latestVersion}</div>

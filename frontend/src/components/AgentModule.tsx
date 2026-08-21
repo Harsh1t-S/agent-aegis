@@ -16,7 +16,7 @@ export function AgentModule({ agent, index }: { agent: Agent; index: number }) {
   return (
     <Link to={`/app/agents/${agent.id}`} className="group block">
       <motion.div
-        className="relative flex h-full flex-col border border-bone-600/20 bg-ink-850/50 p-6 transition-all duration-300 hover:border-violet-500/40 hover:bg-ink-800/50"
+        className="relative flex h-full min-w-0 flex-col border border-bone-600/20 bg-ink-850/50 p-5 sm:p-6 transition-all duration-300 hover:border-violet-500/40 hover:bg-ink-800/50"
         initial={{ opacity: 0, y: 30 }}
         whileInView={{ opacity: 1, y: 0 }}
         viewport={{ once: true }}
@@ -31,12 +31,12 @@ export function AgentModule({ agent, index }: { agent: Agent; index: number }) {
           </span>
         </div>
 
-        <h3 className="mt-4 font-display text-xl font-semibold tracking-tight text-bone-50">
+        <h3 className="mt-4 break-words font-display text-lg font-semibold tracking-tight text-bone-50 sm:text-xl">
           {agent.name}
         </h3>
         <p className="mt-1 text-sm text-bone-400">{agent.domain}</p>
 
-        <div className="mt-6 grid grid-cols-3 gap-4 border-t border-bone-600/20 pt-4">
+        <div className="mt-6 grid grid-cols-3 gap-2 border-t border-bone-600/20 pt-4 sm:gap-4">
           <div>
             <span className="tech-label text-bone-600">RELIABILITY</span>
             <div className="mt-1 font-mono text-2xl font-bold text-bone-50">
@@ -57,8 +57,8 @@ export function AgentModule({ agent, index }: { agent: Agent; index: number }) {
           </div>
         </div>
 
-        <div className="mt-4 flex items-center justify-between">
-          <span className="tech-label text-bone-600">
+        <div className="mt-4 flex items-center justify-between gap-2">
+          <span className="tech-label min-w-0 break-words text-bone-600">
             {hasRun
               ? `${criticalFailures} critical-class findings · ${formatDate(agent.lastEvaluated)}`
               : `${agent.tools.length} tools · not yet evaluated`}

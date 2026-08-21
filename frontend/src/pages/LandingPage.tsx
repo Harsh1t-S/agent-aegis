@@ -155,7 +155,7 @@ export default function LandingPage() {
       </section>
 
       {/* SECTION 02 — INPUT */}
-      <section className="relative flex min-h-screen flex-col items-center justify-center px-6 py-20">
+      <section className="relative flex min-h-screen flex-col items-center justify-center px-4 py-20 sm:px-6">
         <SectionNumber label="01 / INPUT" className="mb-8" />
         <MassiveHeading
           lines={['WHO ARE', 'WE TESTING?']}
@@ -205,7 +205,7 @@ export default function LandingPage() {
       </section>
 
       {/* SECTION 03 — STRESS TEST */}
-      <section className="relative flex min-h-screen flex-col items-center justify-center overflow-hidden px-6 py-20">
+      <section className="relative flex min-h-screen flex-col items-center justify-center overflow-hidden px-4 py-20 sm:px-6">
         <div className="absolute inset-0">
           <ScenarioStream intensity={suiteSize > 0 ? Math.min(scenarioCount / 6, 2) : 1} />
         </div>
@@ -243,7 +243,7 @@ export default function LandingPage() {
       </section>
 
       {/* SECTION 04 — EXECUTION */}
-      <section className="relative flex min-h-screen flex-col items-center justify-center px-6 py-20">
+      <section className="relative flex min-h-screen flex-col items-center justify-center px-4 py-20 sm:px-6">
         <SectionNumber label="03 / EXECUTE" className="mb-8" />
         <MassiveHeading
           lines={['WATCH', 'EVERY', 'DECISION.']}
@@ -263,7 +263,7 @@ export default function LandingPage() {
       </section>
 
       {/* SECTION 05 — FAILURE */}
-      <section className="relative flex min-h-screen flex-col items-center justify-center px-6 py-20">
+      <section className="relative flex min-h-screen flex-col items-center justify-center px-4 py-20 sm:px-6">
         <SectionNumber label="04 / DETECT" className="mb-8" />
 
         <motion.div
@@ -300,7 +300,7 @@ export default function LandingPage() {
       </section>
 
       {/* SECTION 06 — THE SCORE */}
-      <section className="relative flex min-h-screen flex-col items-center justify-center px-6 py-20">
+      <section className="relative flex min-h-screen flex-col items-center justify-center px-4 py-20 sm:px-6">
         <SectionNumber label="05 / ANALYZE" className="mb-8" />
 
         <div className="text-center">
@@ -354,7 +354,7 @@ export default function LandingPage() {
       </section>
 
       {/* SECTION 07 — EVOLUTION */}
-      <section className="relative flex min-h-screen flex-col items-center justify-center px-6 py-20">
+      <section className="relative flex min-h-screen flex-col items-center justify-center px-4 py-20 sm:px-6">
         <SectionNumber label="06 / EVOLVE" className="mb-8" />
         <MassiveHeading
           lines={["DON'T JUST", 'BUILD AGENTS.']}
@@ -408,13 +408,13 @@ export default function LandingPage() {
         >
           <Link
             to="/app"
-            className="group border border-violet-500/40 bg-violet-500/10 px-12 py-4 font-mono text-sm uppercase tracking-[0.2em] text-violet-400 transition-all hover:bg-violet-500/20 hover:shadow-[0_0_30px_rgba(139,92,246,0.3)]"
+            className="group border border-violet-500/40 bg-violet-500/10 px-8 py-4 font-mono text-xs uppercase tracking-[0.2em] text-violet-400 transition-all hover:bg-violet-500/20 hover:shadow-[0_0_30px_rgba(139,92,246,0.3)] sm:px-12 sm:text-sm"
           >
             LAUNCH AEGIS →
           </Link>
           <Link
             to="/how-it-works"
-            className="font-mono text-[11px] uppercase tracking-[0.2em] text-bone-400 transition-colors hover:text-bone-100"
+            className="flex min-h-11 items-center font-mono text-[11px] uppercase tracking-[0.2em] text-bone-400 transition-colors hover:text-bone-100"
           >
             EXPLORE THE SYSTEM
           </Link>
@@ -422,19 +422,28 @@ export default function LandingPage() {
       </section>
 
       {/* FOOTER */}
-      <footer className="border-t border-bone-600/20 px-6 py-12 md:px-10">
+      <footer className="border-t border-bone-600/20 px-4 py-12 sm:px-6 md:px-10">
         <div className="flex flex-col items-center justify-between gap-6 md:flex-row">
           <div className="flex items-center gap-4">
             <SystemLabel>AEGIS / AGENT RELIABILITY SYSTEM / V1.0</SystemLabel>
           </div>
-          <div className="flex items-center gap-6">
-            <Link to="/how-it-works" className="font-mono text-[10px] uppercase tracking-wider text-bone-500 hover:text-bone-200">
+          <div className="flex flex-wrap items-center justify-center gap-x-6">
+            <Link
+              to="/how-it-works"
+              className="flex min-h-11 items-center px-1 font-mono text-[10px] uppercase tracking-wider text-bone-500 hover:text-bone-200"
+            >
               SYSTEM
             </Link>
-            <Link to="/about" className="font-mono text-[10px] uppercase tracking-wider text-bone-500 hover:text-bone-200">
+            <Link
+              to="/about"
+              className="flex min-h-11 items-center px-1 font-mono text-[10px] uppercase tracking-wider text-bone-500 hover:text-bone-200"
+            >
               PRODUCT
             </Link>
-            <Link to="/app" className="font-mono text-[10px] uppercase tracking-wider text-bone-500 hover:text-bone-200">
+            <Link
+              to="/app"
+              className="flex min-h-11 items-center px-1 font-mono text-[10px] uppercase tracking-wider text-bone-500 hover:text-bone-200"
+            >
               LAUNCH
             </Link>
           </div>

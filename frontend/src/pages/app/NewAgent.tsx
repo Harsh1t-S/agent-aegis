@@ -90,14 +90,16 @@ export default function NewAgent() {
     }
   };
 
+  // 16px on phones on purpose: iOS Safari zooms the whole page in when a focused
+  // input has a font-size below 16px, and the zoom does not come back out.
   const inputClass =
-    'w-full border border-bone-300/35 bg-ink-900/60 px-4 py-3 font-mono text-sm text-bone-50 placeholder:text-bone-300 focus:border-violet-400/70 focus:outline-none transition-colors';
+    'w-full border border-bone-300/35 bg-ink-900/60 px-4 py-3 font-mono text-base sm:text-sm text-bone-50 placeholder:text-bone-300 focus:border-violet-400/70 focus:outline-none transition-colors';
 
   return (
     <div className="min-h-screen bg-ink-950 new-agent-page">
       <AppNavigation />
 
-      <div className="px-6 py-8 md:px-10">
+      <div className="px-4 py-8 sm:px-6 md:px-10">
         <SystemLabel>NEW AGENT / CONFIGURATION</SystemLabel>
         <MassiveHeading
           lines={['DEFINE', 'THE AGENT.']}
@@ -105,9 +107,9 @@ export default function NewAgent() {
         />
 
         {/* Progress */}
-        <div className="mt-8 flex items-center gap-4">
+        <div className="mt-8 flex flex-wrap items-center gap-x-3 gap-y-3 sm:gap-x-4">
           {steps.map((s, i) => (
-            <div key={s} className="flex items-center gap-4">
+            <div key={s} className="flex items-center gap-3 sm:gap-4">
               <div
                 className={`flex items-center gap-2 ${
                   i === step ? 'text-violet-300' : i < step ? 'text-flux-300' : 'text-bone-300'
@@ -129,11 +131,13 @@ export default function NewAgent() {
                 </span>
               </div>
               {i < steps.length - 1 && (
-                <div className={`h-px w-8 ${i < step ? 'bg-flux-400/50' : 'bg-bone-300/25'}`} />
+                <div
+                  className={`h-px w-4 sm:w-8 ${i < step ? 'bg-flux-400/50' : 'bg-bone-300/25'}`}
+                />
               )}
             </div>
           ))}
-          <span className="ml-auto font-mono text-xs text-bone-300">
+          <span className="w-full font-mono text-xs text-bone-300 sm:ml-auto sm:w-auto">
             STEP {String(step + 1).padStart(2, '0')} / 04
           </span>
         </div>
@@ -228,14 +232,14 @@ export default function NewAgent() {
                         value={tool.description}
                         onChange={(e) => updateTool(i, 'description', e.target.value)}
                       />
-                      <div className="mt-3 flex items-center gap-3">
+                      <div className="mt-3 flex flex-wrap items-center gap-2 sm:gap-3">
                         <SystemLabel className="!text-bone-300">RISK LEVEL</SystemLabel>
                         {(['low', 'medium', 'high'] as const).map((r) => (
                           <button
                             key={r}
                             type="button"
                             onClick={() => updateTool(i, 'risk', r)}
-                            className={`border px-3 py-1 font-mono text-[10px] uppercase tracking-wider transition-colors ${
+                            className={`flex min-h-9 items-center border px-3 font-mono text-[10px] uppercase tracking-wider transition-colors ${
                               tool.risk === r
                                 ? r === 'high'
                                   ? 'border-fault-500/50 text-fault-400'
@@ -276,7 +280,9 @@ export default function NewAgent() {
                     ].map((item) => (
                       <div key={item.label} className="flex flex-col gap-1 border-b border-bone-300/25 py-3 last:border-0 md:flex-row md:gap-8">
                         <span className="tech-label w-40 shrink-0">{item.label}</span>
-                        <span className="font-mono text-sm text-bone-100">{item.value}</span>
+                        <span className="min-w-0 whitespace-pre-wrap break-words font-mono text-sm text-bone-100">
+                          {item.value}
+                        </span>
                       </div>
                     ))}
                   </div>

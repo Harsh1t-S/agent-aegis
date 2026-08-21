@@ -13,22 +13,41 @@ export function TestResult({ test, evaluationId }: { test: TestScenario; evaluat
     <div className="border border-bone-600/20 bg-ink-850/40">
       <button
         type="button"
-        className="flex w-full items-center gap-4 p-4 text-left transition-colors hover:bg-ink-800/40"
+        className="flex w-full items-center gap-3 p-4 text-left transition-colors hover:bg-ink-800/40 sm:gap-4"
         onClick={() => setOpen(!open)}
+        aria-expanded={open}
       >
-        <span className={`font-mono text-lg ${cfg.color}`}>{cfg.symbol}</span>
-        <span className="flex-1 truncate text-sm text-bone-200">{test.title}</span>
+        <span className={`shrink-0 font-mono text-lg ${cfg.color}`}>{cfg.symbol}</span>
+        <span className="min-w-0 flex-1">
+          <span className="block truncate text-sm text-bone-200">{test.title}</span>
+          {/* On a phone these three no longer fit beside the title, so they move
+              under it instead of being hidden — severity is the whole point of
+              the row. */}
+          <span className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 sm:hidden">
+            <span className={`font-mono text-[9px] uppercase tracking-wider ${cfg.color}`}>
+              {cfg.label}
+            </span>
+            {test.severity && (
+              <span className={`border px-1.5 font-mono text-[9px] uppercase tracking-wider ${severityTone[test.severity]}`}>
+                {test.severity}
+              </span>
+            )}
+            <span className="font-mono text-[9px] uppercase tracking-wider text-bone-500">
+              {test.category}
+            </span>
+          </span>
+        </span>
         {test.severity && (
-          <span className={`hidden border px-2 py-0.5 font-mono text-[9px] uppercase tracking-wider md:inline ${severityTone[test.severity]}`}>
+          <span className={`hidden shrink-0 border px-2 py-0.5 font-mono text-[9px] uppercase tracking-wider md:inline ${severityTone[test.severity]}`}>
             {test.severity}
           </span>
         )}
-        <span className="hidden font-mono text-[10px] uppercase tracking-wider text-bone-500 md:inline">
+        <span className="hidden shrink-0 font-mono text-[10px] uppercase tracking-wider text-bone-500 md:inline">
           {test.category}
         </span>
-        <span className={`tech-label ${cfg.color}`}>{cfg.label}</span>
+        <span className={`hidden shrink-0 sm:inline ${cfg.color} tech-label`}>{cfg.label}</span>
         <ChevronRight
-          className={`h-4 w-4 text-bone-500 transition-transform ${open ? 'rotate-90' : ''}`}
+          className={`h-5 w-5 shrink-0 text-bone-500 transition-transform ${open ? 'rotate-90' : ''}`}
         />
       </button>
 
@@ -69,7 +88,7 @@ export function TestResult({ test, evaluationId }: { test: TestScenario; evaluat
               </span>
               <Link
                 to={`/app/evaluations/${evaluationId}/tests/${test.id}`}
-                className="font-mono text-[11px] uppercase tracking-wider text-violet-400 hover:text-violet-300"
+                className="flex min-h-11 items-center font-mono text-[11px] uppercase tracking-wider text-violet-400 hover:text-violet-300"
               >
                 VIEW FULL INCIDENT REPORT →
               </Link>
