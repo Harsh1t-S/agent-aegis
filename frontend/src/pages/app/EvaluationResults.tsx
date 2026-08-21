@@ -102,7 +102,7 @@ export default function EvaluationResults() {
           <div className="mt-6 text-center">
             <Link
               to="/app/agents"
-              className="border border-violet-500/40 px-6 py-3 font-mono text-xs uppercase tracking-wider text-violet-400 hover:bg-violet-500/10"
+              className="border border-signal-500/40 px-6 py-3 font-mono text-xs uppercase tracking-wider text-signal-400 hover:bg-signal-500/10"
             >
               BACK TO AGENTS
             </Link>
@@ -165,7 +165,7 @@ export default function EvaluationResults() {
             {evaluation.agentName.toUpperCase()}
           </Link>
           <span>/</span>
-          <span className="text-violet-400">{evaluation.version}</span>
+          <span className="text-signal-400">{evaluation.version}</span>
           <span>/</span>
           <span>{formatDate(evaluation.date)}</span>
         </div>
@@ -211,7 +211,7 @@ export default function EvaluationResults() {
           </div>
           <Link
             to={`/app/compare?agent=${evaluation.agentId}`}
-            className="group flex h-fit min-h-11 items-center gap-2 border border-violet-500/40 bg-violet-500/10 px-6 py-3 font-mono text-xs uppercase tracking-wider text-violet-400 transition-colors hover:bg-violet-500/20"
+            className="group flex h-fit min-h-11 items-center gap-2 border border-signal-500/40 bg-signal-500/10 px-6 py-3 font-mono text-xs uppercase tracking-wider text-signal-400 transition-colors hover:bg-signal-500/20"
           >
             COMPARE VERSIONS{' '}
             <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-1" />
@@ -337,7 +337,7 @@ export default function EvaluationResults() {
                     onClick={() => setFilter(f.key)}
                     className={`flex min-h-10 items-center border px-3 font-mono text-[10px] uppercase tracking-wider transition-colors ${
                       filter === f.key
-                        ? 'border-violet-500/50 bg-violet-500/10 text-violet-400'
+                        ? 'border-signal-500/50 bg-signal-500/10 text-signal-400'
                         : 'border-bone-600/30 text-bone-500 hover:text-bone-200'
                     }`}
                   >

@@ -47,7 +47,7 @@ export default function EvaluationRunning() {
           <div className="mt-6 text-center">
             <Link
               to="/app/agents"
-              className="border border-violet-500/40 px-6 py-3 font-mono text-xs uppercase tracking-wider text-violet-400 hover:bg-violet-500/10"
+              className="border border-signal-500/40 px-6 py-3 font-mono text-xs uppercase tracking-wider text-signal-400 hover:bg-signal-500/10"
             >
               BACK TO AGENTS
             </Link>
@@ -67,7 +67,7 @@ export default function EvaluationRunning() {
             {data.agentName.toUpperCase() || 'AGENTS'}
           </Link>
           <span>/</span>
-          <span className="text-violet-400">
+          <span className="text-signal-400">
             {done ? 'EVALUATION COMPLETE' : 'EVALUATION IN PROGRESS'}
           </span>
         </div>
@@ -81,11 +81,11 @@ export default function EvaluationRunning() {
           <div className="min-w-0 border border-bone-600/20 bg-ink-900/60 p-5 sm:p-8">
             <div className="flex items-center gap-3">
               <motion.div
-                className={`h-3 w-3 rounded-full ${done ? 'bg-flux-500' : 'bg-violet-500'}`}
+                className={`h-3 w-3 rounded-full ${done ? 'bg-flux-500' : 'bg-signal-500'}`}
                 animate={done ? { opacity: 1 } : { opacity: [1, 0.3, 1] }}
                 transition={done ? undefined : { duration: 1, repeat: Infinity }}
               />
-              <SystemLabel className={done ? 'text-flux-400' : 'text-violet-400'}>
+              <SystemLabel className={done ? 'text-flux-400' : 'text-signal-400'}>
                 {done ? 'DONE' : 'LIVE'}
               </SystemLabel>
             </div>
@@ -101,7 +101,7 @@ export default function EvaluationRunning() {
             {done && (
               <Link
                 to={`/app/evaluations/${id}`}
-                className="mt-8 inline-block border border-violet-500/40 bg-violet-500/10 px-5 py-2 font-mono text-[11px] uppercase tracking-wider text-violet-400 hover:bg-violet-500/20"
+                className="mt-8 inline-block border border-signal-500/40 bg-signal-500/10 px-5 py-2 font-mono text-[11px] uppercase tracking-wider text-signal-400 hover:bg-signal-500/20"
               >
                 VIEW REPORT →
               </Link>

@@ -25,7 +25,7 @@ export function IncidentTrace({ events }: { events: TraceEvent[] }) {
     <div className="relative min-w-0 border border-bone-600/20 bg-ink-900/60 p-4 sm:p-6">
       <span className="tech-label text-bone-500">EXECUTION TRACE — {events.length} EVENTS</span>
       <div className="relative mt-4">
-        <div className="absolute left-[11px] bottom-3 top-3 w-px bg-gradient-to-b from-violet-500/30 via-bone-600/30 to-fault-500/30" />
+        <div className="absolute left-[11px] bottom-3 top-3 w-px bg-gradient-to-b from-signal-500/30 via-bone-600/30 to-fault-500/30" />
         <div className="space-y-4">
           {events.map((event, i) => (
             <motion.div

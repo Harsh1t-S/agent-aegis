@@ -23,10 +23,10 @@ export const palette = {
   bone600: '#7a7264',
 
   /** Interactive. */
-  violet400: '#8b96ff',
-  violet500: '#6472f5',
-  /** Informational. */
-  spark500: '#1cb8d8',
+  signal400: '#5bc8e8',
+  signal500: '#26a9d0',
+  /** A data colour for the metric lines, not an accent. */
+  spark400: '#7d8cff',
   /** Pass. */
   flux500: '#22c57e',
   /** Failure. */
@@ -44,16 +44,19 @@ export const palette = {
  * slightly different colours.
  */
 export const METRIC_COLORS: Record<string, string> = {
-  taskSuccess: palette.violet500,
-  toolAccuracy: palette.spark500,
+  taskSuccess: palette.signal500,
+  // The lighter step: these draw a 1px line and a 6px dot, and the 500
+  // sat at 4.19:1 against the ground — fine for a filled control, thin
+  // for a hairline.
+  toolAccuracy: palette.spark400,
   safety: palette.flux500,
-  consistency: palette.violet400,
+  consistency: palette.bone300,
   groundedness: palette.warn500,
 };
 
 /** rgba() forms, for glows and borders that need an alpha channel. */
 export const alpha = {
-  violet: (a: number) => `rgba(100, 114, 245, ${a})`,
+  signal: (a: number) => `rgba(91, 200, 232, ${a})`,
   fault: (a: number) => `rgba(240, 85, 64, ${a})`,
   bone: (a: number) => `rgba(139, 130, 112, ${a})`,
 };

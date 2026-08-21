@@ -103,7 +103,7 @@ export function FailureReveal({ items, tests = [], evaluationId }: FailureReveal
                               {evaluationId && (
                                 <Link
                                   to={`/app/evaluations/${evaluationId}/tests/${test.id}`}
-                                  className="inline-flex min-h-11 items-center font-mono text-[11px] uppercase tracking-wider text-violet-400 hover:text-violet-300"
+                                  className="inline-flex min-h-11 items-center font-mono text-[11px] uppercase tracking-wider text-signal-400 hover:text-signal-300"
                                 >
                                   FULL TRACE →
                                 </Link>

@@ -216,7 +216,7 @@ export default function NewAgent() {
   // 16px on phones on purpose: iOS Safari zooms the whole page in when a focused
   // input has a font-size below 16px, and the zoom does not come back out.
   const inputClass =
-    'w-full border border-bone-300/35 bg-ink-900/60 px-4 py-3 font-mono text-base sm:text-sm text-bone-50 placeholder:text-bone-300 focus:border-violet-400/70 focus:outline-none transition-colors';
+    'w-full border border-bone-300/35 bg-ink-900/60 px-4 py-3 font-mono text-base sm:text-sm text-bone-50 placeholder:text-bone-300 focus:border-signal-400/70 focus:outline-none transition-colors';
 
   return (
     <div className="min-h-screen bg-ink-950 new-agent-page">
@@ -244,13 +244,13 @@ export default function NewAgent() {
                 aria-current={i === step ? 'step' : undefined}
                 aria-label={`Step ${i + 1}: ${s.replace(/^\d+\s/, '')}`}
                 className={`-mx-1.5 flex min-h-11 min-w-9 items-center justify-center gap-2 px-1.5 disabled:cursor-default ${
-                  i === step ? 'text-violet-300' : i < step ? 'text-flux-300' : 'text-bone-300'
+                  i === step ? 'text-signal-300' : i < step ? 'text-flux-300' : 'text-bone-300'
                 }`}
               >
                 <span
                   className={`flex h-6 w-6 items-center justify-center rounded-full border text-[10px] ${
                     i === step
-                      ? 'border-violet-400 bg-violet-500/15 shadow-[0_0_14px_rgba(100,114,245,0.18)]'
+                      ? 'border-signal-400 bg-signal-500/15 shadow-[0_0_14px_rgba(91,200,232,0.18)]'
                       : i < step
                         ? 'border-flux-500/40'
                         : 'border-bone-300/45'
@@ -363,7 +363,7 @@ export default function NewAgent() {
                       Import a tool schema
                     </p>
                     <p className="mt-1 text-xs leading-relaxed text-bone-400">
-                      Paste an OpenAI <code className="text-violet-300">tools</code> array, an
+                      Paste an OpenAI <code className="text-signal-300">tools</code> array, an
                       Anthropic/MCP tool list, or a name-to-definition map — or upload the .json
                       file. Argument schemas are kept, so generated scenarios call your tools with
                       the arguments they really take.
@@ -399,14 +399,14 @@ export default function NewAgent() {
                       <button
                         type="button"
                         onClick={() => fileInput.current?.click()}
-                        className="flex min-h-11 items-center gap-2 border border-bone-600/35 px-3 font-mono text-[11px] uppercase tracking-wider text-bone-200 transition-colors hover:border-violet-400/50 hover:text-violet-300"
+                        className="flex min-h-11 items-center gap-2 border border-bone-600/35 px-3 font-mono text-[11px] uppercase tracking-wider text-bone-200 transition-colors hover:border-signal-400/50 hover:text-signal-300"
                       >
                         <Upload className="h-3.5 w-3.5" /> UPLOAD .JSON
                       </button>
                       <button
                         type="button"
                         onClick={() => setShowSchema((v) => !v)}
-                        className="flex min-h-11 items-center gap-2 border border-bone-600/35 px-3 font-mono text-[11px] uppercase tracking-wider text-bone-200 transition-colors hover:border-violet-400/50 hover:text-violet-300"
+                        className="flex min-h-11 items-center gap-2 border border-bone-600/35 px-3 font-mono text-[11px] uppercase tracking-wider text-bone-200 transition-colors hover:border-signal-400/50 hover:text-signal-300"
                       >
                         <ClipboardPaste className="h-3.5 w-3.5" />
                         {showSchema ? 'HIDE' : 'PASTE SCHEMA'}
@@ -434,7 +434,7 @@ export default function NewAgent() {
                           <button
                             type="button"
                             onClick={() => importSchema(schemaText)}
-                            className="flex min-h-11 items-center border border-violet-500/40 bg-violet-500/10 px-4 font-mono text-[11px] uppercase tracking-wider text-violet-300 transition-colors hover:bg-violet-500/20"
+                            className="flex min-h-11 items-center border border-signal-500/40 bg-signal-500/10 px-4 font-mono text-[11px] uppercase tracking-wider text-signal-300 transition-colors hover:bg-signal-500/20"
                           >
                             IMPORT TOOLS
                           </button>
@@ -511,7 +511,7 @@ export default function NewAgent() {
                   <button
                     type="button"
                     onClick={addTool}
-                    className="flex w-full items-center justify-center gap-2 border border-dashed border-bone-600/30 py-3 font-mono text-xs uppercase tracking-wider text-bone-300 transition-colors hover:border-violet-400/50 hover:text-violet-300"
+                    className="flex w-full items-center justify-center gap-2 border border-dashed border-bone-600/30 py-3 font-mono text-xs uppercase tracking-wider text-bone-300 transition-colors hover:border-signal-400/50 hover:text-signal-300"
                   >
                     <Plus className="h-4 w-4" /> ADD TOOL
                   </button>
@@ -589,7 +589,7 @@ export default function NewAgent() {
                 type="button"
                 disabled={!canProceed()}
                 onClick={() => setStep(step + 1)}
-                className="group flex min-h-11 items-center gap-2 border border-violet-500/40 bg-violet-500/10 px-6 font-mono text-xs uppercase tracking-wider text-violet-400 transition-colors enabled:hover:bg-violet-500/20 disabled:cursor-not-allowed disabled:opacity-30"
+                className="group flex min-h-11 items-center gap-2 border border-signal-500/40 bg-signal-500/10 px-6 font-mono text-xs uppercase tracking-wider text-signal-400 transition-colors enabled:hover:bg-signal-500/20 disabled:cursor-not-allowed disabled:opacity-30"
               >
                 CONTINUE{' '}
                 <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-1" />
@@ -599,7 +599,7 @@ export default function NewAgent() {
                 type="button"
                 onClick={handleSubmit}
                 disabled={submitting || !form.name.trim() || !form.systemPrompt.trim()}
-                className="group flex min-h-11 items-center gap-2 border border-violet-500 bg-violet-500/20 px-6 font-mono text-xs uppercase tracking-wider text-violet-300 transition-colors enabled:hover:bg-violet-500/30 disabled:cursor-not-allowed disabled:opacity-40"
+                className="group flex min-h-11 items-center gap-2 border border-signal-500 bg-signal-500/20 px-6 font-mono text-xs uppercase tracking-wider text-signal-300 transition-colors enabled:hover:bg-signal-500/30 disabled:cursor-not-allowed disabled:opacity-40"
               >
                 {submitting ? (
                   <>

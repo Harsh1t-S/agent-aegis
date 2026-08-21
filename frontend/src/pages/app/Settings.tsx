@@ -62,7 +62,7 @@ export default function Settings() {
                 if (!Number.isFinite(raw)) return;
                 update({ scenariosPerRun: Math.max(4, Math.min(40, Math.round(raw))) });
               }}
-              className="mt-2 w-full border border-bone-300/35 bg-ink-950/60 px-4 py-3 font-mono text-base text-bone-50 focus:border-violet-400/70 focus:outline-none sm:text-sm"
+              className="mt-2 w-full border border-bone-300/35 bg-ink-950/60 px-4 py-3 font-mono text-base text-bone-50 focus:border-signal-400/70 focus:outline-none sm:text-sm"
             />
             <p className="mt-3 font-mono text-[10px] leading-relaxed text-bone-500">
               Scenarios are generated per category, so the number is rounded to a whole
@@ -82,7 +82,7 @@ export default function Settings() {
               role="switch"
               aria-checked={settings.adversarial}
               onClick={() => update({ adversarial: !settings.adversarial })}
-              className="mt-4 flex w-full items-center justify-between gap-4 border border-bone-600/25 bg-ink-950/40 p-4 text-left transition-colors hover:border-violet-500/40"
+              className="mt-4 flex w-full items-center justify-between gap-4 border border-bone-600/25 bg-ink-950/40 p-4 text-left transition-colors hover:border-signal-500/40"
             >
               <span className="min-w-0">
                 <span className="block text-sm text-bone-100">Adversarial scenarios</span>
@@ -94,14 +94,14 @@ export default function Settings() {
               <span
                 className={`relative h-6 w-11 shrink-0 rounded-full border transition-colors ${
                   settings.adversarial
-                    ? 'border-violet-500/60 bg-violet-500/25'
+                    ? 'border-signal-500/60 bg-signal-500/25'
                     : 'border-bone-600/40 bg-ink-850'
                 }`}
               >
                 <span
                   className={`absolute top-1/2 h-4 w-4 -translate-y-1/2 rounded-full transition-all ${
                     settings.adversarial
-                      ? 'left-[calc(100%-1.25rem)] bg-violet-300'
+                      ? 'left-[calc(100%-1.25rem)] bg-signal-300'
                       : 'left-1 bg-bone-500'
                   }`}
                 />
@@ -141,13 +141,13 @@ export default function Settings() {
                   onClick={() => update({ adapter: option.key })}
                   className={`min-w-0 border p-4 text-left transition-colors ${
                     settings.adapter === option.key
-                      ? 'border-violet-500/50 bg-violet-500/10'
+                      ? 'border-signal-500/50 bg-signal-500/10'
                       : 'border-bone-600/25 hover:border-bone-500/40'
                   }`}
                 >
                   <span
                     className={`block font-mono text-[11px] uppercase tracking-wider ${
-                      settings.adapter === option.key ? 'text-violet-300' : 'text-bone-300'
+                      settings.adapter === option.key ? 'text-signal-300' : 'text-bone-300'
                     }`}
                   >
                     {option.title}

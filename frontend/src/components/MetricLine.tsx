@@ -14,7 +14,7 @@ export function MetricLine({
   value,
   max = 100,
   unit = '%',
-  color = '#6472f5',
+  color = '#26a9d0',
   delay = 0,
 }: MetricLineProps) {
   const pct = (value / max) * 100;

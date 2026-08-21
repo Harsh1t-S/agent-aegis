@@ -110,7 +110,7 @@ export default function EditAgent() {
   };
 
   const inputClass =
-    'w-full border border-bone-300/35 bg-ink-900/60 px-4 py-3 font-mono text-base sm:text-sm text-bone-50 placeholder:text-bone-300 focus:border-violet-400/70 focus:outline-none transition-colors';
+    'w-full border border-bone-300/35 bg-ink-900/60 px-4 py-3 font-mono text-base sm:text-sm text-bone-50 placeholder:text-bone-300 focus:border-signal-400/70 focus:outline-none transition-colors';
 
   return (
     <div className="min-h-screen bg-ink-950">
@@ -129,7 +129,7 @@ export default function EditAgent() {
             {(agent.data?.name ?? '').toUpperCase() || 'AGENT'}
           </Link>
           <span>/</span>
-          <span className="text-violet-400">EDIT</span>
+          <span className="text-signal-400">EDIT</span>
         </div>
 
         <MassiveHeading
@@ -218,7 +218,7 @@ export default function EditAgent() {
                     <button
                       type="button"
                       onClick={() => fileInput.current?.click()}
-                      className="flex min-h-11 items-center gap-2 border border-bone-600/35 px-3 font-mono text-[10px] uppercase tracking-wider text-bone-300 transition-colors hover:border-violet-400/50 hover:text-violet-300"
+                      className="flex min-h-11 items-center gap-2 border border-bone-600/35 px-3 font-mono text-[10px] uppercase tracking-wider text-bone-300 transition-colors hover:border-signal-400/50 hover:text-signal-300"
                     >
                       <Upload className="h-3.5 w-3.5" /> UPLOAD
                     </button>
@@ -228,7 +228,7 @@ export default function EditAgent() {
                         setSchemaText(toolsToJson(tools.filter((t) => t.name.trim())));
                         setShowSchema((v) => !v);
                       }}
-                      className="flex min-h-11 items-center gap-2 border border-bone-600/35 px-3 font-mono text-[10px] uppercase tracking-wider text-bone-300 transition-colors hover:border-violet-400/50 hover:text-violet-300"
+                      className="flex min-h-11 items-center gap-2 border border-bone-600/35 px-3 font-mono text-[10px] uppercase tracking-wider text-bone-300 transition-colors hover:border-signal-400/50 hover:text-signal-300"
                     >
                       <ClipboardPaste className="h-3.5 w-3.5" />
                       {showSchema ? 'HIDE' : 'EDIT AS JSON'}
@@ -248,7 +248,7 @@ export default function EditAgent() {
                     <button
                       type="button"
                       onClick={() => importSchema(schemaText)}
-                      className="flex min-h-11 items-center border border-violet-500/40 bg-violet-500/10 px-4 font-mono text-[11px] uppercase tracking-wider text-violet-300 hover:bg-violet-500/20"
+                      className="flex min-h-11 items-center border border-signal-500/40 bg-signal-500/10 px-4 font-mono text-[11px] uppercase tracking-wider text-signal-300 hover:bg-signal-500/20"
                     >
                       APPLY JSON
                     </button>
@@ -315,7 +315,7 @@ export default function EditAgent() {
                     onClick={() =>
                       setTools((prev) => [...prev, { name: '', description: '', risk: 'low' }])
                     }
-                    className="flex w-full items-center justify-center gap-2 border border-dashed border-bone-600/30 py-3 font-mono text-xs uppercase tracking-wider text-bone-300 transition-colors hover:border-violet-400/50 hover:text-violet-300"
+                    className="flex w-full items-center justify-center gap-2 border border-dashed border-bone-600/30 py-3 font-mono text-xs uppercase tracking-wider text-bone-300 transition-colors hover:border-signal-400/50 hover:text-signal-300"
                   >
                     <Plus className="h-4 w-4" /> ADD TOOL
                   </button>
@@ -333,7 +333,7 @@ export default function EditAgent() {
                   type="button"
                   onClick={save}
                   disabled={saving}
-                  className="flex min-h-11 items-center gap-2 border border-violet-500 bg-violet-500/20 px-6 font-mono text-xs uppercase tracking-wider text-violet-300 transition-colors enabled:hover:bg-violet-500/30 disabled:opacity-40"
+                  className="flex min-h-11 items-center gap-2 border border-signal-500 bg-signal-500/20 px-6 font-mono text-xs uppercase tracking-wider text-signal-300 transition-colors enabled:hover:bg-signal-500/30 disabled:opacity-40"
                 >
                   {saving ? (
                     <>

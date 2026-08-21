@@ -39,7 +39,7 @@ export function VersionEvolution({ versions }: { versions: AgentVersion[] }) {
               <SystemLabel className="mt-1 max-w-full break-words text-center">{v.version}</SystemLabel>
               <div className="relative mt-3 h-32 w-full">
                 <motion.div
-                  className="absolute bottom-0 left-0 w-full bg-gradient-to-t from-violet-600/40 to-violet-500/80"
+                  className="absolute bottom-0 left-0 w-full bg-gradient-to-t from-signal-600/40 to-signal-500/80"
                   initial={{ height: 0 }}
                   whileInView={{ height: `${barHeight(v.reliability)}%` }}
                   viewport={{ once: true }}

@@ -37,7 +37,7 @@ export function SiteNav() {
           ))}
           <Link
             to="/app"
-            className="group flex min-h-11 items-center gap-2 whitespace-nowrap font-mono text-[10px] uppercase tracking-[0.15em] text-violet-400 transition-colors hover:text-violet-300 sm:text-[11px] sm:tracking-[0.2em]"
+            className="group flex min-h-11 items-center gap-2 whitespace-nowrap font-mono text-[10px] uppercase tracking-[0.15em] text-signal-400 transition-colors hover:text-signal-300 sm:text-[11px] sm:tracking-[0.2em]"
           >
             <span className="hidden xs:inline">LAUNCH AEGIS</span>
             <span className="xs:hidden">LAUNCH</span>

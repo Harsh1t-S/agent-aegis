@@ -91,9 +91,9 @@ export function VersionBattle({ left, right, diff, diffError }: VersionBattlePro
         </ScrollReveal>
 
         <ScrollReveal delay={0.3} className="text-center">
-          <span className="tech-label text-violet-400">{right.version}</span>
+          <span className="tech-label text-signal-400">{right.version}</span>
           <motion.div
-            className="massive text-5xl text-violet-400 sm:text-6xl md:text-7xl"
+            className="massive text-5xl text-signal-400 sm:text-6xl md:text-7xl"
             initial={{ opacity: 0, scale: 0.8 }}
             whileInView={{ opacity: 1, scale: 1 }}
             viewport={{ once: true }}

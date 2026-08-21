@@ -88,7 +88,7 @@ export function TestResult({ test, evaluationId }: { test: TestScenario; evaluat
               </span>
               <Link
                 to={`/app/evaluations/${evaluationId}/tests/${test.id}`}
-                className="flex min-h-11 items-center font-mono text-[11px] uppercase tracking-wider text-violet-400 hover:text-violet-300"
+                className="flex min-h-11 items-center font-mono text-[11px] uppercase tracking-wider text-signal-400 hover:text-signal-300"
               >
                 VIEW FULL INCIDENT REPORT →
               </Link>

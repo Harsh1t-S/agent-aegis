@@ -10,16 +10,20 @@
  * colour at three lightnesses and nothing looked chosen.
  *
  * So the ground is warm now — graphite with brown in it, the colour of anodised
- * metal rather than of space — and the accent is a saturated ultramarine that sits
- * across the wheel from it. Warm ground against cool accent is what makes a screen
+ * metal rather than of space — and the accent is a cold instrument cyan sitting
+ * opposite it on the wheel. Warm ground against cool accent is what makes a screen
  * look designed rather than defaulted, and it gives the status colours somewhere to
  * live: amber and vermilion read as signals against warm black instead of blending
  * into a blue field.
  *
- * Colour carries meaning here. Ultramarine is interactive, jade is a pass, amber a
- * warning, vermilion a failure — nothing is tinted for decoration, because the one
- * thing this product cannot afford is a reader who has learned to ignore its
- * colours.
+ * The accent went through ultramarine on the way here and that was not far enough:
+ * it still read as lavender at a glance, which is the only test that matters. Cyan
+ * cannot be mistaken for the near-black-and-purple every generated dashboard ships
+ * with.
+ *
+ * Colour carries meaning. Cyan is interactive, jade is a pass, amber a warning,
+ * vermilion a failure — nothing is tinted for decoration, because the one thing this
+ * product cannot afford is a reader who has learned to ignore its colours.
  */
 export default {
   content: ['./index.html', './src/**/*.{js,ts,jsx,tsx}'],
@@ -63,20 +67,31 @@ export default {
           500: '#948a77',
           600: '#857c6d',
         },
-        // Interactive. A saturated ultramarine, not the washed-out lavender it
-        // replaces — it has to hold its own against a warm ground.
-        violet: {
-          300: '#a3adff',
-          400: '#8b96ff',
-          500: '#6472f5',
-          600: '#4a56db',
-          700: '#3a44b4',
+        // Interactive.
+        //
+        // Named `signal`, not `violet`, because it is not violet any more and a
+        // token that lies about its own colour is how purple gets reintroduced by
+        // accident. The first pass moved this to ultramarine and it still read as
+        // lavender on screen — the honest test is whether someone glancing at it
+        // says "purple", and #8b96ff did.
+        //
+        // This is a cold instrument cyan: it sits opposite warm graphite on the
+        // wheel, which is what makes the pairing look deliberate, and it cannot be
+        // mistaken for the near-black-and-purple default.
+        signal: {
+          300: '#8fe3f7',
+          400: '#5bc8e8',
+          500: '#26a9d0',
+          600: '#1a87ab',
+          700: '#146a87',
         },
-        // Secondary / informational — cyan.
+        // A data colour, not an accent — it exists so the five reliability
+        // dimensions stay distinguishable from each other. Moved off cyan when the
+        // interactive accent took it.
         spark: {
-          400: '#4bd6f0',
-          500: '#1cb8d8',
-          600: '#0e93b0',
+          400: '#7d8cff',
+          500: '#5566e8',
+          600: '#3f4ec4',
         },
         // Pass — jade, warmed slightly so it belongs on this ground.
         flux: {

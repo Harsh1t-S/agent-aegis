@@ -30,11 +30,11 @@ export function EvaluationProgress({ complete, total, status }: EvaluationProgre
           <span className="font-mono text-sm text-bone-300">
             {complete} / {total || '—'} SCENARIOS COMPLETE
           </span>
-          <span className="font-mono text-sm text-violet-400">{Math.round(pct)}%</span>
+          <span className="font-mono text-sm text-signal-400">{Math.round(pct)}%</span>
         </div>
         <div className="relative mt-3 h-1 w-full bg-bone-600/20">
           <motion.div
-            className="absolute left-0 top-0 h-1 bg-gradient-to-r from-violet-500 to-spark-500"
+            className="absolute left-0 top-0 h-1 bg-gradient-to-r from-signal-500 to-spark-500"
             initial={false}
             animate={{ width: `${pct}%` }}
             transition={{ duration: 0.6, ease: 'easeOut' }}
@@ -50,7 +50,7 @@ export function EvaluationProgress({ complete, total, status }: EvaluationProgre
                 stage.done
                   ? 'border-flux-500/50 text-flux-500'
                   : stage.active
-                    ? 'border-violet-500 text-violet-400'
+                    ? 'border-signal-500 text-signal-400'
                     : 'border-bone-600/40 text-bone-600'
               }`}
             >
@@ -58,14 +58,14 @@ export function EvaluationProgress({ complete, total, status }: EvaluationProgre
             </span>
             <span
               className={`font-mono text-xs uppercase tracking-wider ${
-                stage.done ? 'text-bone-300' : stage.active ? 'text-violet-400' : 'text-bone-600'
+                stage.done ? 'text-bone-300' : stage.active ? 'text-signal-400' : 'text-bone-600'
               }`}
             >
               {stage.label}
             </span>
             {stage.active && (
               <motion.span
-                className="ml-auto h-1 w-8 bg-violet-500"
+                className="ml-auto h-1 w-8 bg-signal-500"
                 animate={{ opacity: [1, 0.3, 1] }}
                 transition={{ duration: 1, repeat: Infinity }}
               />

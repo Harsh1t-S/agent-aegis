@@ -16,7 +16,7 @@ export default function NotFound() {
       <div className="mt-10 flex flex-wrap justify-center gap-3">
         <Link
           to="/app"
-          className="border border-violet-500/40 bg-violet-500/10 px-6 py-3 font-mono text-xs uppercase tracking-wider text-violet-400 hover:bg-violet-500/20"
+          className="border border-signal-500/40 bg-signal-500/10 px-6 py-3 font-mono text-xs uppercase tracking-wider text-signal-400 hover:bg-signal-500/20"
         >
           CONTROL CENTER
         </Link>

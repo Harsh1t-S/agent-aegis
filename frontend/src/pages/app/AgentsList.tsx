@@ -22,7 +22,7 @@ export default function AgentsList() {
           </div>
           <Link
             to="/app/agents/new"
-            className="group flex items-center gap-2 border border-violet-500/40 bg-violet-500/10 px-6 py-3 font-mono text-xs uppercase tracking-wider text-violet-400 transition-colors hover:bg-violet-500/20"
+            className="group flex items-center gap-2 border border-signal-500/40 bg-signal-500/10 px-6 py-3 font-mono text-xs uppercase tracking-wider text-signal-400 transition-colors hover:bg-signal-500/20"
           >
             <Plus className="h-4 w-4" />
             <span className="hidden sm:inline">INITIALIZE NEW AGENT</span>
@@ -40,7 +40,7 @@ export default function AgentsList() {
               action={
                 <Link
                   to="/app/agents/new"
-                  className="mt-2 border border-violet-500/40 px-5 py-2 font-mono text-[11px] uppercase tracking-wider text-violet-400 hover:bg-violet-500/10"
+                  className="mt-2 border border-signal-500/40 px-5 py-2 font-mono text-[11px] uppercase tracking-wider text-signal-400 hover:bg-signal-500/10"
                 >
                   INITIALIZE NEW AGENT
                 </Link>

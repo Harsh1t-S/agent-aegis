@@ -25,7 +25,7 @@ export function ExecutionTrace({ events, compact = false }: ExecutionTraceProps)
   return (
     <div className="relative">
       {/* Vertical line */}
-      <div className="absolute left-[7px] top-2 bottom-2 w-px bg-gradient-to-b from-violet-500/30 via-bone-600/30 to-transparent" />
+      <div className="absolute left-[7px] top-2 bottom-2 w-px bg-gradient-to-b from-signal-500/30 via-bone-600/30 to-transparent" />
 
       <div className="space-y-3">
         {events.map((event, i) => (
@@ -49,7 +49,7 @@ export function ExecutionTrace({ events, compact = false }: ExecutionTraceProps)
                   <span className="font-mono text-[10px] text-bone-500">
                     {String(event.id).padStart(2, '0')}
                   </span>
-                  <span className="font-mono text-xs uppercase tracking-wider text-bone-200 group-hover:text-violet-400 transition-colors">
+                  <span className="font-mono text-xs uppercase tracking-wider text-bone-200 group-hover:text-signal-400 transition-colors">
                     {event.label}
                   </span>
                 </div>
@@ -60,7 +60,7 @@ export function ExecutionTrace({ events, compact = false }: ExecutionTraceProps)
                   <motion.div
                     initial={{ opacity: 0, height: 0 }}
                     animate={{ opacity: 1, height: 'auto' }}
-                    className="mt-2 border-l border-violet-500/30 pl-3 font-mono text-[10px] text-bone-300"
+                    className="mt-2 border-l border-signal-500/30 pl-3 font-mono text-[10px] text-bone-300"
                   >
                     {event.detail}
                   </motion.div>
@@ -71,7 +71,7 @@ export function ExecutionTrace({ events, compact = false }: ExecutionTraceProps)
             {/* Signal animation between events */}
             {i < events.length - 1 && (
               <motion.div
-                className="ml-[7px] h-4 w-px bg-violet-500"
+                className="ml-[7px] h-4 w-px bg-signal-500"
                 initial={{ opacity: 0, scaleY: 0 }}
                 whileInView={{ opacity: [0, 1, 0], scaleY: 1 }}
                 viewport={{ once: true }}

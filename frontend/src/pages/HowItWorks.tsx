@@ -53,8 +53,8 @@ export default function HowItWorks() {
                   {/* These numerals are the only thing naming each stage, so they are not
                       allowed to be decoration: at /40 they sat at 1.98:1, under the
                       3:1 that large text needs. */}
-                  <span className="massive text-5xl text-violet-400/70 md:text-7xl">{stage.num}</span>
-                  <span className="tech-label text-violet-400">{stage.label}</span>
+                  <span className="massive text-5xl text-signal-400/70 md:text-7xl">{stage.num}</span>
+                  <span className="tech-label text-signal-400">{stage.label}</span>
                 </div>
                 <div className="border-l border-bone-600/20 pl-0 md:pl-8">
                   <h3 className="font-display text-2xl font-semibold text-bone-50 md:text-3xl">
@@ -76,8 +76,8 @@ export default function HowItWorks() {
           <div className="flex flex-wrap items-center justify-center gap-2 md:gap-4">
             {pipeline.map((stage, i) => (
               <div key={stage.num} className="flex items-center gap-2 md:gap-4">
-                <div className="border border-violet-500/30 bg-violet-500/5 px-4 py-2">
-                  <span className="font-mono text-xs uppercase tracking-wider text-violet-400">
+                <div className="border border-signal-500/30 bg-signal-500/5 px-4 py-2">
+                  <span className="font-mono text-xs uppercase tracking-wider text-signal-400">
                     {stage.label}
                   </span>
                 </div>
@@ -98,7 +98,7 @@ export default function HowItWorks() {
         />
         <Link
           to="/app"
-          className="group mt-12 border border-violet-500/40 bg-violet-500/10 px-10 py-4 font-mono text-sm uppercase tracking-[0.2em] text-violet-400 transition-all hover:bg-violet-500/20"
+          className="group mt-12 border border-signal-500/40 bg-signal-500/10 px-10 py-4 font-mono text-sm uppercase tracking-[0.2em] text-signal-400 transition-all hover:bg-signal-500/20"
         >
           LAUNCH AEGIS →
         </Link>

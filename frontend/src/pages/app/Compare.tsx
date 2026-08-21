@@ -75,7 +75,7 @@ export default function Compare() {
                         onClick={() => setParams({ agent: a.id })}
                         className={`flex min-h-11 items-center border px-3 font-mono text-xs uppercase tracking-wider transition-colors ${
                           a.id === agent.id
-                            ? 'border-violet-500/50 bg-violet-500/10 text-violet-400'
+                            ? 'border-signal-500/50 bg-signal-500/10 text-signal-400'
                             : 'border-bone-600/30 text-bone-500 hover:text-bone-200'
                         }`}
                       >
@@ -109,8 +109,8 @@ export default function Compare() {
                     ))}
                   </div>
                 </div>
-                <div className="border border-violet-500/20 bg-violet-500/5 p-5">
-                  <SystemLabel className="text-violet-400">COMPARING AGAINST</SystemLabel>
+                <div className="border border-signal-500/20 bg-signal-500/5 p-5">
+                  <SystemLabel className="text-signal-400">COMPARING AGAINST</SystemLabel>
                   <div className="mt-3 flex flex-wrap gap-2">
                     {agent.versions.map((v) => (
                       <button
@@ -120,7 +120,7 @@ export default function Compare() {
                         disabled={v.id === leftId}
                         className={`flex min-h-11 items-center border px-3 font-mono text-xs uppercase tracking-wider transition-colors disabled:opacity-30 ${
                           v.id === rightId
-                            ? 'border-violet-500/50 bg-violet-500/10 text-violet-400'
+                            ? 'border-signal-500/50 bg-signal-500/10 text-signal-400'
                             : 'border-bone-600/30 text-bone-500 hover:text-bone-200'
                         }`}
                       >

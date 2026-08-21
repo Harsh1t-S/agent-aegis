@@ -73,7 +73,7 @@ export function AppNavigation() {
                 to={item.to}
                 aria-current={active ? 'page' : undefined}
                 className={`flex min-h-11 items-center gap-2 px-3 font-mono text-[11px] uppercase tracking-wider transition-colors ${
-                  active ? 'text-violet-400' : 'text-bone-400 hover:text-bone-100'
+                  active ? 'text-signal-400' : 'text-bone-400 hover:text-bone-100'
                 }`}
               >
                 <item.icon className="h-3.5 w-3.5" />
@@ -145,7 +145,7 @@ export function AppNavigation() {
                       aria-current={active ? 'page' : undefined}
                       className={`flex min-h-14 items-center gap-3 border-l-2 px-5 font-mono text-xs uppercase tracking-wider transition-colors ${
                         active
-                          ? 'border-violet-500 bg-violet-500/10 text-violet-300'
+                          ? 'border-signal-500 bg-signal-500/10 text-signal-300'
                           : 'border-transparent text-bone-300 hover:bg-ink-850 hover:text-bone-50'
                       }`}
                     >
