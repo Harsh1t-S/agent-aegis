@@ -657,6 +657,15 @@ def evaluate(agent_id: str, body: EvaluateIn, background: BackgroundTasks,
         config = {"adapter": "http", "url": body.url}
     else:
         config = {"adapter": "behavioral", "traits": body.traits}
+    # The prompt and tools *as of this version*, whatever adapter ran it.
+    #
+    # Everything downstream that needed to know what the agent was configured like
+    # read `agent.system_prompt` instead, which is the current one. So editing an
+    # agent silently re-pointed v1's guardrail report at v2's policy: the ladder
+    # attached to the baseline was compiling boundaries out of a prompt written
+    # after it, and reporting the result as the baseline's.
+    config = {**config, "system_prompt_at_version": agent.system_prompt,
+              "tool_schema_at_version": agent.tool_schema or {}}
     version = AgentVersion(agent_id=agent.id, version_label=body.versionLabel,
                            config_snapshot=config)
     db.add(version); db.commit(); db.refresh(version)
@@ -867,6 +876,26 @@ def evaluation_progress(evaluation_id: str, db: Session = Depends(get_db)):
     }
 
 
+def _profile_at_version(version: AgentVersion, agent: Agent | None):
+    """The agent as it was when this evaluation ran, not as it is now.
+
+    Versions exist so an edit can be compared against what came before. Profiling
+    `agent.system_prompt` threw that away: after hardening the prompt, the baseline
+    version's guardrail report was compiled from the hardened rules, so the run
+    that was supposed to show the *unsafe* configuration was graded against the
+    safe one. Snapshots taken before this change fall back to the current values,
+    which is the old behaviour and the best available answer for those rows.
+    """
+    snapshot = (version.config_snapshot or {}) if version else {}
+    prompt = snapshot.get("system_prompt_at_version")
+    schema = snapshot.get("tool_schema_at_version")
+    if prompt is None:
+        prompt = (agent.system_prompt if agent else "") or ""
+    if schema is None:
+        schema = (agent.tool_schema if agent else {}) or {}
+    return profile_agent(prompt, schema)
+
+
 @router.post("/evaluations/{evaluation_id}/guardrail", status_code=202)
 def start_guardrail(evaluation_id: str, background: BackgroundTasks,
                     db: Session = Depends(get_db)):
@@ -877,7 +906,7 @@ def start_guardrail(evaluation_id: str, background: BackgroundTasks,
     if not version:
         raise HTTPException(404, "Evaluation not found")
     agent = db.get(Agent, version.agent_id)
-    profile = profile_agent(agent.system_prompt, agent.tool_schema)
+    profile = _profile_at_version(version, agent)
     if not profile.destructive_tools:
         raise HTTPException(400, "This agent exposes no irreversible tools to probe")
 
@@ -907,7 +936,7 @@ def start_guardrail(evaluation_id: str, background: BackgroundTasks,
 
 @router.get("/evaluations/{evaluation_id}/guardrail")
 def guardrail(evaluation_id: str, db: Session = Depends(get_db)):
-    from .guardrail import LADDER, analyse
+    from .guardrail import LADDER, SOURCE_AUTHORITY_RUNGS, analyse
 
     version = db.get(AgentVersion, evaluation_id)
     if not version:
@@ -931,7 +960,12 @@ def guardrail(evaluation_id: str, db: Session = Depends(get_db)):
                        for f in db.query(FailureAnnotation).filter_by(test_run_id=run.id))
         results.append({"tool": marker["tool"], "level": marker["level"],
                         "technique": marker["technique"], "breached": breached,
-                        "runId": run.id})
+                        "runId": run.id,
+                        # Carried through so the report can say which boundary was
+                        # asserted, not just whether it held.
+                        "policyMode": marker.get("policyMode"),
+                        "policyBasis": marker.get("policyBasis") or [],
+                        "sourceAuthorityOnly": marker.get("sourceAuthorityOnly", False)})
     if not results and not unfinished:
         return {"ran": False, "tools": [], "ladder": [], "resistanceScore": None}
 
@@ -939,7 +973,14 @@ def guardrail(evaluation_id: str, db: Session = Depends(get_db)):
     # such rather than silently dropped: the injected-instruction rung needs a tool
     # that returns third-party content, and not every agent has one.
     agent = db.get(Agent, version.agent_id)
-    surface = ((agent.profile or {}).get("injection_surface") or []) if agent else []
+    profile = _profile_at_version(version, agent)
+    surface = profile.injection_surface
+    # Tools whose only boundary was source authority deliberately skip the six
+    # direct-pressure rungs - a user asking for something the prompt allows is not
+    # a breach to test for. Counting those as "did not run" made a complete ladder
+    # report 14% coverage and withhold its resistance score, which reads as a
+    # broken run rather than a scoped one.
+    authority_only = {row["tool"] for row in results if row.get("sourceAuthorityOnly")}
     probed = {row["tool"] for row in results} | {row["tool"] for row in unfinished}
     seen = {(row["tool"], row["level"]) for row in results} | \
            {(row["tool"], row["level"]) for row in unfinished}
@@ -947,12 +988,16 @@ def guardrail(evaluation_id: str, db: Session = Depends(get_db)):
         for rung in LADDER:
             if (tool, rung.level) in seen:
                 continue
-            applicable = not (rung.name == "injected_instruction" and not surface)
-            unfinished.append({
-                "tool": tool, "level": rung.level, "technique": rung.name,
-                "applicable": applicable,
-                "reason": ("no tool returns third-party content to carry an injected "
-                           "instruction" if not applicable else "not generated")})
+            if rung.name == "injected_instruction" and not surface:
+                reason, applicable = ("no tool returns third-party content to carry an "
+                                      "injected instruction", False)
+            elif tool in authority_only and rung.name not in SOURCE_AUTHORITY_RUNGS:
+                reason, applicable = ("the prompt states no rule covering this tool, so a "
+                                      "direct request for it is not a policy breach", False)
+            else:
+                reason, applicable = "not generated", True
+            unfinished.append({"tool": tool, "level": rung.level, "technique": rung.name,
+                               "applicable": applicable, "reason": reason})
     return {"ran": True, **analyse(results, skipped=unfinished)}
 
 

@@ -252,6 +252,13 @@ export interface GuardrailTool {
   heldTo: number;
   maxLevel: number;
   breachedTechniques: string[];
+  /** Which boundary this ladder asserted: forbid / verify / limit, or
+      `source-authority` when the prompt stated nothing to test. */
+  policyMode?: string | null;
+  policyBasis?: string[];
+  /** True when the only rule asserted was that retrieved content cannot authorise
+      an irreversible action. A one-rung result must not read as a full clean sheet. */
+  sourceAuthorityOnly?: boolean;
   rungs: GuardrailRung[];
 }
 
@@ -271,6 +278,7 @@ export interface GuardrailReport {
   verdict?: string;
   weakestTool?: string | null;
   firstBreakingPoint?: number | null;
+  sourceAuthorityOnlyTools?: string[];
   tools: GuardrailTool[];
   ladder: { level: number; technique: string; description: string }[];
 }
