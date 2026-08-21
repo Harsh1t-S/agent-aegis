@@ -353,9 +353,77 @@ def _mock_response(tool: ToolProfile, profile: AgentProfile) -> dict:
     return record
 
 
+#: What a mutating verb does to the record, and what the record has to look like
+#: for it to be allowed.
+#:
+#: The sandbox used to hold no record at all: reads returned a frozen template and
+#: writes flipped an `effects.<tool>` marker that nothing ever read back. So the
+#: world never moved. An agent could cancel an order whose own fixture said
+#: `cancellable: false`, cancel it twice, refund an order it had already refunded,
+#: and every subsequent lookup still described the original untouched record.
+#:
+#: With the record living in state, a chain becomes a chain: cancel then check, and
+#: the check reports it cancelled; cancel twice, and the second call is refused by
+#: the tool the way a real one would refuse it.
+RECORD_EFFECTS: dict[str, dict] = {
+    "cancel": {
+        "requires": [
+            {"field": "cancellable", "not": False,
+             "reason": "the order is not cancellable"},
+            {"field": "status", "not": "cancelled", "reason": "it is already cancelled"},
+        ],
+        "sets": {"status": "cancelled", "cancellable": False},
+    },
+    "refund": {
+        "requires": [
+            {"field": "refund_eligible", "not": False,
+             "reason": "the order is not refund eligible"},
+            {"field": "refunded", "not": True, "reason": "it has already been refunded"},
+        ],
+        "sets": {"refunded": True, "refund_eligible": False},
+    },
+    "delete": {
+        "requires": [{"field": "active", "not": False, "reason": "it is already inactive"}],
+        "sets": {"active": False, "status": "deleted"},
+    },
+    "close": {
+        "requires": [{"field": "active", "not": False, "reason": "it is already closed"}],
+        "sets": {"active": False, "status": "closed"},
+    },
+}
+
+
+def _record_effect_for(tool: ToolProfile) -> dict | None:
+    """Which record effect this tool's name implies, by whole word.
+
+    Not the leading verb alone: `issue_refund` is a refund and `cancel_order` is a
+    cancellation, and the meaningful word is in a different position in each. Whole
+    tokens, never substrings — `get_order` contains "order" and matching anywhere
+    in the name is how a lookup once got classified as high-risk.
+
+    Scanning every token is safe here only because callers apply this to tools
+    already classified as non-low risk, and that classification *is* leading-verb
+    based. `get_refund_status` never reaches this function.
+    """
+    for token in tool.name.lower().split("_"):
+        if token in RECORD_EFFECTS:
+            return RECORD_EFFECTS[token]
+    return None
+
+
 def mock_environment_from_profile(profile: AgentProfile, name: str = "generated-sandbox") -> dict:
     definitions: dict[str, dict] = {}
     state: dict = {}
+
+    # One record, shared by every tool that touches it, held in state so that what
+    # a write does is what the next read sees.
+    record = _mock_response(next((t for t in profile.tools if _is_read(t)
+                                  and not t.reads_untrusted), profile.tools[0]), profile)         if profile.tools else {}
+    if not isinstance(record, dict) or "found" not in record:
+        record = {"found": True, "record_id": SANDBOX_RECORD_ID,
+                  "status": "delivered", "total": SANDBOX_TOTAL}
+    state["records"] = {SANDBOX_RECORD_ID: record}
+
     for tool in profile.tools:
         definition: dict = {
             "danger_level": tool.danger_level,
@@ -371,9 +439,14 @@ def mock_environment_from_profile(profile: AgentProfile, name: str = "generated-
                 "required": list(tool.required_arguments),
             },
         }
+        if _is_read(tool) and not tool.reads_untrusted:
+            # Answer from the live record rather than the frozen template.
+            definition["reads_record"] = True
         if tool.danger_level != "low":
             definition["set_state"] = {"path": f"effects.{tool.name}", "value": "done"}
             state.setdefault("effects", {})[tool.name] = "none"
+            if (effect := _record_effect_for(tool)):
+                definition["record_effect"] = effect
         definitions[tool.name] = definition
     return {"name": name, "tool_definitions": definitions, "initial_state": state,
             "injected_content": {}}

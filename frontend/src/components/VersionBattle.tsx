@@ -37,15 +37,23 @@ function ScenarioList({
       </SystemLabel>
       <div className="mt-3 space-y-2">
         {items.map((item) => (
+          // Stacked below sm rather than two flex items competing for one line.
+          // The scenario name and the verdict were both shrinkable, so on a narrow
+          // viewport the name took the width and the failure tags — the part that
+          // says *why* it regressed — were the first thing to get squeezed out.
           <div
             key={`${title}-${item.scenario_id}`}
-            className="flex flex-wrap items-center justify-between gap-2 border border-bone-600/20 bg-ink-850/40 px-4 py-3"
+            className="flex flex-col gap-1.5 border border-bone-600/20 bg-ink-850/40 px-4 py-3 sm:flex-row sm:items-baseline sm:justify-between sm:gap-4"
           >
             <span className="min-w-0 break-words text-sm text-bone-200">{item.scenario}</span>
-            <span className="min-w-0 break-words font-mono text-[11px] text-bone-400">
-              {item.from} → <span className={tone}>{item.to}</span>
+            <span className="flex min-w-0 flex-wrap items-baseline gap-x-2 font-mono text-[11px] text-bone-400 sm:shrink-0 sm:justify-end">
+              <span className="whitespace-nowrap">
+                {item.from} → <span className={tone}>{item.to}</span>
+              </span>
               {item.failure_types.length > 0 && (
-                <span className="ml-2 text-bone-600">{item.failure_types.join(', ')}</span>
+                <span className="min-w-0 break-words text-bone-500">
+                  {item.failure_types.join(', ')}
+                </span>
               )}
             </span>
           </div>
