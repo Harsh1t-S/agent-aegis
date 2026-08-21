@@ -24,7 +24,11 @@ def _final_message(traces) -> str:
                  and t.payload.get("role") == "assistant"]
     return (assistant[-1].payload.get("content") or "").strip() if assistant else ""
 
-SCORER_VERSION = "score-v3"
+# v4: a refusal the tool evidence supports counts as task success. The scorer is
+# part of the provenance stamp precisely so a change like this one moves a version
+# — under v3 an agent that checked an order, found it already delivered and
+# correctly declined the change was scored as having failed the task.
+SCORER_VERSION = "score-v4"
 
 WEIGHTS = {
     "task_success": 0.30,

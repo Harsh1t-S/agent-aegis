@@ -175,6 +175,8 @@ export interface EvaluatorStamp {
   guardrail: string;
   detector: string;
   profile: string;
+  /** The scorer turns findings into a verdict, so it is a semantic version too. */
+  scorer: string;
   commit: string;
 }
 

@@ -205,7 +205,7 @@ export default function Settings() {
                     <div>
                       <p className="tech-label text-bone-600">DEPLOYED EVALUATOR</p>
                       <ul className="mt-2 space-y-1">
-                        {(['generator', 'guardrail', 'detector', 'profile'] as const).map(
+                        {(['generator', 'guardrail', 'detector', 'profile', 'scorer'] as const).map(
                           (key) => (
                             <li
                               key={key}

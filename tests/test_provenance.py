@@ -246,8 +246,36 @@ def test_reanalysis_advances_the_detector_but_not_the_oracle(client, prov_agent)
 
 def test_scoring_contract_publishes_the_deployed_evaluator(client):
     evaluator = client.get("/api/scoring").json()["evaluator"]
-    assert {"generator", "guardrail", "detector", "profile", "commit"} <= set(evaluator)
+    assert {"generator", "guardrail", "detector", "profile", "scorer",
+            "commit"} <= set(evaluator)
     assert evaluator["generator"].startswith("scenarios-")
+
+
+def test_the_scorer_is_part_of_the_provenance_that_decides_staleness(client, prov_agent):
+    """Found by a judge: the scorer was missing from the stamp entirely.
+
+    It turns findings into a verdict, so a change there changes the answer as
+    surely as a detector change does — and the most recent semantic change Aegis
+    made was exactly that, crediting a refusal the tool evidence supports. Without
+    the scorer in SEMANTIC_KEYS, an evaluation graded under the old rule kept
+    reporting itself as current.
+    """
+    from app.provenance import SEMANTIC_KEYS, evaluator_stamp, is_current
+    from app.scoring import SCORER_VERSION
+
+    assert "scorer" in SEMANTIC_KEYS
+    assert evaluator_stamp()["scorer"] == SCORER_VERSION
+
+    # An otherwise-identical stamp graded by an older scorer is not current.
+    aged = {**evaluator_stamp(), "scorer": "score-v3"}
+    assert is_current(aged) is False
+
+    started = client.post(f"/api/agents/{prov_agent['id']}/evaluate",
+                          json={"perCategory": 1, "versionLabel": "scorer-stamp"}).json()
+    client.get(f"/api/evaluations/{started['evaluationId']}/progress")
+    recorded = client.get(f"/api/evaluations/{started['evaluationId']}"
+                          ).json()["evaluator"]["recorded"]
+    assert recorded["scorer"] == SCORER_VERSION
 
 
 # --------------------------------------------------------------------------- #
