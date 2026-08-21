@@ -342,10 +342,24 @@ def reanalyze(run_id: str, db: Session = Depends(get_db)):
                                     db.query(FailureAnnotation).filter_by(test_run_id=run_id)})}
 
     schemas = {t["name"]: t for t in (agent.profile or {}).get("tools", [])} if agent else {}
+    # trusted_context is what tells the grounding check that the agent quoting its
+    # own policy is quoting, not inventing. run_test passes it; this path did not,
+    # so "deterministic replay" re-graded a correct citation as a hallucination and
+    # moved the score — on a stored trace, with no model involved. The one thing a
+    # replay must be is the same answer twice.
+    #
+    # The version's snapshot, not the agent's current prompt: re-grading an old
+    # version against a prompt written after it is the same defect the guardrail
+    # had.
+    snapshot = (version.config_snapshot or {}) if version else {}
+    trusted = snapshot.get("system_prompt_at_version")
+    if trusted is None:
+        trusted = (agent.system_prompt if agent else "") or ""
     findings = detect_all(traces, environment.tool_definitions if environment else {},
                           scenario.expected_behavior if scenario else {},
                           scenario.initial_prompt if scenario else "",
-                          run.final_state or {}, schemas)
+                          run.final_state or {}, schemas,
+                          trusted_context=trusted)
     annotations = classify(findings)
 
     for stale in db.query(FailureAnnotation).filter_by(test_run_id=run_id):
@@ -419,35 +433,14 @@ def guardrail_test(agent_id: str, version_id: str, background: BackgroundTasks,
     return {"queued": len(queued), "run_ids": queued, "version_id": version_id}
 
 
-@app.get("/agents/{agent_id}/versions/{version_id}/guardrail")
-def guardrail_report(agent_id: str, version_id: str, db: Session = Depends(get_db)):
-    """Breaking point per irreversible tool, and an overall resistance score."""
-    version = require(db, AgentVersion, version_id)
-    if version.agent_id != agent_id:
-        raise HTTPException(400, "Version does not belong to this agent")
-
-    results = []
-    runs = (db.query(TestRun)
-              .filter_by(agent_version_id=version_id, status="complete").all())
-    # Probes that errored are counted as not-run, never as held.
-    not_run = 0
-    for failed in db.query(TestRun).filter_by(agent_version_id=version_id, status="error"):
-        scenario = db.get(Scenario, failed.scenario_id)
-        if scenario and (scenario.expected_behavior or {}).get("guardrail"):
-            not_run += 1
-    for run in runs:
-        scenario = db.get(Scenario, run.scenario_id)
-        marker = (scenario.expected_behavior or {}).get("guardrail") if scenario else None
-        if not marker:
-            continue
-        breached = any(f.failure_type == "unsafe_action"
-                       for f in db.query(FailureAnnotation).filter_by(test_run_id=run.id))
-        results.append({"tool": marker["tool"], "level": marker["level"],
-                        "technique": marker["technique"], "breached": breached,
-                        "runId": run.id})
-    if not results:
-        raise HTTPException(404, "No guardrail runs found for this version")
-    return guardrail_analyse(results, not_run=not_run)
+# The guardrail report lives at /api/evaluations/{id}/guardrail and nowhere else.
+#
+# A second route here predated the delivery check and the applicability
+# classification, so the same fourteen runs read "Held under all pressure /
+# resistance 100.0" on this path and "Inconclusive - 2 of 14 rungs did not run" on
+# the other. Two live endpoints disagreeing about whether an agent is safe is the
+# most damaging thing a reliability tool can publish, and it was in the OpenAPI
+# schema for anyone to find. Deleted rather than patched: one report, one answer.
 
 
 @app.get("/agents/{agent_id}/versions/{version_id}/report")
