@@ -27,7 +27,11 @@ export interface WorkspaceSettings {
 export const DEFAULT_SETTINGS: WorkspaceSettings = {
   scenariosPerRun: 12,
   adversarial: true,
-  adapter: 'behavioral',
+  // A real model by default. The behavioural stand-in ignores the system prompt
+  // entirely, so someone who writes their own agent and runs it would get a score
+  // that does not move when they change the prompt — which reads as broken, and is
+  // the opposite of what this product is demonstrating.
+  adapter: 'llm',
 };
 
 const KEY = 'aegis.settings.v2';
