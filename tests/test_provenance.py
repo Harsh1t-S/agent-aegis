@@ -516,3 +516,39 @@ def test_a_delivered_injection_is_counted(client):
     counted = [row for tool in report["tools"] for row in tool["rungs"]]
     assert counted, "a delivered injection was still not counted"
     assert report["resistanceScore"] is not None
+
+
+def test_running_the_ladder_twice_does_not_double_count_its_rungs(client):
+    """Every ladder invocation mints fresh scenarios, and a re-run adds another
+    TestRun against an existing one.
+
+    Counting all of them turned a seven-rung ladder into fourteen rows with
+    duplicate levels: rungsRun inflated, and the first breach in the merged list
+    decided the breaking point. It is the same defect the scored suite had — two
+    attempts at one thing counted as two things.
+    """
+    agent = client.post("/api/agents", json={
+        "name": "double-ladder", "systemPrompt": HARD_PROMPT,
+        "tools": INJECTION_TOOLS}).json()
+    started = client.post(f"/api/agents/{agent['id']}/evaluate",
+                          json={"versionLabel": "twice", "perCategory": 1}).json()
+    evaluation_id = started["evaluationId"]
+    client.get(f"/api/evaluations/{evaluation_id}/progress")
+
+    client.post(f"/api/evaluations/{evaluation_id}/guardrail")
+    client.get(f"/api/evaluations/{evaluation_id}/progress")
+    first = client.get(f"/api/evaluations/{evaluation_id}/guardrail").json()
+    assert first["ran"] is True
+
+    # Run the whole ladder a second time.
+    client.post(f"/api/evaluations/{evaluation_id}/guardrail")
+    client.get(f"/api/evaluations/{evaluation_id}/progress")
+    second = client.get(f"/api/evaluations/{evaluation_id}/guardrail").json()
+
+    assert second["rungsExpected"] == first["rungsExpected"], (
+        f"a second ladder run changed the rung count: "
+        f"{first['rungsExpected']} -> {second['rungsExpected']}")
+    for tool in second["tools"]:
+        levels = [r["level"] for r in tool["rungs"]]
+        assert len(levels) == len(set(levels)), f"{tool['tool']} has duplicate rungs: {levels}"
+        assert tool["rungsRun"] == len(tool["rungs"])

@@ -997,12 +997,29 @@ def guardrail(evaluation_id: str, db: Session = Depends(get_db)):
     # Every guardrail run, not only the completed ones. Counting completions alone
     # made a rung that errored or never started vanish from the numerator and the
     # denominator together, so the report showed coverage 100% with a rung missing.
-    results, unfinished = [], []
+    # The latest attempt at each rung, and only that one.
+    #
+    # Every ladder invocation mints fresh Scenario rows, and re-running a single
+    # probe adds another TestRun against an existing one. Counting all of them gave
+    # a seven-rung ladder fourteen rows after a second run, with duplicate levels
+    # inflating rungsRun and the first breach in the merged list deciding the
+    # breaking point. Same rule as the scored suite: one result per thing tested.
+    latest_probe: dict[tuple[str, int], tuple] = {}
     for run in db.query(TestRun).filter_by(agent_version_id=evaluation_id):
         scenario = db.get(Scenario, run.scenario_id)
         marker = (scenario.expected_behavior or {}).get("guardrail") if scenario else None
         if not marker:
             continue
+        key = (marker["tool"], marker["level"])
+        previous = latest_probe.get(key)
+        # A completed attempt always beats an unfinished one; between two of the
+        # same kind, the newer wins.
+        rank = (run.status == "complete", run.completed_at or run.started_at or datetime.min)
+        if previous is None or rank > previous[0]:
+            latest_probe[key] = (rank, run, marker)
+
+    results, unfinished = [], []
+    for _, run, marker in latest_probe.values():
         classification = {
             "sourceAuthorityOnly": marker.get("sourceAuthorityOnly", False),
             "policyMode": marker.get("policyMode"),
