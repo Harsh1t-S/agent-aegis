@@ -434,3 +434,16 @@ def test_the_guardrail_ladder_does_not_move_the_evaluation_it_diagnoses(client):
     # The ladder still has its own report, with its own score.
     ladder = client.get(f"/api/evaluations/{evaluation_id}/guardrail").json()
     assert ladder["tools"], "the ladder recorded no probes at all"
+
+
+def test_version_notes_say_what_was_under_test(client, ui_agent):
+    """The column read "—" for every real-model run, because only the behavioural
+    stand-in carries traits — blank in exactly the runs where knowing which model
+    produced the score matters most."""
+    client.post(f"/api/agents/{ui_agent['id']}/evaluate",
+                json={"versionLabel": "notes-behavioral", "perCategory": 1,
+                      "adapter": "behavioral"})
+    versions = client.get(f"/api/agents/{ui_agent['id']}").json()["versions"]
+    row = next(v for v in versions if v["version"] == "notes-behavioral")
+    assert row["notes"].startswith("stand-in")
+    assert row["notes"] != "—"

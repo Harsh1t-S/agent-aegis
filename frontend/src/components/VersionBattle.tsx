@@ -133,7 +133,7 @@ export function VersionBattle({ left, right, diff, diffError }: VersionBattlePro
                   <div className="relative h-2 flex-1 bg-bone-600/20">
                     <motion.div
                       className="absolute left-0 top-0 h-2"
-                      style={{ background: delta > 0 ? '#22c55e' : delta < 0 ? '#ef4444' : '#7a7a86' }}
+                      style={{ background: delta > 0 ? '#22c57e' : delta < 0 ? '#f05540' : '#8b8270' }}
                       initial={{ width: 0 }}
                       whileInView={{ width: `${Math.max(0, Math.min(100, r))}%` }}
                       viewport={{ once: true }}

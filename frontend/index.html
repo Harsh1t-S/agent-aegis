@@ -2,7 +2,13 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
+    <!-- SVG first so the drawn mark is used wherever it is supported; the .ico
+         stays as the fallback for older browsers and Windows shortcuts. -->
+    <link rel="icon" href="/mark.svg" type="image/svg+xml" />
     <link rel="icon" href="/favicon.ico" sizes="any" />
+    <!-- Matches ink-950, so mobile browser chrome does not frame the page in a
+         colour the page does not use. -->
+    <meta name="theme-color" content="#0b0a09" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="description" content="Aegis — AI Agent Evaluation & Reliability Engine. Stress-test your AI agents before deployment." />
     <title>Aegis — Agent Reliability Engine</title>

@@ -10,6 +10,7 @@ import { MetricLine } from '@/components/MetricLine';
 import { VersionEvolution } from '@/components/VersionEvolution';
 import { MassiveHeading } from '@/components/MassiveHeading';
 import { ScrollReveal } from '@/components/ScrollReveal';
+import { CountUp } from '@/components/CountUp';
 import { SectionNumber } from '@/components/SectionNumber';
 import { SystemLabel } from '@/components/SystemLabel';
 import { exampleTrace } from '@/data/showcase';
@@ -19,7 +20,6 @@ import { api } from '@/lib/api';
 export default function LandingPage() {
   const containerRef = useRef<HTMLDivElement>(null);
   const { scrollYProgress } = useScroll();
-  const [scenarioCount, setScenarioCount] = useState(0);
   const [destabilized, setDestabilized] = useState(false);
 
   const heroY = useTransform(scrollYProgress, [0, 0.08], [0, -100]);
@@ -44,17 +44,12 @@ export default function LandingPage() {
   // a round number chosen because it looks impressive.
   const suiteSize = latest?.total ?? 0;
 
+  // Only the hero's own destabilisation is scroll-linked now, and it is purely
+  // decorative — nothing a reader has to be able to read depends on it.
   useEffect(() => {
-    const unsub = scrollYProgress.on('change', (v) => {
-      setDestabilized(v > 0.12);
-      if (v > 0.25 && v < 0.45) {
-        setScenarioCount(Math.round(((v - 0.25) / 0.2) * suiteSize));
-      } else if (v >= 0.45) {
-        setScenarioCount(suiteSize);
-      }
-    });
+    const unsub = scrollYProgress.on('change', (v) => setDestabilized(v > 0.12));
     return () => unsub();
-  }, [scrollYProgress, suiteSize]);
+  }, [scrollYProgress]);
 
   return (
     <div ref={containerRef} className="relative bg-ink-950">
@@ -97,8 +92,13 @@ export default function LandingPage() {
             className="text-[clamp(3rem,11vw,9rem)] text-bone-50"
           />
 
+          {/* mx-auto, not just text-center: the parent centres the *text* inside
+              this block, but a max-width block with no auto margins still sits
+              flush against the left edge of it. On a wide screen the paragraph
+              was 448px hanging off the left of a 1400px column while the heading
+              above it was centred. */}
           <motion.p
-            className="mt-8 max-w-md text-sm text-bone-300 md:text-base"
+            className="mx-auto mt-8 max-w-md text-sm text-bone-300 md:text-base"
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 1.2, duration: 0.8 }}
@@ -216,7 +216,7 @@ export default function LandingPage() {
       {/* SECTION 03 — STRESS TEST */}
       <section className="relative flex min-h-screen flex-col items-center justify-center overflow-hidden px-4 py-20 sm:px-6">
         <div className="absolute inset-0">
-          <ScenarioStream intensity={suiteSize > 0 ? Math.min(scenarioCount / 6, 2) : 1} />
+          <ScenarioStream intensity={suiteSize > 0 ? Math.min(suiteSize / 6, 2) : 1} />
         </div>
         <div className="absolute inset-0 bg-gradient-to-b from-ink-950 via-transparent to-ink-950" />
 
@@ -229,9 +229,11 @@ export default function LandingPage() {
 
           <motion.div className="mt-16" initial={{ opacity: 0 }} whileInView={{ opacity: 1 }} viewport={{ once: true }}>
             <SystemLabel>SCENARIOS IN THE LATEST SUITE</SystemLabel>
-            <motion.div className="massive mt-2 text-6xl text-violet-400" key={scenarioCount}>
-              {suiteSize > 0 ? String(scenarioCount).padStart(2, '0') : '—'}
-            </motion.div>
+            <CountUp
+              value={suiteSize}
+              pad={2}
+              className="massive mt-2 block text-6xl text-violet-400"
+            />
             <SystemLabel className="mt-3 block text-bone-600">
               {latest
                 ? `GENERATED FOR ${latest.agentName.toUpperCase()} ${latest.version.toUpperCase()}`
@@ -282,9 +284,10 @@ export default function LandingPage() {
           transition={{ duration: 0.8, ease: [0.22, 1, 0.36, 1] }}
           className="text-center"
         >
-          <span className="massive block text-[clamp(6rem,20vw,16rem)] text-fault-500">
-            {latest ? detectedFailures : '—'}
-          </span>
+          <CountUp
+            value={latest ? detectedFailures : 0}
+            className="massive block text-[clamp(6rem,20vw,16rem)] text-fault-500"
+          />
           <MassiveHeading lines={['FAILURES.']} className="text-3xl text-fault-400" delay={0.3} />
           <SystemLabel className="mt-4 block text-bone-600">
             {latest
@@ -338,11 +341,11 @@ export default function LandingPage() {
           <>
             <div className="grid w-full max-w-2xl gap-6">
               {[
-                { label: 'TASK SUCCESS', value: latest.metrics.taskSuccess, color: '#8b5cf6' },
-                { label: 'TOOL ACCURACY', value: latest.metrics.toolAccuracy, color: '#0ea5e9' },
-                { label: 'SAFETY', value: latest.metrics.safety, color: '#22c55e' },
-                { label: 'CONSISTENCY', value: latest.metrics.consistency, color: '#a78bfa' },
-                { label: 'GROUNDEDNESS', value: latest.metrics.groundedness, color: '#f59e0b' },
+                { label: 'TASK SUCCESS', value: latest.metrics.taskSuccess, color: '#6472f5' },
+                { label: 'TOOL ACCURACY', value: latest.metrics.toolAccuracy, color: '#1cb8d8' },
+                { label: 'SAFETY', value: latest.metrics.safety, color: '#22c57e' },
+                { label: 'CONSISTENCY', value: latest.metrics.consistency, color: '#8b96ff' },
+                { label: 'GROUNDEDNESS', value: latest.metrics.groundedness, color: '#eda31c' },
               ].map((m, i) => (
                 <ScrollReveal key={m.label} delay={i * 0.1}>
                   <MetricLine {...m} delay={i * 0.1} />
@@ -355,7 +358,7 @@ export default function LandingPage() {
             </SystemLabel>
           </>
         ) : (
-          <p className="max-w-md text-center text-sm text-bone-500">
+          <p className="mx-auto max-w-md text-center text-sm text-bone-500">
             These dimensions are read live from the evaluation API, which is not reachable
             right now. Nothing is shown in its place.
           </p>
@@ -417,7 +420,7 @@ export default function LandingPage() {
         >
           <Link
             to="/app"
-            className="group border border-violet-500/40 bg-violet-500/10 px-8 py-4 font-mono text-xs uppercase tracking-[0.2em] text-violet-400 transition-all hover:bg-violet-500/20 hover:shadow-[0_0_30px_rgba(139,92,246,0.3)] sm:px-12 sm:text-sm"
+            className="group border border-violet-500/40 bg-violet-500/10 px-8 py-4 font-mono text-xs uppercase tracking-[0.2em] text-violet-400 transition-all hover:bg-violet-500/20 hover:shadow-[0_0_30px_rgba(100,114,245,0.3)] sm:px-12 sm:text-sm"
           >
             LAUNCH AEGIS →
           </Link>

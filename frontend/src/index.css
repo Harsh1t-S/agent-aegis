@@ -15,15 +15,18 @@ html {
 }
 
 body {
-  background-color: #050507;
-  color: #f5f5f7;
+  /* ink-950 and bone-50. Kept literal because this paints before Tailwind's
+     utilities apply, and a flash of the wrong ground is worse than a duplicated
+     hex. */
+  background-color: #0b0a09;
+  color: #f6f2ea;
   font-family: 'Inter', system-ui, sans-serif;
   overflow-x: hidden;
 }
 
 ::selection {
-  background-color: rgba(139, 92, 246, 0.3);
-  color: #f5f5f7;
+  background-color: rgba(100, 114, 245, 0.32);
+  color: #f6f2ea;
 }
 
 /* Custom scrollbar */
@@ -32,14 +35,14 @@ body {
   height: 10px;
 }
 ::-webkit-scrollbar-track {
-  background: #0a0a0f;
+  background: #12100e;
 }
 ::-webkit-scrollbar-thumb {
-  background: #262633;
+  background: #3b342d;
   border-radius: 0;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: #2d2d3a;
+  background: #453d35;
 }
 
 @layer components {
@@ -47,12 +50,14 @@ body {
     @apply font-display font-bold tracking-ultraTight leading-[0.92];
   }
   .tech-label {
-    @apply font-mono text-[11px] uppercase tracking-[0.25em] text-bone-400;
+    /* 11px at 0.25em tracking is already at the edge of legible; it must never
+       also be the dimmest colour on the page. */
+    @apply font-mono text-[11px] uppercase tracking-[0.2em] text-bone-400;
   }
   .grid-bg {
     background-image:
-      linear-gradient(to right, rgba(42, 42, 54, 0.4) 1px, transparent 1px),
-      linear-gradient(to bottom, rgba(42, 42, 54, 0.4) 1px, transparent 1px);
+      linear-gradient(to right, rgba(69, 61, 53, 0.45) 1px, transparent 1px),
+      linear-gradient(to bottom, rgba(69, 61, 53, 0.45) 1px, transparent 1px);
     background-size: 64px 64px;
   }
   .noise {

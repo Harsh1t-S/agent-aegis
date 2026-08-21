@@ -62,7 +62,7 @@ export function AgentCore({ destabilized = false, size: requested = 400 }: Agent
           style={{
             width: size * (0.3 + i * 0.2),
             height: size * (0.3 + i * 0.2),
-            borderColor: destabilized ? 'rgba(239,68,68,0.25)' : 'rgba(139,92,246,0.2)',
+            borderColor: destabilized ? 'rgba(240,85,64,0.25)' : 'rgba(100,114,245,0.2)',
           }}
           animate={{
             scale: [1, 1.15, 1],
@@ -84,8 +84,8 @@ export function AgentCore({ destabilized = false, size: requested = 400 }: Agent
           width: size * 0.3,
           height: size * 0.3,
           background: destabilized
-            ? 'radial-gradient(circle, rgba(239,68,68,0.4), transparent 70%)'
-            : 'radial-gradient(circle, rgba(139,92,246,0.35), transparent 70%)',
+            ? 'radial-gradient(circle, rgba(240,85,64,0.4), transparent 70%)'
+            : 'radial-gradient(circle, rgba(100,114,245,0.35), transparent 70%)',
         }}
         animate={{ opacity: [0.6, 1, 0.6], scale: [1, 1.1, 1] }}
         transition={{ duration: 3, repeat: Infinity, ease: 'easeInOut' }}
@@ -99,7 +99,7 @@ export function AgentCore({ destabilized = false, size: requested = 400 }: Agent
           style={{
             width: orbit.radius * 2,
             height: orbit.radius * 2,
-            borderColor: 'rgba(122,122,134,0.15)',
+            borderColor: 'rgba(139,130,112,0.15)',
           }}
         >
           <motion.div
@@ -121,21 +121,21 @@ export function AgentCore({ destabilized = false, size: requested = 400 }: Agent
                     transform: `translate(${x}px, ${y}px)`,
                     background: destabilized
                       ? pi % 3 === 0
-                        ? '#ef4444'
-                        : '#7a7a86'
+                        ? '#f05540'
+                        : '#8b8270'
                       : pi % 4 === 0
-                        ? '#8b5cf6'
+                        ? '#6472f5'
                         : pi % 2 === 0
-                          ? '#0ea5e9'
-                          : '#7a7a86',
+                          ? '#1cb8d8'
+                          : '#8b8270',
                     boxShadow: destabilized
                       ? pi % 3 === 0
-                        ? '0 0 8px #ef4444'
+                        ? '0 0 8px #f05540'
                         : 'none'
                       : pi % 4 === 0
-                        ? '0 0 8px #8b5cf6'
+                        ? '0 0 8px #6472f5'
                         : pi % 2 === 0
-                          ? '0 0 6px #0ea5e9'
+                          ? '0 0 6px #1cb8d8'
                           : 'none',
                   }}
                 />
@@ -160,7 +160,7 @@ export function AgentCore({ destabilized = false, size: requested = 400 }: Agent
               y1={y1}
               x2={x2}
               y2={y2}
-              stroke={destabilized ? 'rgba(239,68,68,0.15)' : 'rgba(139,92,246,0.12)'}
+              stroke={destabilized ? 'rgba(240,85,64,0.15)' : 'rgba(100,114,245,0.12)'}
               strokeWidth={1}
               initial={{ pathLength: 0 }}
               animate={{ pathLength: [0, 1, 0], opacity: [0, 0.6, 0] }}
@@ -181,8 +181,8 @@ export function AgentCore({ destabilized = false, size: requested = 400 }: Agent
         style={{ width: size * 0.18, height: size * 0.18 }}
         animate={{
           borderColor: destabilized
-            ? ['rgba(239,68,68,0.4)', 'rgba(239,68,68,0.8)', 'rgba(239,68,68,0.4)']
-            : ['rgba(139,92,246,0.4)', 'rgba(139,92,246,0.8)', 'rgba(139,92,246,0.4)'],
+            ? ['rgba(240,85,64,0.4)', 'rgba(240,85,64,0.8)', 'rgba(240,85,64,0.4)']
+            : ['rgba(100,114,245,0.4)', 'rgba(100,114,245,0.8)', 'rgba(100,114,245,0.4)'],
         }}
         transition={{ duration: 2, repeat: Infinity, ease: 'easeInOut' }}
       >
@@ -202,7 +202,7 @@ export function AgentCore({ destabilized = false, size: requested = 400 }: Agent
             style={{
               left: '50%',
               top: '50%',
-              color: destabilized && i % 3 === 0 ? '#f87171' : '#7a7a86',
+              color: destabilized && i % 3 === 0 ? '#ff7a68' : '#8b8270',
             }}
             initial={{ x: 0, y: 0, opacity: 0 }}
             animate={{

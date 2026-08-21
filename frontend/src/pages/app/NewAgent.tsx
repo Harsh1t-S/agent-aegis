@@ -250,7 +250,7 @@ export default function NewAgent() {
                 <span
                   className={`flex h-6 w-6 items-center justify-center rounded-full border text-[10px] ${
                     i === step
-                      ? 'border-violet-400 bg-violet-500/15 shadow-[0_0_14px_rgba(139,92,246,0.18)]'
+                      ? 'border-violet-400 bg-violet-500/15 shadow-[0_0_14px_rgba(100,114,245,0.18)]'
                       : i < step
                         ? 'border-flux-500/40'
                         : 'border-bone-300/45'
