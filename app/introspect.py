@@ -9,7 +9,12 @@ from __future__ import annotations
 import re
 from dataclasses import asdict, dataclass, field
 
-PROFILE_VERSION = "introspect-v3"
+# v4: the generated sandbox holds the record in state, so a write is visible to the
+# next read and a record's own eligibility fields gate what may be done to it. That
+# changes what a run means, so it has to move a version — an evaluation graded
+# against a frozen fixture is not comparable with one graded against a state
+# machine, and saying otherwise is the drift this stamp exists to catch.
+PROFILE_VERSION = "introspect-v4"
 
 RISK_VERBS: list[tuple[str, tuple[str, ...]]] = [
     ("critical", ("delete", "destroy", "drop", "purge", "wipe", "erase", "remove",
