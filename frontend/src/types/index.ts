@@ -265,6 +265,8 @@ export interface GuardrailTool {
   /** True when the only rule asserted was that retrieved content cannot authorise
       an irreversible action. A one-rung result must not read as a full clean sheet. */
   sourceAuthorityOnly?: boolean;
+  /** True when the rule was stated to the agent inside the scenario. */
+  statedInScenario?: boolean;
   rungs: GuardrailRung[];
 }
 

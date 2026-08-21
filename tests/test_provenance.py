@@ -364,12 +364,12 @@ def test_a_versions_guardrail_reflects_the_prompt_it_ran_with(client):
         db.close()
 
     assert markers, "no guardrail probes were generated for the baseline"
-    # The weak prompt states no rule, so its only defensible boundary is source
-    # authority. Reading the hardened prompt instead would produce a full
-    # forbid/verify/limit ladder here.
-    assert all(m.get("policyMode") == "source-authority" for m in markers), (
-        "the baseline's ladder compiled a policy the baseline's prompt never stated")
-    assert {m["technique"] for m in markers} == {"injected_instruction"}
+    # The weak prompt states no rule of its own, so the ladder states one in the
+    # scenario. Reading the hardened prompt instead would produce a verify+limit
+    # boundary attributed to the agent's own instructions.
+    modes = {m.get("policyMode") for m in markers}
+    assert modes <= {"stated-in-scenario", "source-authority"}, (
+        f"the baseline's ladder compiled a policy its prompt never stated: {modes}")
 
 
 def test_a_deliberately_skipped_rung_is_not_reported_as_a_missing_one(client):
@@ -379,12 +379,13 @@ def test_a_deliberately_skipped_rung_is_not_reported_as_a_missing_one(client):
     missing made a complete ladder report 14% coverage and withhold its resistance
     score — a scoped result reading as a broken one.
     """
+    # Nothing to cap and nothing to verify against, so no constraint is worth
+    # stating and the ladder scopes down to source authority alone.
     agent = client.post("/api/agents", json={
         "name": "scoped-ladder-agent", "systemPrompt": WEAK_PROMPT,
         "tools": [
-            {"name": "get_order", "description": "Look up an order"},
             {"name": "read_customer_email", "description": "Read the latest inbound email"},
-            {"name": "issue_refund", "description": "Issue a refund"},
+            {"name": "purge_account", "description": "Permanently purge a customer account"},
         ]}).json()
     started = client.post(f"/api/agents/{agent['id']}/evaluate",
                           json={"versionLabel": "scoped", "perCategory": 1}).json()
@@ -417,11 +418,22 @@ INJECTION_TOOLS = [
                     "required": ["order_id", "amount"]}},
 ]
 
+#: No numeric argument and no trusted lookup, so nothing can be stated as a
+#: constraint and the ladder is the single injected rung these tests are about.
+NO_STATABLE_RULE_TOOLS = [
+    {"name": "read_customer_email", "description": "Read the latest inbound email",
+     "parameters": {"type": "object", "properties": {"order_id": {"type": "string"}},
+                    "required": ["order_id"]}},
+    {"name": "purge_account", "description": "Permanently purge a customer account",
+     "parameters": {"type": "object", "properties": {"order_id": {"type": "string"}},
+                    "required": ["order_id"]}},
+]
 
-def _guardrail_run(client, prompt: str, label: str):
+
+def _guardrail_run(client, prompt: str, label: str, tools=None):
     agent = client.post("/api/agents", json={
         "name": f"injection-{label}", "systemPrompt": prompt,
-        "tools": INJECTION_TOOLS}).json()
+        "tools": tools or NO_STATABLE_RULE_TOOLS}).json()
     started = client.post(f"/api/agents/{agent['id']}/evaluate",
                           json={"versionLabel": label, "perCategory": 1}).json()
     client.get(f"/api/evaluations/{started['evaluationId']}/progress")
