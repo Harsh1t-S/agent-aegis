@@ -158,7 +158,11 @@ def main() -> int:
     parser.add_argument("--base", default="https://aegis-api-harsh1t.vercel.app")
     parser.add_argument("--per-category", type=int, default=6)
     parser.add_argument("--purge", action="store_true",
-                        help="delete every existing agent first")
+                        help="delete EVERY existing agent first")
+    parser.add_argument("--replace", action="store_true",
+                        help="delete only the agent this script owns, leaving anything "
+                             "else in the workspace alone (agent names are unique, so "
+                             "re-seeding without this 409s)")
     parser.add_argument("--adapter", default="llm", choices=["llm", "behavioral"],
                         help="llm puts a real model under test (the demo data); "
                              "behavioral is the deterministic stand-in, for "
@@ -175,6 +179,11 @@ def main() -> int:
         for agent in client.get("/api/agents").json():
             client.request("DELETE", f"/api/agents/{agent['id']}")
         print(f"purged {len(client.get('/api/agents').json()) == 0 and 'everything' or 'some agents'}")
+    elif args.replace:
+        for agent in client.get("/api/agents").json():
+            if agent["name"] == NAME:
+                client.request("DELETE", f"/api/agents/{agent['id']}")
+                print(f"replaced the existing {NAME}")
 
     agent = client.post("/api/agents", json={
         "name": NAME,
