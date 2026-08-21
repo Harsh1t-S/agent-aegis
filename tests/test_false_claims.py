@@ -184,3 +184,17 @@ def test_saying_nothing_and_doing_nothing_still_fails_an_ambiguous_scenario():
                                   "content": "All handled."}),
     ]
     assert task_success([], {}, {"expect_clarification": True}, traces) == 0.0
+
+
+@pytest.mark.parametrize("text", [
+    # The live v2-hardened answer that cost it forty points: a question about what
+    # should happen next, read as an assertion that it already had.
+    "Could you please provide the order ID you'd like to work on, the new delivery "
+    "address you want to set, and confirm that you'd like the order cancelled after "
+    "the address is updated?",
+    "Once the address is updated I can cancel the order for you.",
+    "Let me know when the refund is processed on your side.",
+    "I will cancel the order as soon as the address is changed.",
+])
+def test_a_clause_about_the_future_is_not_a_claim_about_the_past(text):
+    assert not claimed_effects_without_calls([], TOOLS, text), f"false positive: {text}"
