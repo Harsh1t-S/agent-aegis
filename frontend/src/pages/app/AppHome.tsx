@@ -28,21 +28,44 @@ export default function AppHome() {
   const latest = evaluations.data?.[0];
   const summary = dashboard.data;
 
+  /*
+   * Two populations, labelled as two populations.
+   *
+   * "Tests Executed 82" beside "Critical Failures 49" beside an average computed
+   * from neither read as one set of runs. It was three: the average comes from the
+   * latest run per scenario, the count included every rerun, and the findings
+   * included guardrail probes. Each tile now names the set it describes, and the
+   * all-activity numbers sit in their own group underneath.
+   */
   const stats = summary
     ? [
-        { icon: Bot, label: 'AGENTS TESTED', value: String(summary.agentsTested), color: 'text-violet-400' },
-        { icon: Activity, label: 'TESTS EXECUTED', value: String(summary.testsExecuted), color: 'text-spark-400' },
+        {
+          icon: Bot,
+          label: 'AGENTS TESTED',
+          value: String(summary.agentsTested),
+          color: 'text-violet-400',
+          note: `${summary.evaluations ?? 0} evaluations`,
+        },
+        {
+          icon: Activity,
+          label: 'SCORED SCENARIOS',
+          value: String(summary.scoredScenarios ?? summary.testsExecuted),
+          color: 'text-spark-400',
+          note: 'latest run per scenario',
+        },
         {
           icon: TrendingUp,
           label: 'AVG RELIABILITY',
           value: summary.averageReliability.toFixed(1),
           color: 'text-flux-400',
+          note: 'mean across evaluations',
         },
         {
           icon: AlertTriangle,
           label: 'CRITICAL FINDINGS',
-          value: String(summary.criticalFailures),
+          value: String(summary.criticalFindings ?? summary.criticalFailures),
           color: 'text-fault-400',
+          note: 'in the scored set',
         },
       ]
     : [];
@@ -129,14 +152,48 @@ export default function AppHome() {
                 {stats.map((stat, i) => (
                   <ScrollReveal key={stat.label} delay={i * 0.08}>
                     <div className="group flex items-center justify-between border border-bone-600/20 bg-ink-850/40 p-5 transition-colors hover:border-violet-500/30">
-                      <div className="flex items-center gap-4">
-                        <stat.icon className={`h-5 w-5 ${stat.color}`} strokeWidth={1.5} />
-                        <SystemLabel>{stat.label}</SystemLabel>
+                      <div className="flex min-w-0 items-center gap-4">
+                        <stat.icon className={`h-5 w-5 shrink-0 ${stat.color}`} strokeWidth={1.5} />
+                        <div className="min-w-0">
+                          <SystemLabel>{stat.label}</SystemLabel>
+                          <div className="mt-0.5 font-mono text-[10px] text-bone-600">
+                            {stat.note}
+                          </div>
+                        </div>
                       </div>
-                      <span className="font-mono text-2xl font-bold text-bone-50">{stat.value}</span>
+                      <span className="shrink-0 font-mono text-2xl font-bold text-bone-50">
+                        {stat.value}
+                      </span>
                     </div>
                   </ScrollReveal>
                 ))}
+                {summary && (
+                  <ScrollReveal delay={0.36}>
+                    <div className="border border-bone-600/20 bg-ink-850/40 p-5">
+                      <SystemLabel className="text-bone-600">ALL ACTIVITY</SystemLabel>
+                      <p className="mt-1 font-mono text-[10px] leading-relaxed text-bone-600">
+                        Everything that ever executed — not the set the average above is
+                        computed from.
+                      </p>
+                      <dl className="mt-3 space-y-1">
+                        {[
+                          ['Total runs', summary.totalRuns],
+                          ['Guardrail probes', summary.guardrailProbes],
+                          ['Reruns & superseded', summary.rerunsAndSuperseded],
+                          ['All-time critical findings', summary.allTimeCriticalFindings],
+                        ].map(([label, value]) => (
+                          <div
+                            key={String(label)}
+                            className="flex items-baseline justify-between gap-3 font-mono text-[11px]"
+                          >
+                            <dt className="text-bone-500">{label}</dt>
+                            <dd className="text-bone-200">{value ?? 0}</dd>
+                          </div>
+                        ))}
+                      </dl>
+                    </div>
+                  </ScrollReveal>
+                )}
                 {summary && (
                   <ScrollReveal delay={0.32}>
                     <div className="border border-bone-600/20 bg-ink-850/40 p-5">

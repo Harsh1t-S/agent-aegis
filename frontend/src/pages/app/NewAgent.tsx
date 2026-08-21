@@ -1,13 +1,35 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { AppNavigation } from '@/components/AppNavigation';
 import { SystemLabel } from '@/components/SystemLabel';
 import { MassiveHeading } from '@/components/MassiveHeading';
-import { ArrowRight, ArrowLeft, Loader2, Plus, Trash2 } from 'lucide-react';
+import { useToast } from '@/components/Toaster';
+import {
+  ArrowRight,
+  ArrowLeft,
+  ClipboardPaste,
+  Loader2,
+  Plus,
+  Save,
+  Trash2,
+  Upload,
+} from 'lucide-react';
 import { api, ApiError, type ToolDraft } from '@/lib/api';
+import { parseToolSchema, toolsToJson } from '@/lib/tool-schema';
 
 const steps = ['01 Identity', '02 Instructions', '03 Tools', '04 Review'];
+
+const SCHEMA_PLACEHOLDER = [
+  '[',
+  '  {"type": "function", "function": {',
+  '    "name": "get_order",',
+  '    "description": "Look up an order by id",',
+  '    "parameters": {"type": "object",',
+  '      "properties": {"order_id": {"type": "string"}},',
+  '      "required": ["order_id"]}}}',
+  ']',
+].join('\n');
 
 interface FormData {
   name: string;
@@ -17,18 +39,56 @@ interface FormData {
   tools: ToolDraft[];
 }
 
+const EMPTY: FormData = {
+  name: '',
+  description: '',
+  domain: '',
+  systemPrompt: '',
+  tools: [{ name: '', description: '', risk: 'low' }],
+};
+
+const DRAFT_KEY = 'aegis.agent-draft.v2';
+/** Drafts hold a full system prompt in plaintext. Expiring them bounds how long
+    that sits in a shared browser; there is no server-side store to fall back on. */
+const DRAFT_TTL_MS = 7 * 24 * 60 * 60 * 1000;
+
 export default function NewAgent() {
   const navigate = useNavigate();
+  const toast = useToast();
   const [step, setStep] = useState(0);
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | undefined>();
-  const [form, setForm] = useState<FormData>({
-    name: '',
-    description: '',
-    domain: '',
-    systemPrompt: '',
-    tools: [{ name: '', description: '', risk: 'low' }],
-  });
+  const [form, setForm] = useState<FormData>(EMPTY);
+
+  const [showSchema, setShowSchema] = useState(false);
+  const [schemaText, setSchemaText] = useState('');
+  const [schemaErrors, setSchemaErrors] = useState<string[]>([]);
+  const fileInput = useRef<HTMLInputElement>(null);
+
+  // Restore a draft saved on this device, so "Save draft" survives a reload.
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(DRAFT_KEY);
+      if (!raw) return;
+      const draft = JSON.parse(raw) as FormData & { savedAt?: number };
+      if (draft.savedAt && Date.now() - draft.savedAt > DRAFT_TTL_MS) {
+        localStorage.removeItem(DRAFT_KEY);
+        return;
+      }
+      setForm({
+        name: draft.name ?? '',
+        description: draft.description ?? '',
+        domain: draft.domain ?? '',
+        systemPrompt: draft.systemPrompt ?? '',
+        tools: draft.tools?.length ? draft.tools : EMPTY.tools,
+      });
+      toast.info('Draft restored', 'Picked up where you left off.');
+    } catch {
+      /* a corrupt draft must never block the form */
+    }
+    // Once, on mount. Re-running on every toast identity change would re-restore.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const update = (key: keyof FormData, value: string | ToolDraft[]) => {
     setForm((prev) => ({ ...prev, [key]: value }));
@@ -49,10 +109,68 @@ export default function NewAgent() {
   };
 
   const removeTool = (i: number) => {
+    setForm((prev) => ({ ...prev, tools: prev.tools.filter((_, idx) => idx !== i) }));
+  };
+
+  /** Replaces the draft rows with whatever the pasted or uploaded schema holds. */
+  const importSchema = (text: string) => {
+    const { tools: parsed, errors } = parseToolSchema(text);
+    setSchemaErrors(errors);
+    if (!parsed.length) {
+      toast.error('Nothing imported', errors[0] ?? 'No tools found in that schema.');
+      return;
+    }
     setForm((prev) => ({
       ...prev,
-      tools: prev.tools.filter((_, idx) => idx !== i),
+      tools: parsed.map((tool) => ({
+        name: tool.name,
+        description: tool.description,
+        // Risk is only a hint here; the backend re-derives it from the tool's verb.
+        risk: tool.risk ?? 'low',
+        // The JSON-Schema block travels to the API, so generated scenarios get the
+        // real argument shape instead of calling issue_refund() with no arguments.
+        ...(tool.parameters ? { parameters: tool.parameters } : {}),
+      })),
     }));
+    setShowSchema(false);
+    toast.success(
+      `Imported ${parsed.length} tool${parsed.length === 1 ? '' : 's'}`,
+      errors.length ? `${errors.length} entry skipped: ${errors[0]}` : undefined,
+    );
+  };
+
+  const copyToolsOut = () => {
+    const named = form.tools.filter((t) => t.name.trim());
+    if (!named.length) {
+      toast.error('No tools to copy yet.');
+      return;
+    }
+    // Risk and parameters have to travel too, or an export → re-import cycle
+    // quietly rewrites the tool definition.
+    const json = toolsToJson(named);
+    setSchemaText(json);
+    setShowSchema(true);
+    const write = navigator.clipboard?.writeText(json);
+    if (!write) {
+      toast.success('Tools written to the box above.');
+      return;
+    }
+    void write.then(
+      () => toast.success('Tools copied to clipboard'),
+      () => toast.success('Tools written to the box above.'),
+    );
+  };
+
+  const saveDraft = () => {
+    try {
+      localStorage.setItem(DRAFT_KEY, JSON.stringify({ ...form, savedAt: Date.now() }));
+      toast.success(
+        'Draft saved in this browser',
+        'Stored unencrypted in local storage, system prompt included. Cleared after 7 days, or when the agent is created.',
+      );
+    } catch {
+      toast.error('Could not save the draft.');
+    }
   };
 
   const canProceed = () => {
@@ -79,13 +197,18 @@ export default function NewAgent() {
             name: t.name.trim(),
             description: t.description.trim(),
             risk: t.risk,
+            ...(t.parameters ? { parameters: t.parameters } : {}),
           })),
       });
+      localStorage.removeItem(DRAFT_KEY);
+      toast.success(
+        `Agent created — ${agent.tools.length} tool${agent.tools.length === 1 ? '' : 's'} profiled`,
+      );
       navigate(`/app/agents/${agent.id}`);
     } catch (err) {
-      setSubmitError(
-        err instanceof ApiError ? err.message : 'Could not create the agent.',
-      );
+      const message = err instanceof ApiError ? err.message : 'Could not create the agent.';
+      setSubmitError(message);
+      toast.error('Agent not created', message);
       setSubmitting(false);
     }
   };
@@ -110,8 +233,17 @@ export default function NewAgent() {
         <div className="mt-8 flex flex-wrap items-center gap-x-3 gap-y-3 sm:gap-x-4">
           {steps.map((s, i) => (
             <div key={s} className="flex items-center gap-3 sm:gap-4">
-              <div
-                className={`flex items-center gap-2 ${
+              {/* Steps already visited are reachable again: a four-step form that
+                  only moves forwards makes a typo on step 1 a restart. */}
+              {/* 24px circles are not a tap target. The button carries the
+                  minimum touch size around them rather than growing the dot. */}
+              <button
+                type="button"
+                disabled={i > step}
+                onClick={() => setStep(i)}
+                aria-current={i === step ? 'step' : undefined}
+                aria-label={`Step ${i + 1}: ${s.replace(/^\d+\s/, '')}`}
+                className={`-mx-1.5 flex min-h-11 min-w-9 items-center justify-center gap-2 px-1.5 disabled:cursor-default ${
                   i === step ? 'text-violet-300' : i < step ? 'text-flux-300' : 'text-bone-300'
                 }`}
               >
@@ -129,7 +261,7 @@ export default function NewAgent() {
                 <span className="hidden font-mono text-[11px] uppercase tracking-wider md:inline">
                   {s}
                 </span>
-              </div>
+              </button>
               {i < steps.length - 1 && (
                 <div
                   className={`h-px w-4 sm:w-8 ${i < step ? 'bg-flux-400/50' : 'bg-bone-300/25'}`}
@@ -143,7 +275,11 @@ export default function NewAgent() {
         </div>
 
         {/* Step content */}
-        <div className="mt-12 max-w-2xl">
+        {/* overflow-x-clip, not hidden: the slide transition below animates from
+            x:30, and letting a decorative transform widen the document put a
+            15px horizontal scroll on every phone. Clip does not create a scroll
+            container, so nothing inside loses position: sticky. */}
+        <div className="mt-12 max-w-2xl overflow-x-clip">
           <AnimatePresence mode="wait">
             <motion.div
               key={step}
@@ -155,8 +291,11 @@ export default function NewAgent() {
               {step === 0 && (
                 <div className="space-y-6">
                   <div>
-                    <SystemLabel className="mb-2 block !text-bone-300">AGENT NAME</SystemLabel>
+                    <label htmlFor="agent-name" className="tech-label mb-2 block text-bone-300">
+                      AGENT NAME
+                    </label>
                     <input
+                      id="agent-name"
                       className={inputClass}
                       placeholder="e.g. Customer Support Agent"
                       value={form.name}
@@ -164,8 +303,11 @@ export default function NewAgent() {
                     />
                   </div>
                   <div>
-                    <SystemLabel className="mb-2 block !text-bone-300">DESCRIPTION</SystemLabel>
+                    <label htmlFor="agent-desc" className="tech-label mb-2 block text-bone-300">
+                      DESCRIPTION
+                    </label>
                     <textarea
+                      id="agent-desc"
                       className={`${inputClass} h-24 resize-none`}
                       placeholder="What does this agent do?"
                       value={form.description}
@@ -173,8 +315,11 @@ export default function NewAgent() {
                     />
                   </div>
                   <div>
-                    <SystemLabel className="mb-2 block !text-bone-300">DOMAIN</SystemLabel>
+                    <label htmlFor="agent-domain" className="tech-label mb-2 block text-bone-300">
+                      DOMAIN
+                    </label>
                     <input
+                      id="agent-domain"
                       className={inputClass}
                       placeholder="e.g. customer support"
                       value={form.domain}
@@ -190,15 +335,20 @@ export default function NewAgent() {
 
               {step === 1 && (
                 <div>
-                  <SystemLabel className="mb-2 block !text-bone-300">SYSTEM PROMPT</SystemLabel>
+                  <label htmlFor="agent-prompt" className="tech-label mb-2 block text-bone-300">
+                    SYSTEM PROMPT
+                  </label>
                   <textarea
+                    id="agent-prompt"
                     className={`${inputClass} h-64 resize-none`}
                     placeholder="You are a... Always verify... Never..."
                     value={form.systemPrompt}
                     onChange={(e) => update('systemPrompt', e.target.value)}
                   />
                   <p className="mt-2 font-mono text-[10px] text-bone-300">
-                    The system prompt defines the agent's behavior, constraints, and persona.
+                    {form.systemPrompt.length} characters · adversarial coverage improves with
+                    explicit constraints. State hard rules ("never refund above $500 without
+                    approval") and escalation paths, so safety scenarios have a correct answer.
                   </p>
                 </div>
               )}
@@ -206,27 +356,129 @@ export default function NewAgent() {
               {step === 2 && (
                 <div className="space-y-4">
                   <SystemLabel className="block !text-bone-300">AVAILABLE TOOLS</SystemLabel>
+
+                  {/* Nobody has their tools as a form. They have a schema. */}
+                  <div className="border border-dashed border-bone-600/35 bg-ink-900/40 p-4">
+                    <p className="font-mono text-[11px] uppercase tracking-wider text-bone-200">
+                      Import a tool schema
+                    </p>
+                    <p className="mt-1 text-xs leading-relaxed text-bone-400">
+                      Paste an OpenAI <code className="text-violet-300">tools</code> array, an
+                      Anthropic/MCP tool list, or a name-to-definition map — or upload the .json
+                      file. Argument schemas are kept, so generated scenarios call your tools with
+                      the arguments they really take.
+                    </p>
+                    <div className="mt-3 flex flex-wrap items-center gap-2">
+                      <input
+                        ref={fileInput}
+                        aria-label="Upload a tool schema JSON file"
+                        type="file"
+                        accept="application/json,.json,.txt"
+                        className="hidden"
+                        onChange={(event) => {
+                          const file = event.target.files?.[0];
+                          if (!file) return;
+                          if (file.size > 512_000) {
+                            toast.error('That file is larger than 500 KB.');
+                            // Clear first: leaving the rejected file selected means
+                            // picking it again fires no change event at all.
+                            event.target.value = '';
+                            return;
+                          }
+                          const reader = new FileReader();
+                          reader.onload = () => {
+                            const text = String(reader.result ?? '');
+                            setSchemaText(text);
+                            importSchema(text);
+                          };
+                          reader.onerror = () => toast.error('Could not read that file.');
+                          reader.readAsText(file);
+                          event.target.value = '';
+                        }}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => fileInput.current?.click()}
+                        className="flex min-h-11 items-center gap-2 border border-bone-600/35 px-3 font-mono text-[11px] uppercase tracking-wider text-bone-200 transition-colors hover:border-violet-400/50 hover:text-violet-300"
+                      >
+                        <Upload className="h-3.5 w-3.5" /> UPLOAD .JSON
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setShowSchema((v) => !v)}
+                        className="flex min-h-11 items-center gap-2 border border-bone-600/35 px-3 font-mono text-[11px] uppercase tracking-wider text-bone-200 transition-colors hover:border-violet-400/50 hover:text-violet-300"
+                      >
+                        <ClipboardPaste className="h-3.5 w-3.5" />
+                        {showSchema ? 'HIDE' : 'PASTE SCHEMA'}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={copyToolsOut}
+                        className="flex min-h-11 items-center px-2 font-mono text-[11px] uppercase tracking-wider text-bone-400 transition-colors hover:text-bone-100"
+                      >
+                        COPY CURRENT TOOLS OUT
+                      </button>
+                    </div>
+
+                    {showSchema && (
+                      <div className="mt-3 space-y-2">
+                        <textarea
+                          aria-label="Tool schema JSON"
+                          rows={8}
+                          value={schemaText}
+                          onChange={(e) => setSchemaText(e.target.value)}
+                          placeholder={SCHEMA_PLACEHOLDER}
+                          className={`${inputClass} resize-y text-xs`}
+                        />
+                        <div className="flex flex-wrap items-center gap-2">
+                          <button
+                            type="button"
+                            onClick={() => importSchema(schemaText)}
+                            className="flex min-h-11 items-center border border-violet-500/40 bg-violet-500/10 px-4 font-mono text-[11px] uppercase tracking-wider text-violet-300 transition-colors hover:bg-violet-500/20"
+                          >
+                            IMPORT TOOLS
+                          </button>
+                          {schemaErrors.length > 0 && (
+                            <span className="font-mono text-[10px] text-fault-400">
+                              {schemaErrors.slice(0, 2).join(' ')}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
                   {form.tools.map((tool, i) => (
                     <div key={i} className="border border-bone-300/25 bg-ink-900/60 p-4">
                       <div className="flex items-center justify-between">
-                        <span className="font-mono text-xs text-bone-300">TOOL {String(i + 1).padStart(2, '0')}</span>
+                        <span className="font-mono text-xs text-bone-300">
+                          TOOL {String(i + 1).padStart(2, '0')}
+                          {tool.parameters && (
+                            <span className="ml-2 text-flux-400">· schema imported</span>
+                          )}
+                        </span>
                         {form.tools.length > 1 && (
                           <button
                             type="button"
+                            aria-label={`Remove tool ${i + 1}`}
                             onClick={() => removeTool(i)}
-                            className="text-bone-300 hover:text-fault-300"
+                            className="-m-2 flex h-11 w-11 items-center justify-center text-bone-300 transition-colors hover:text-fault-300"
                           >
                             <Trash2 className="h-4 w-4" />
                           </button>
                         )}
                       </div>
+                      {/* A placeholder is not a label: it disappears on focus and
+                          screen readers announce nothing for these fields. */}
                       <input
+                        aria-label={`Tool ${i + 1} name`}
                         className={`${inputClass} mt-3`}
                         placeholder="function_name()"
                         value={tool.name}
                         onChange={(e) => updateTool(i, 'name', e.target.value)}
                       />
                       <input
+                        aria-label={`Tool ${i + 1} description`}
                         className={`${inputClass} mt-2`}
                         placeholder="What does this tool do?"
                         value={tool.description}
@@ -238,6 +490,7 @@ export default function NewAgent() {
                           <button
                             key={r}
                             type="button"
+                            aria-pressed={tool.risk === r}
                             onClick={() => updateTool(i, 'risk', r)}
                             className={`flex min-h-9 items-center border px-3 font-mono text-[10px] uppercase tracking-wider transition-colors ${
                               tool.risk === r
@@ -267,7 +520,7 @@ export default function NewAgent() {
 
               {step === 3 && (
                 <div className="space-y-6">
-                  <div className="border border-bone-300/25 bg-ink-900/60 p-6">
+                  <div className="border border-bone-300/25 bg-ink-900/60 p-4 sm:p-6">
                     {[
                       { label: 'AGENT NAME', value: form.name || '—' },
                       { label: 'DESCRIPTION', value: form.description || '—' },
@@ -275,10 +528,17 @@ export default function NewAgent() {
                       { label: 'SYSTEM PROMPT', value: form.systemPrompt || '—' },
                       {
                         label: 'TOOLS',
-                        value: form.tools.filter((t) => t.name).map((t) => t.name).join(', ') || '—',
+                        value:
+                          form.tools
+                            .filter((t) => t.name)
+                            .map((t) => `${t.name}${t.parameters ? ' (schema)' : ''}`)
+                            .join(', ') || '—',
                       },
                     ].map((item) => (
-                      <div key={item.label} className="flex flex-col gap-1 border-b border-bone-300/25 py-3 last:border-0 md:flex-row md:gap-8">
+                      <div
+                        key={item.label}
+                        className="flex flex-col gap-1 border-b border-bone-300/25 py-3 last:border-0 md:flex-row md:gap-8"
+                      >
                         <span className="tech-label w-40 shrink-0">{item.label}</span>
                         <span className="min-w-0 whitespace-pre-wrap break-words font-mono text-sm text-bone-100">
                           {item.value}
@@ -302,12 +562,12 @@ export default function NewAgent() {
         </div>
 
         {/* Navigation */}
-        <div className="mt-12 flex items-center justify-between">
+        <div className="mt-12 flex flex-wrap items-center justify-between gap-3">
           {step > 0 ? (
             <button
               type="button"
               onClick={() => setStep(step - 1)}
-              className="flex items-center gap-2 font-mono text-xs uppercase tracking-wider text-bone-300 transition-colors hover:text-bone-50"
+              className="flex min-h-11 items-center gap-2 font-mono text-xs uppercase tracking-wider text-bone-300 transition-colors hover:text-bone-50"
             >
               <ArrowLeft className="h-4 w-4" /> BACK
             </button>
@@ -315,34 +575,45 @@ export default function NewAgent() {
             <div />
           )}
 
-          {step < 3 ? (
+          <div className="flex flex-wrap items-center gap-3">
             <button
               type="button"
-              disabled={!canProceed()}
-              onClick={() => setStep(step + 1)}
-              className="group flex items-center gap-2 border border-violet-500/40 bg-violet-500/10 px-6 py-3 font-mono text-xs uppercase tracking-wider text-violet-400 transition-colors enabled:hover:bg-violet-500/20 disabled:cursor-not-allowed disabled:opacity-30"
+              onClick={saveDraft}
+              className="flex min-h-11 items-center gap-2 border border-bone-600/35 px-4 font-mono text-xs uppercase tracking-wider text-bone-300 transition-colors hover:border-bone-400 hover:text-bone-100"
             >
-              CONTINUE <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-1" />
+              <Save className="h-3.5 w-3.5" /> SAVE DRAFT
             </button>
-          ) : (
-            <button
-              type="button"
-              onClick={handleSubmit}
-              disabled={submitting || !form.name.trim() || !form.systemPrompt.trim()}
-              className="group flex items-center gap-2 border border-violet-500 bg-violet-500/20 px-6 py-3 font-mono text-xs uppercase tracking-wider text-violet-300 transition-colors enabled:hover:bg-violet-500/30 disabled:cursor-not-allowed disabled:opacity-40"
-            >
-              {submitting ? (
-                <>
-                  <Loader2 className="h-4 w-4 animate-spin" /> CREATING…
-                </>
-              ) : (
-                <>
-                  CREATE AGENT{' '}
-                  <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-1" />
-                </>
-              )}
-            </button>
-          )}
+
+            {step < 3 ? (
+              <button
+                type="button"
+                disabled={!canProceed()}
+                onClick={() => setStep(step + 1)}
+                className="group flex min-h-11 items-center gap-2 border border-violet-500/40 bg-violet-500/10 px-6 font-mono text-xs uppercase tracking-wider text-violet-400 transition-colors enabled:hover:bg-violet-500/20 disabled:cursor-not-allowed disabled:opacity-30"
+              >
+                CONTINUE{' '}
+                <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-1" />
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={handleSubmit}
+                disabled={submitting || !form.name.trim() || !form.systemPrompt.trim()}
+                className="group flex min-h-11 items-center gap-2 border border-violet-500 bg-violet-500/20 px-6 font-mono text-xs uppercase tracking-wider text-violet-300 transition-colors enabled:hover:bg-violet-500/30 disabled:cursor-not-allowed disabled:opacity-40"
+              >
+                {submitting ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin" /> CREATING…
+                  </>
+                ) : (
+                  <>
+                    CREATE AGENT{' '}
+                    <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-1" />
+                  </>
+                )}
+              </button>
+            )}
+          </div>
         </div>
       </div>
     </div>

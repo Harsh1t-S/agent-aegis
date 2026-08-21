@@ -67,9 +67,15 @@ export default function LandingPage() {
         <div className="absolute inset-0 bg-gradient-to-b from-transparent via-ink-950/50 to-ink-950" />
 
         {/* Agent Core centerpiece */}
+        {/* The centring offset is a motion value, not a Tailwind class.
+            `-translate-x-1/2 -translate-y-1/2` and framer-motion both write the
+            same `transform` property, and framer wins — so the class was silently
+            dropped and the graphic hung from the centre point by its top-left
+            corner instead of being centred on it. On a phone that put most of it
+            off the right edge, where the section's overflow-hidden cropped it. */}
         <motion.div
-          className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2"
-          style={{ scale: coreScale }}
+          className="absolute left-1/2 top-1/2"
+          style={{ scale: coreScale, x: '-50%', y: '-50%' }}
         >
           <AgentCore destabilized={destabilized} size={500} />
         </motion.div>
@@ -143,8 +149,11 @@ export default function LandingPage() {
         </div>
 
         {/* Destabilized visual */}
+        {/* Same conflict: animating `x` replaced the class's vertical centring, so
+            this sat with its top edge on the midline rather than straddling it. */}
         <motion.div
-          className="absolute right-0 top-1/2 -translate-y-1/2 opacity-20"
+          className="absolute right-0 top-1/2 opacity-20"
+          style={{ y: '-50%' }}
           initial={{ x: 200 }}
           whileInView={{ x: 0 }}
           viewport={{ once: true }}

@@ -5,14 +5,15 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from .classifier import TAXONOMY, classify
-from .database import Base, engine, get_db
+from .database import Base, engine, ensure_columns, get_db
 from .detectors import DETECTOR_VERSION, detect_all
 from .frontend_api import router as frontend_router
 from .engine import dispatch, run_test
 from .guardrail import analyse as guardrail_analyse
-from .guardrail import build_ladder
+from .guardrail import GUARDRAIL_VERSION, build_ladder
 from .scoring import score_run
 from .introspect import profile_agent
+from .provenance import RUN_KIND_GUARDRAIL, evaluator_stamp
 from .models import (Agent, AgentVersion, ExecutionTrace, FailureAnnotation,
                      MockEnvironment, Scenario, TestRun)
 from .reporting import compare_report, run_report, run_summary, version_report
@@ -21,7 +22,7 @@ from .schemas import (AgentIn, EnvironmentIn, GenerateSuiteIn, IntrospectIn, Run
                       ScenarioIn, VersionIn)
 
 
-DB_READY = {"ok": False, "error": None}
+DB_READY = {"ok": False, "error": None, "migrated": []}
 
 
 @asynccontextmanager
@@ -35,6 +36,9 @@ async def lifespan(app: FastAPI):
     """
     try:
         Base.metadata.create_all(bind=engine)
+        # create_all never alters an existing table, so a deployment that predates
+        # a new column would 500 on every query mentioning it.
+        DB_READY["migrated"] = ensure_columns()
         DB_READY["ok"] = True
     except Exception as exc:  # noqa: BLE001 - surfaced through /health
         DB_READY["error"] = f"{type(exc).__name__}: {exc}"[:400]
@@ -51,7 +55,9 @@ app.add_middleware(
     allow_origin_regex=(r"https?://(localhost|127\.0\.0\.1)(:\d+)?"
                         r"|https://.*\.lovable\.app"
                         r"|https://.*\.trycloudflare\.com"),
-    allow_methods=["GET", "POST", "DELETE", "OPTIONS"],
+    # PATCH is how the console edits an agent between versions; leaving it out
+    # made "save changes" fail from any cross-origin caller.
+    allow_methods=["GET", "POST", "PATCH", "DELETE", "OPTIONS"],
     allow_headers=["*"],
 )
 
@@ -100,15 +106,29 @@ def root():
 
 @app.get("/health")
 def health():
+    import os
+
+    from .provenance import evaluator_stamp
+
+    # No credential is baked into the source any more, so "it started up" is not
+    # the same as "it is storing anything". An ephemeral SQLite file on a
+    # serverless filesystem accepts every write and loses it between invocations,
+    # which looks healthy and is not — say so by name.
+    ephemeral = (os.getenv("VERCEL") or os.getenv("AWS_LAMBDA_FUNCTION_NAME"))         and not os.getenv("DATABASE_URL")
+    body = {"evaluator": evaluator_stamp(), "generator": GENERATOR_VERSION,
+            "migrated": DB_READY.get("migrated") or []}
+    if ephemeral:
+        return {**body, "status": "degraded", "database": "ephemeral",
+                "detail": "DATABASE_URL is not set, so this instance is writing to a "
+                          "temporary SQLite file that does not survive the invocation.",
+                "fix": "Set DATABASE_URL in the Vercel project's environment variables."}
     if DB_READY["ok"]:
-        return {"status": "ok", "database": "connected", "generator": GENERATOR_VERSION}
-    return {
-        "status": "degraded",
-        "database": "unavailable",
-        "detail": DB_READY["error"],
-        "fix": "Set DATABASE_URL in the deployment environment, then redeploy.",
-        "generator": GENERATOR_VERSION,
-    }
+        return {**body, "status": "ok", "database": "connected"}
+    return {**body,
+            "status": "degraded",
+            "database": "unavailable",
+            "detail": DB_READY["error"],
+            "fix": "Set DATABASE_URL in the deployment environment, then redeploy."}
 
 
 @app.get("/taxonomy")
@@ -336,6 +356,10 @@ def reanalyze(run_id: str, db: Session = Depends(get_db)):
     outcome, score, breakdown = score_run(annotations, run.final_state or {},
                                           scenario.expected_behavior if scenario else {}, traces)
     run.outcome, run.reliability_score, run.metrics = outcome, score, breakdown
+    # Re-grading moves the detector forward but not the oracle: the scenario was
+    # written by whichever generator wrote it, and saying otherwise would let a
+    # replay launder an old oracle as current.
+    run.provenance = evaluator_stamp(scenario.generator_version if scenario else None)
     db.commit()
 
     current = {"outcome": outcome, "score": score,
@@ -383,7 +407,8 @@ def guardrail_test(agent_id: str, version_id: str, background: BackgroundTasks,
                             initial_prompt=spec.initial_prompt,
                             expected_behavior=spec.expected_behavior,
                             mock_environment_id=environment.id, difficulty=spec.difficulty,
-                            generator_version="guardrail-v1",
+                            run_kind=RUN_KIND_GUARDRAIL,
+                            generator_version=GUARDRAIL_VERSION,
                             injected_content=spec.injected_content,
                             fingerprint=spec.fingerprint)
         db.add(scenario); db.commit(); db.refresh(scenario)

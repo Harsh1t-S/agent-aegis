@@ -1,13 +1,17 @@
 import { BrowserRouter, Routes, Route, useLocation } from 'react-router-dom';
-import { AnimatePresence, motion } from 'framer-motion';
+import { AnimatePresence, MotionConfig, motion } from 'framer-motion';
 import { SiteNav } from '@/components/SiteNav';
+import { ToastProvider } from '@/components/Toaster';
 import LandingPage from '@/pages/LandingPage';
 import HowItWorks from '@/pages/HowItWorks';
 import About from '@/pages/About';
 import AppHome from '@/pages/app/AppHome';
 import AgentsList from '@/pages/app/AgentsList';
 import NewAgent from '@/pages/app/NewAgent';
+import EditAgent from '@/pages/app/EditAgent';
 import AgentDetail from '@/pages/app/AgentDetail';
+import Evaluations from '@/pages/app/Evaluations';
+import Settings from '@/pages/app/Settings';
 import EvaluationRunning from '@/pages/app/EvaluationRunning';
 import EvaluationResults from '@/pages/app/EvaluationResults';
 import TestTrace from '@/pages/app/TestTrace';
@@ -47,8 +51,15 @@ function Layout({ children }: { children: ReactNode }) {
 
 function App() {
   return (
+    /* reducedMotion="user" honours the OS setting: framer-motion then skips
+       transform and opacity animations and renders the settled state straight
+       away. Two reasons it matters here — the obvious accessibility one, and that
+       every screen's content currently fades in, so anything that stops the
+       animation loop leaves the page blank rather than unanimated. */
     <BrowserRouter>
-      <Layout>
+      <MotionConfig reducedMotion="user">
+      <ToastProvider>
+        <Layout>
         <Routes>
           <Route path="/" element={<LandingPage />} />
           <Route path="/how-it-works" element={<HowItWorks />} />
@@ -57,13 +68,18 @@ function App() {
           <Route path="/app/agents" element={<AgentsList />} />
           <Route path="/app/agents/new" element={<NewAgent />} />
           <Route path="/app/agents/:id" element={<AgentDetail />} />
+          <Route path="/app/agents/:id/edit" element={<EditAgent />} />
+          <Route path="/app/evaluations" element={<Evaluations />} />
           <Route path="/app/evaluations/:id/running" element={<EvaluationRunning />} />
           <Route path="/app/evaluations/:id" element={<EvaluationResults />} />
           <Route path="/app/evaluations/:evaluationId/tests/:testId" element={<TestTrace />} />
           <Route path="/app/compare" element={<Compare />} />
+          <Route path="/app/settings" element={<Settings />} />
           <Route path="*" element={<NotFound />} />
-        </Routes>
-      </Layout>
+          </Routes>
+        </Layout>
+      </ToastProvider>
+      </MotionConfig>
     </BrowserRouter>
   );
 }

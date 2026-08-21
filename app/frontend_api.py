@@ -11,6 +11,7 @@ snake_case, and any UI churn is contained to this file.
 """
 from __future__ import annotations
 
+import json
 from datetime import datetime
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Response
@@ -24,8 +25,10 @@ from .engine import SYNC_RUNS, dispatch, drain_pending, run_test
 from .introspect import profile_agent
 from .models import (Agent, AgentVersion, ExecutionTrace, FailureAnnotation,
                      MockEnvironment, Scenario, TestRun)
+from .provenance import (LEGACY_GUARDRAIL_GENERATORS, RUN_KIND_GUARDRAIL,
+                         RUN_KIND_SUITE, evaluator_stamp, staleness)
 from .scenarios import GENERATOR_VERSION, environment_for, generate
-from .scoring import WEIGHTS, ceiling_for, verdict
+from .scoring import VERDICT_BANDS, WEIGHTS, ceiling_for, verdict
 
 router = APIRouter(prefix="/api", tags=["frontend"])
 
@@ -197,9 +200,6 @@ def _test_result(run: TestRun, scenario: Scenario, traces: list, failures: list)
     }
 
 
-GUARDRAIL_GENERATOR = "guardrail-v1"
-
-
 def _exclude_guardrail(query):
     """Drop pressure-ladder probes from a TestRun query.
 
@@ -209,19 +209,68 @@ def _exclude_guardrail(query):
     adversarial from 1 to 8 and passed from 1 to 5. The ladder is a diagnostic
     with its own report and its own resistance score; it must not move the
     reliability score, the pass rate or the category breakdown.
+
+    Selected by `run_kind`, never by a version string. Matching on
+    `generator_version == "guardrail-v1"` meant the guardrail compiler's semantic
+    version doubled as the database marker, so bumping the compiler silently
+    changed which rows were scored. The legacy generators stay in the predicate
+    only for rows written before `run_kind` existed.
     """
     return (query.outerjoin(Scenario, TestRun.scenario_id == Scenario.id)
-                 .filter((Scenario.generator_version.is_(None))
-                         | (Scenario.generator_version != GUARDRAIL_GENERATOR)))
+                 .filter(((Scenario.run_kind.is_(None))
+                          | (Scenario.run_kind != RUN_KIND_GUARDRAIL))
+                         & ((Scenario.generator_version.is_(None))
+                            | (Scenario.generator_version.notin_(
+                                LEGACY_GUARDRAIL_GENERATORS)))))
+
+
+def _latest_per_scenario(db: Session, version_id: str) -> dict[str, TestRun]:
+    """The canonical scored population for one evaluation.
+
+    One definition, used by every surface. Reliability already deduplicated to the
+    latest run per scenario while the agent-version rows aggregated *every*
+    completed run, so a single rerun made the agent page and the evaluation report
+    disagree about pass rate, dimensions and failure counts for the same version.
+    """
+    runs = (_exclude_guardrail(db.query(TestRun))
+              .filter(TestRun.agent_version_id == version_id,
+                      TestRun.status == "complete")
+              .order_by(TestRun.completed_at).all())
+    return {r.scenario_id: r for r in runs}
+
+
+def _evaluation_provenance(stamps: list[dict | None]) -> dict:
+    """Which evaluator graded this evaluation, and whether that is today's.
+
+    A judge should never have to guess whether a number on screen came from the
+    code they are reading. Runs graded by different evaluators are reported as a
+    mixture rather than collapsed to whichever one happened to be first.
+    """
+    current = evaluator_stamp()
+    if not stamps:
+        return {"current": False, "mixed": False, "recorded": None,
+                "expected": current, "runsCurrent": 0, "runsTotal": 0,
+                "reason": "no completed runs"}
+
+    distinct = {json.dumps(stamp or {}, sort_keys=True) for stamp in stamps}
+    verdicts = [staleness(stamp) for stamp in stamps]
+    fresh = sum(1 for v in verdicts if v["current"])
+    if len(distinct) > 1:
+        reasons = sorted({v["reason"] for v in verdicts if v["reason"]})
+        return {"current": False, "mixed": True, "recorded": None,
+                "expected": current, "runsCurrent": fresh, "runsTotal": len(stamps),
+                "reason": "scenarios in this run were graded by different evaluators: "
+                          + "; ".join(reasons)}
+    verdict_ = verdicts[0]
+    return {"current": verdict_["current"], "mixed": False,
+            "recorded": verdict_["recorded"], "expected": current,
+            "runsCurrent": fresh, "runsTotal": len(stamps),
+            "reason": verdict_["reason"]}
 
 
 def _version_evaluation(db: Session, version: AgentVersion, agent: Agent,
                         include_tests: bool = False) -> dict:
-    runs = (_exclude_guardrail(db.query(TestRun))
-              .filter(TestRun.agent_version_id == version.id,
-                      TestRun.status == "complete")
-              .order_by(TestRun.completed_at).all())
-    latest: dict[str, TestRun] = {r.scenario_id: r for r in runs}
+    latest = _latest_per_scenario(db, version.id)
     pending = (_exclude_guardrail(db.query(TestRun))
                  .filter(TestRun.agent_version_id == version.id,
                          TestRun.status.in_(["pending", "running"])).count())
@@ -268,6 +317,13 @@ def _version_evaluation(db: Session, version: AgentVersion, agent: Agent,
                             .order_by(ExecutionTrace.step_number).all())
             tests.append(_test_result(run, scenario, trace_rows, annotations))
 
+    # Provenance for the whole evaluation. Where the runs disagree, the report says
+    # so rather than picking one: a suite half-graded by an older evaluator is not
+    # "current", and hiding that is exactly how stale evidence gets presented as
+    # fresh.
+    stamps = [run.provenance for run in latest.values()]
+    evaluator = _evaluation_provenance(stamps)
+
     count = len(latest) or 1
     scores = [r.reliability_score for r in latest.values() if r.reliability_score is not None]
     # Capped, not just averaged. The gates were applied per scenario inside
@@ -308,6 +364,7 @@ def _version_evaluation(db: Session, version: AgentVersion, agent: Agent,
                                   if level == "critical")}
             for label, count_ in breakdown.items()
         ],
+        "evaluator": evaluator,
         "categories": [
             {"category": bucket["category"], "total": bucket["total"],
              "passed": bucket["passed"], "failed": bucket["failed"],
@@ -328,11 +385,7 @@ def _version_reliability(db: Session, version_id: str) -> float:
     the agent page and contributed an uncapped score to the dashboard average.
     Nothing derives reliability independently any more.
     """
-    runs = (_exclude_guardrail(db.query(TestRun))
-              .filter(TestRun.agent_version_id == version_id,
-                      TestRun.status == "complete")
-              .order_by(TestRun.completed_at).all())
-    latest = {r.scenario_id: r for r in runs}          # latest run per scenario
+    latest = _latest_per_scenario(db, version_id)
     scores = [r.reliability_score for r in latest.values() if r.reliability_score is not None]
     if not scores:
         return 0.0
@@ -367,9 +420,12 @@ def _agent_payload(db: Session, agent: Agent) -> dict:
 
     version_rows, last_evaluated = [], None
     for version in versions:
-        runs = (_exclude_guardrail(db.query(TestRun))
-                  .filter(TestRun.agent_version_id == version.id,
-                          TestRun.status == "complete").all())
+        # The same canonical population reliability is computed from: the latest
+        # run per scenario. Aggregating every completed run here instead meant one
+        # rerun made this row disagree with the evaluation report about the same
+        # version — pass rate, dimensions and failure counts all drifted while the
+        # reliability beside them did not.
+        runs = list(_latest_per_scenario(db, version.id).values())
         failures = _empty_failures()
         for run in runs:
             for annotation in db.query(FailureAnnotation).filter_by(test_run_id=run.id):
@@ -378,7 +434,6 @@ def _agent_payload(db: Session, agent: Agent) -> dict:
                     failures[label] += 1
             if run.completed_at and (last_evaluated is None or run.completed_at > last_evaluated):
                 last_evaluated = run.completed_at
-        scores = [r.reliability_score for r in runs if r.reliability_score is not None]
         passing = sum(1 for r in runs if r.outcome == "pass")
         totals = {key: 0.0 for key in WEIGHTS}
         for run in runs:
@@ -816,7 +871,7 @@ def evaluation_progress(evaluation_id: str, db: Session = Depends(get_db)):
 def start_guardrail(evaluation_id: str, background: BackgroundTasks,
                     db: Session = Depends(get_db)):
     """Queue the destructive-action pressure ladder for this version."""
-    from .guardrail import build_ladder
+    from .guardrail import GUARDRAIL_VERSION, build_ladder
 
     version = db.get(AgentVersion, evaluation_id)
     if not version:
@@ -836,7 +891,12 @@ def start_guardrail(evaluation_id: str, background: BackgroundTasks,
                             initial_prompt=spec.initial_prompt,
                             expected_behavior=spec.expected_behavior,
                             mock_environment_id=environment.id,
-                            difficulty=spec.difficulty, generator_version="guardrail-v1")
+                            difficulty=spec.difficulty,
+                            # The kind is what excludes this from scoring; the
+                            # version only records which compiler wrote it, and is
+                            # now free to move without changing what gets scored.
+                            run_kind=RUN_KIND_GUARDRAIL,
+                            generator_version=GUARDRAIL_VERSION)
         db.add(scenario); db.commit(); db.refresh(scenario)
         run = TestRun(agent_version_id=version.id, scenario_id=scenario.id)
         db.add(run); db.commit(); db.refresh(run)
@@ -1003,19 +1063,49 @@ def scoring_model():
             f"critical finding caps it at {CRITICAL_GATE:.0f}, and a high-severity one "
             f"at {HIGH_GATE:.0f} — a run carrying a confirmed loop or hallucination "
             "must not read as highly reliable either."),
-        "verdictBands": [
-            {"atLeast": 90, "label": "Highly Reliable"},
-            {"atLeast": 75, "label": "Moderately Reliable"},
-            {"atLeast": 0, "label": "Needs Attention"},
-        ],
+        # Straight from the function that assigns them, so the contract cannot
+        # drift from the labels the product actually uses.
+        "verdictBands": [{"atLeast": threshold, "label": label}
+                         for threshold, label in VERDICT_BANDS],
+        # The evaluator currently deployed. Published beside the contract so a
+        # judge can check a stored verdict against the code that claims to produce
+        # it, instead of taking the screen's word for it.
+        "evaluator": evaluator_stamp(),
     }
 
 
 @router.get("/dashboard")
 def dashboard(db: Session = Depends(get_db)):
-    runs = db.query(TestRun).filter_by(status="complete").all()
-    critical = db.query(FailureAnnotation).filter_by(severity="critical").count()
     versions = db.query(AgentVersion).order_by(AgentVersion.created_at).all()
+
+    # Two populations, never mixed into one row of tiles.
+    #
+    # `scoredScenarios` and `criticalFindings` describe exactly the scenarios the
+    # reliability average is computed from — the latest run per scenario, guardrail
+    # probes excluded. `totalRuns` and `allTimeCriticalFindings` describe every
+    # execution ever performed, reruns and diagnostic probes included.
+    #
+    # They were previously rendered side by side as "Tests Executed 82 / Critical
+    # Failures 49" next to an average computed from neither, so a judge reading
+    # "54 reliability, 49 critical failures" was reading two different sets of
+    # runs as though they were one.
+    scored_runs: list[TestRun] = []
+    for version in versions:
+        scored_runs.extend(_latest_per_scenario(db, version.id).values())
+    scored_ids = {run.id for run in scored_runs}
+    critical_scored = (db.query(FailureAnnotation)
+                         .filter(FailureAnnotation.severity == "critical",
+                                 FailureAnnotation.test_run_id.in_(scored_ids)).count()
+                       if scored_ids else 0)
+
+    total_runs = db.query(TestRun).filter_by(status="complete").count()
+    critical_all = db.query(FailureAnnotation).filter_by(severity="critical").count()
+    guardrail_probes = (db.query(TestRun)
+                          .join(Scenario, TestRun.scenario_id == Scenario.id)
+                          .filter((Scenario.run_kind == RUN_KIND_GUARDRAIL)
+                                  | (Scenario.generator_version.in_(
+                                      LEGACY_GUARDRAIL_GENERATORS)),
+                                  TestRun.status == "complete").count())
 
     # Averaged over evaluations, not raw runs. Averaging run scores ignored the
     # ceilings entirely, so the headline moved independently of every report.
@@ -1054,8 +1144,20 @@ def dashboard(db: Session = Depends(get_db)):
         "reliabilityDelta": delta,
         "latestVersionDelta": latest_delta,
         "agentsTested": db.query(Agent).count(),
-        "testsExecuted": len(runs),
-        "criticalFailures": critical,
+        # The population the reliability average is actually computed from.
+        "scoredScenarios": len(scored_runs),
+        "criticalFindings": critical_scored,
+        "evaluations": len(evaluated),
+        # Everything that ever executed, named as such.
+        "totalRuns": total_runs,
+        "guardrailProbes": guardrail_probes,
+        "rerunsAndSuperseded": max(total_runs - len(scored_runs) - guardrail_probes, 0),
+        "allTimeCriticalFindings": critical_all,
+        # Old keys kept so a cached bundle of the dashboard keeps rendering, but
+        # both now carry the scored population rather than the all-runs one, which
+        # is what the labels beside them always claimed.
+        "testsExecuted": len(scored_runs),
+        "criticalFailures": critical_scored,
         "verdict": verdict(average),
         "trend": trend,
     }

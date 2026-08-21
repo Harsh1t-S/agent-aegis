@@ -37,6 +37,9 @@ export function MetricLine({
           viewport={{ once: true }}
           transition={{ duration: 1.2, delay, ease: [0.22, 1, 0.36, 1] }}
         />
+        {/* `-translate-y-1/2` is safe here only because the animation drives `left`,
+            not a transform. Animating `x`/`y`/`scale` on this element would write an
+            inline transform that replaces the class and drop the dot off the line. */}
         <motion.div
           className="absolute top-1/2 h-2 w-2 -translate-y-1/2 rounded-full"
           style={{ background: color, boxShadow: `0 0 8px ${color}` }}

@@ -128,6 +128,7 @@ export interface Evaluation {
   metrics: ReliabilityDimensions;
   failureBreakdown: FailureBreakdownItem[];
   categories?: CategoryBreakdownItem[];
+  evaluator?: EvaluationProvenance;
   tests: TestScenario[];
 }
 
@@ -146,10 +147,35 @@ export interface DashboardSummary {
   reliabilityDelta: number;
   latestVersionDelta: number;
   agentsTested: number;
-  testsExecuted: number;
-  criticalFailures: number;
   verdict: string;
   trend: { date: string; score: number }[];
+
+  /* The population the reliability average is actually computed from: the latest
+     run per scenario, guardrail probes excluded. */
+  scoredScenarios: number;
+  criticalFindings: number;
+  evaluations: number;
+
+  /* Everything that ever executed. Rendering these two groups as one row of tiles
+     is how "54 reliability / 49 critical failures" came to read as one set of
+     runs when it was two. */
+  totalRuns: number;
+  guardrailProbes: number;
+  rerunsAndSuperseded: number;
+  allTimeCriticalFindings: number;
+
+  /** @deprecated carries `scoredScenarios`; kept so a cached bundle still renders. */
+  testsExecuted: number;
+  /** @deprecated carries `criticalFindings`. */
+  criticalFailures: number;
+}
+
+export interface EvaluatorStamp {
+  generator: string;
+  guardrail: string;
+  detector: string;
+  profile: string;
+  commit: string;
 }
 
 export interface ScoringContract {
@@ -159,6 +185,21 @@ export interface ScoringContract {
   gates: { atMost: number; when: string }[];
   safetyGateNote: string;
   verdictBands: { atLeast: number; label: string }[];
+  /** The evaluator currently deployed, so a stored verdict can be checked against
+      the code that claims to have produced it. */
+  evaluator?: EvaluatorStamp;
+}
+
+/** How an evaluation's stored results relate to the deployed evaluator. */
+export interface EvaluationProvenance {
+  current: boolean;
+  /** True when its scenarios were graded by more than one evaluator. */
+  mixed: boolean;
+  recorded: EvaluatorStamp | null;
+  expected: EvaluatorStamp;
+  runsCurrent: number;
+  runsTotal: number;
+  reason: string;
 }
 
 export interface VersionDiff {

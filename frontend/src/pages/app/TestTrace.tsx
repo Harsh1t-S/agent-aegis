@@ -1,11 +1,12 @@
 import { useState } from 'react';
-import { useParams, Link } from 'react-router-dom';
+import { useParams, Link, useNavigate } from 'react-router-dom';
 import { AppNavigation } from '@/components/AppNavigation';
 import { IncidentTrace } from '@/components/IncidentTrace';
 import { FailureAnalysis } from '@/components/FailureAnalysis';
 import { ScrollReveal } from '@/components/ScrollReveal';
 import { SystemLabel } from '@/components/SystemLabel';
 import { ErrorState, LoadingState } from '@/components/AsyncState';
+import { useToast } from '@/components/Toaster';
 import { useResource } from '@/hooks/useResource';
 import { api, ApiError } from '@/lib/api';
 import { severityTone, testStatusTone } from '@/lib/format';
@@ -13,14 +14,20 @@ import { Check, Copy, Loader2, RotateCcw, ArrowLeft } from 'lucide-react';
 
 export default function TestTrace() {
   const { evaluationId, testId } = useParams<{ evaluationId: string; testId: string }>();
+  const navigate = useNavigate();
+  const toast = useToast();
+  const [copied, setCopied] = useState(false);
+  const [replaying, setReplaying] = useState(false);
+  // Set the moment a re-run is queued. The replacement run may not have finished
+  // by the time we land on its id, so the page waits for it instead of calling it
+  // missing — which is what a plain reload did.
+  const [awaitingRerun, setAwaitingRerun] = useState(false);
+
   const { data: evaluation, error, loading, reload } = useResource(
     () => api.evaluation(evaluationId as string),
     [evaluationId],
-    { enabled: Boolean(evaluationId) },
+    { enabled: Boolean(evaluationId), pollMs: awaitingRerun ? 2000 : undefined },
   );
-  const [copied, setCopied] = useState(false);
-  const [replaying, setReplaying] = useState(false);
-  const [replayNote, setReplayNote] = useState<string | undefined>();
 
   if (loading) {
     return (
@@ -32,6 +39,22 @@ export default function TestTrace() {
   }
 
   const test = evaluation?.tests.find((t) => t.id === testId);
+
+  // Stop polling as soon as the replacement run appears in the report.
+  if (awaitingRerun && test) setAwaitingRerun(false);
+
+  if (!test && awaitingRerun && !error) {
+    return (
+      <div className="min-h-screen bg-ink-950">
+        <AppNavigation />
+        <LoadingState label="RE-RUN IN PROGRESS" />
+        <p className="px-6 text-center font-mono text-[11px] text-bone-500">
+          The scenario is executing again. This page switches to the new trace as soon as
+          it completes.
+        </p>
+      </div>
+    );
+  }
 
   if (error || !test) {
     return (
@@ -66,18 +89,26 @@ export default function TestTrace() {
       setTimeout(() => setCopied(false), 2000);
     } catch {
       setCopied(false);
+      toast.error('Could not copy', 'This browser blocked clipboard access.');
     }
   };
 
   const replay = async () => {
     setReplaying(true);
-    setReplayNote(undefined);
     try {
-      await api.rerunTest(test.id);
-      setReplayNote('Re-run queued. Reloading the evaluation…');
+      const queued = await api.rerunTest(test.id);
+      // The re-run supersedes this one: the report keeps only the latest run per
+      // scenario, so staying on the old id would leave the page insisting the run
+      // it just re-ran is "not part of the evaluation".
+      setAwaitingRerun(true);
+      toast.success('Re-run queued', 'Following the replacement run.');
+      navigate(`/app/evaluations/${evaluationId}/tests/${queued.runId}`, { replace: true });
       reload();
     } catch (err) {
-      setReplayNote(err instanceof ApiError ? err.message : 'Could not queue a re-run.');
+      toast.error(
+        'Could not re-run',
+        err instanceof ApiError ? err.message : 'The re-run was not queued.',
+      );
     } finally {
       setReplaying(false);
     }
@@ -134,7 +165,7 @@ export default function TestTrace() {
           </div>
           <Link
             to={`/app/evaluations/${evaluationId}`}
-            className="flex h-fit items-center gap-2 font-mono text-[11px] uppercase tracking-wider text-bone-400 transition-colors hover:text-bone-100"
+            className="flex h-fit min-h-11 items-center gap-2 font-mono text-[11px] uppercase tracking-wider text-bone-400 transition-colors hover:text-bone-100"
           >
             <ArrowLeft className="h-4 w-4" /> BACK TO RESULTS
           </Link>
@@ -194,7 +225,7 @@ export default function TestTrace() {
               <button
                 type="button"
                 onClick={copyRecommendation}
-                className="flex items-center gap-2 border border-bone-600/30 px-4 py-2 font-mono text-[11px] uppercase tracking-wider text-bone-300 transition-colors hover:border-violet-500/40 hover:text-violet-400"
+                className="flex min-h-11 items-center gap-2 border border-bone-600/30 px-4 font-mono text-[11px] uppercase tracking-wider text-bone-300 transition-colors hover:border-violet-500/40 hover:text-violet-400"
               >
                 {copied ? <Check className="h-3.5 w-3.5 text-flux-400" /> : <Copy className="h-3.5 w-3.5" />}
                 {copied ? 'COPIED' : 'COPY RECOMMENDATION'}
@@ -204,7 +235,7 @@ export default function TestTrace() {
               type="button"
               onClick={replay}
               disabled={replaying}
-              className="flex items-center gap-2 border border-bone-600/30 px-4 py-2 font-mono text-[11px] uppercase tracking-wider text-bone-300 transition-colors enabled:hover:border-violet-500/40 enabled:hover:text-violet-400 disabled:opacity-50"
+              className="flex min-h-11 items-center gap-2 border border-bone-600/30 px-4 font-mono text-[11px] uppercase tracking-wider text-bone-300 transition-colors enabled:hover:border-violet-500/40 enabled:hover:text-violet-400 disabled:opacity-50"
             >
               {replaying ? (
                 <Loader2 className="h-3.5 w-3.5 animate-spin" />
@@ -213,7 +244,6 @@ export default function TestTrace() {
               )}
               RE-RUN THIS SCENARIO
             </button>
-            {replayNote && <span className="font-mono text-[11px] text-bone-400">{replayNote}</span>}
           </div>
         </ScrollReveal>
       </div>
