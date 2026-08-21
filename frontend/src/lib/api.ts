@@ -1,15 +1,25 @@
-/**
- * Live API client for the Aegis evaluator backend.
- *
- * The backend emits exactly the shapes in `./types`, so nothing is reshaped here —
- * this file is only transport plus error handling. Point it somewhere else with
- * `VITE_API_BASE`; with no value set it calls the same origin, which is what the
- * bundled console does.
- */
-import type { Agent, Evaluation } from "./types";
+import type {
+  Agent,
+  CiGate,
+  CreatedEvaluation,
+  DashboardSummary,
+  Evaluation,
+  EvaluationProgressPayload,
+  GuardrailReport,
+  RiskLevel,
+  ScoringContract,
+  VersionDiff,
+} from '@/types';
 
-export const API_BASE: string =
-  (import.meta as unknown as { env?: Record<string, string> }).env?.["VITE_API_BASE"] ?? "";
+/**
+ * Where the API lives.
+ *
+ * The default is the same-origin `/api` prefix: in development Vite proxies it
+ * (see vite.config.ts) and in production the host rewrites it (see vercel.json).
+ * Going through the origin rather than straight at the API host keeps the browser
+ * out of CORS preflight entirely, which is what broke non-GET calls before.
+ */
+const BASE = (import.meta.env.VITE_API_BASE_URL ?? '/api').replace(/\/$/, '');
 
 export class ApiError extends Error {
   constructor(
@@ -17,145 +27,102 @@ export class ApiError extends Error {
     readonly status: number,
   ) {
     super(message);
-    this.name = "ApiError";
+    this.name = 'ApiError';
   }
 }
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
-  const response = await fetch(`${API_BASE}${path}`, {
-    ...init,
-    headers: { "Content-Type": "application/json", ...(init?.headers ?? {}) },
-  });
-  const text = await response.text();
-  let body: unknown;
+  let response: Response;
   try {
-    body = text ? JSON.parse(text) : null;
+    response = await fetch(`${BASE}${path}`, {
+      ...init,
+      headers: { 'Content-Type': 'application/json', ...(init?.headers ?? {}) },
+    });
   } catch {
-    body = text;
+    // A network-level failure is not a 500 and should not be reported as one —
+    // the difference tells the user whether to retry or to look at the service.
+    throw new ApiError('Could not reach the evaluation API.', 0);
   }
+
   if (!response.ok) {
-    const detail =
-      typeof body === "object" && body !== null && "detail" in body
-        ? String((body as { detail: unknown }).detail)
-        : text || response.statusText;
-    throw new ApiError(detail, response.status);
+    // FastAPI puts the human-readable reason in `detail`; falling back to the
+    // status text loses things like "An agent named 'x' already exists."
+    const detail = await response
+      .json()
+      .then((body) => (typeof body?.detail === 'string' ? body.detail : null))
+      .catch(() => null);
+    throw new ApiError(detail ?? `${response.status} ${response.statusText}`, response.status);
   }
-  return body as T;
+
+  if (response.status === 204) return undefined as T;
+  return (await response.json()) as T;
 }
 
-export interface DashboardStats {
-  averageReliability: number;
-  reliabilityDelta: number;
-  agentsTested: number;
-  testsExecuted: number;
-  criticalFailures: number;
-  verdict: string;
-  trend: { date: string; score: number }[];
-}
-
-export interface EvaluationProgress {
-  evaluationId: string;
-  agentName: string;
-  version: string;
-  total: number;
-  completed: number;
-  status: "running" | "completed";
-  events: string[];
-}
-
-export interface NewAgentInput {
+export interface ToolDraft {
   name: string;
-  description?: string;
+  description: string;
+  risk: RiskLevel;
+}
+
+export interface AgentDraft {
+  name: string;
+  description: string;
   systemPrompt: string;
-  tools: {
-    name: string;
-    description?: string;
-    risk?: string;
-    /** JSON-Schema block off the imported tool definition; shapes generated calls. */
-    parameters?: Record<string, unknown>;
-  }[];
+  tools: ToolDraft[];
 }
 
-export interface ComparisonEntry {
-  scenario_id: string;
-  scenario: string;
-  from: string;
-  to: string;
-  failure_types: string[];
-}
-
-/** Shape of GET /api/versions/{older}/compare/{newer} — see app/reporting.py. */
-export interface VersionComparison {
-  older: { id: string; label: string; score: number };
-  newer: { id: string; label: string; score: number };
-  score_delta: number;
-  verdict: string;
-  shared_scenarios: number;
-  regressions: ComparisonEntry[];
-  softened: ComparisonEntry[];
-  improvements: ComparisonEntry[];
-  metric_deltas: Record<string, number>;
-}
-
-export interface CiGate {
-  evaluationId: string;
-  passed: boolean;
-  exitCode: number;
-  gates: { ok: boolean; check: string }[];
-  thresholds: { minScore: number; maxCritical: number; maxFailed: number };
-}
-
-export interface ScoringModel {
-  weights: Record<string, number>;
-  meanings: Record<string, string>;
-  safetyGate: number;
-  safetyGateNote: string;
-  verdictBands: { atLeast: number; label: string }[];
-}
-
-export interface EvaluateInput {
+export interface EvaluateOptions {
   versionLabel?: string;
-  traits?: string[];
   perCategory?: number;
-  seed?: number;
-  adapter?: "behavioral" | "http";
   adversarial?: boolean;
-  url?: string;
+  adapter?: 'behavioral' | 'llm';
+  traits?: string[];
 }
 
 export const api = {
-  dashboard: () => request<DashboardStats>("/api/dashboard"),
-  agents: () => request<Agent[]>("/api/agents"),
-  agent: (id: string) => request<Agent>(`/api/agents/${id}`),
-  createAgent: (body: NewAgentInput) =>
-    request<Agent>("/api/agents", { method: "POST", body: JSON.stringify(body) }),
-  deleteAgent: (id: string) => request<null>(`/api/agents/${id}`, { method: "DELETE" }),
-  updateAgent: (id: string, body: Partial<NewAgentInput>) =>
-    request<Agent>(`/api/agents/${id}`, { method: "PATCH", body: JSON.stringify(body) }),
+  dashboard: () => request<DashboardSummary>('/dashboard'),
+  scoring: () => request<ScoringContract>('/scoring'),
+
+  agents: () => request<Agent[]>('/agents'),
+  agent: (id: string) => request<Agent>(`/agents/${id}`),
+  createAgent: (draft: AgentDraft) =>
+    request<Agent>('/agents', { method: 'POST', body: JSON.stringify(draft) }),
+  deleteAgent: (id: string) => request<void>(`/agents/${id}`, { method: 'DELETE' }),
+
+  evaluations: () => request<Evaluation[]>('/evaluations'),
+  evaluation: (id: string) => request<Evaluation>(`/evaluations/${id}`),
+  progress: (id: string) => request<EvaluationProgressPayload>(`/evaluations/${id}/progress`),
+
+  evaluate: (agentId: string, options: EvaluateOptions = {}) =>
+    request<CreatedEvaluation>(`/agents/${agentId}/evaluate`, {
+      method: 'POST',
+      body: JSON.stringify({
+        versionLabel: options.versionLabel ?? 'v1',
+        perCategory: options.perCategory ?? 3,
+        adversarial: options.adversarial ?? true,
+        adapter: options.adapter ?? 'behavioral',
+        ...(options.traits ? { traits: options.traits } : {}),
+      }),
+    }),
+
+  ciGate: (evaluationId: string) =>
+    request<CiGate>(`/evaluations/${evaluationId}/ci-gate`),
+
+  guardrail: (evaluationId: string) =>
+    request<GuardrailReport>(`/evaluations/${evaluationId}/guardrail`),
+
+  startGuardrail: (evaluationId: string) =>
+    request<{ evaluationId: string; queued: number }>(
+      `/evaluations/${evaluationId}/guardrail`,
+      { method: 'POST' },
+    ),
+
   rerunTest: (runId: string) =>
     request<{ runId: string; replayedFrom: string; evaluationId: string; status: string }>(
-      `/api/test-runs/${runId}/rerun`,
-      { method: "POST" },
+      `/test-runs/${runId}/rerun`,
+      { method: 'POST' },
     ),
-  scoring: () => request<ScoringModel>("/api/scoring"),
-  ciGate: (evaluationId: string, minScore: number) =>
-    request<CiGate>(
-      `/api/evaluations/${evaluationId}/ci-gate?min_score=${minScore}` +
-        `&max_critical=0&max_failed=0`,
-    ),
-  compareVersions: (olderId: string, newerId: string) =>
-    request<VersionComparison>(`/api/versions/${olderId}/compare/${newerId}`),
-  evaluations: () => request<Evaluation[]>("/api/evaluations"),
-  evaluation: (id: string) => request<Evaluation>(`/api/evaluations/${id}`),
-  progress: (id: string) => request<EvaluationProgress>(`/api/evaluations/${id}/progress`),
-  reanalyze: (id: string) =>
-    request<{ replayed: number; changed: number; detectorVersion: string | null }>(
-      `/api/evaluations/${id}/reanalyze`,
-      { method: "POST" },
-    ),
-  evaluate: (agentId: string, body: EvaluateInput = {}) =>
-    request<{ evaluationId: string; agentId: string; total: number; version: string }>(
-      `/api/agents/${agentId}/evaluate`,
-      { method: "POST", body: JSON.stringify(body) },
-    ),
+
+  compare: (olderVersionId: string, newerVersionId: string) =>
+    request<VersionDiff>(`/versions/${olderVersionId}/compare/${newerVersionId}`),
 };

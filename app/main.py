@@ -69,8 +69,11 @@ def require(db: Session, model, object_id: str):
 
 def _rows_for_version(db: Session, version_id: str) -> tuple[list[dict], dict[str, list]]:
     """Latest completed run per scenario, plus its failures."""
-    runs = (db.query(TestRun)
-              .filter_by(agent_version_id=version_id, status="complete")
+    from .frontend_api import _exclude_guardrail
+
+    runs = (_exclude_guardrail(db.query(TestRun))
+              .filter(TestRun.agent_version_id == version_id,
+                      TestRun.status == "complete")
               .order_by(TestRun.completed_at).all())
     latest: dict[str, TestRun] = {r.scenario_id: r for r in runs}
     rows, failures_by_run = [], {}

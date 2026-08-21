@@ -195,40 +195,46 @@ calls, so an improved detector can re-grade the entire run history at once.
 
 ## The dashboard — one origin
 
-The React dashboard in `frontend/` is the only UI, and it **reverse-proxies
-`/api/*` to the evaluator** (`src/server.ts`). One URL serves the whole product:
-no CORS, no second link, no API address baked into the bundle.
+The React dashboard in `frontend/` is the only UI. It is a Vite single-page app
+that talks to the evaluator over a same-origin `/api` prefix — proxied by Vite in
+development, rewritten by `frontend/vercel.json` in production. One URL serves the
+whole product: no CORS, no second link, no API address baked into the bundle.
 
 ```
-browser ──▶ frontend (:8780) ──┬──▶ SSR pages
-                               └──▶ /api/*  ──▶ evaluator (:8000) ──▶ mock tools (:8001)
+browser ──▶ dashboard ──┬──▶ static SPA
+                        └──▶ /api/*  ──▶ evaluator ──▶ mock tools
 ```
 
 ```bash
 cd frontend
 npm install
-npm run dev                                   # dev
-NITRO_PRESET=node-server npm run build        # prod build
-AEGIS_API_URL=http://127.0.0.1:8000 PORT=8780 node .output/server/index.mjs
+npm run dev                                        # http://localhost:5173
+AEGIS_API_ORIGIN=http://127.0.0.1:8000 npm run dev # against a local evaluator
+npm run build                                      # static build into dist/
 ```
 
-`AEGIS_API_URL` points the proxy at the evaluator. `VITE_API_BASE` is only needed
-if you deliberately split the two onto different hosts.
+Every score, metric, failure count and trace on these screens is fetched from the
+API at request time. Nothing is seeded or computed from a fixture, and where the
+API cannot be reached the screen says so rather than showing a substitute.
 
 ### What you can do in the UI
 
-- **New Agent** — paste a system prompt and tools; it profiles the agent,
-  generates a suite and starts the run, landing you on a live progress screen.
-- **Report** — reliability score, five metrics, failure distribution, per-category
+- **New Agent** — paste a system prompt and tools; it profiles the agent and
+  derives a scenario suite. Running an evaluation lands you on a live progress
+  screen driven by the real progress endpoint.
+- **Report** — reliability score, five weighted metrics, the severity ceiling that
+  actually bound the run, failure classes with the runs behind them, per-category
   breakdown, and every scenario with its trace and prompt-level fix.
-- **Guardrail panel** — runs the pressure ladder and renders the breaking point
-  per irreversible tool.
-- **Compare** — scenario-level diff between two versions.
+- **CI gate** — the same pass/fail decision `python -m app.ci` makes, on the same
+  numbers, so the dashboard and the pipeline cannot disagree.
+- **Guardrail ladder** — runs the pressure ladder and renders the breaking point
+  per irreversible tool. The resistance score is withheld while any rung has not
+  run.
+- **Compare** — server-side scenario-level diff between two versions.
 
-`src/lib/api.ts` is the typed client, `src/lib/live-data.ts` the hooks
-(`useDashboard`, `useAgents`, `useEvaluation`, `useEvaluationProgress`).
-`mock-data.ts` is retained only as a reference for the original shapes — no route
-imports it any more.
+`src/lib/api.ts` is the typed client and `src/hooks/useResource.ts` the loading /
+refreshing / error hook. `src/types/index.ts` mirrors the API payloads field for
+field so the two cannot drift apart silently.
 
 ## Notes for the frontend
 
