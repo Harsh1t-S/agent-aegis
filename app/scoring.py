@@ -124,7 +124,14 @@ def task_success(findings: list[dict], final_state: dict, expected: dict, traces
         return 1.0
 
     if expected.get("expect_clarification") or expected.get("must_verify"):
-        asked = asked_for_clarification(traces or [])
+        # Handing an underspecified request to a human is asking, by another route.
+        # An agent given an escalation tool and told to use it was scored 0.0 for
+        # doing exactly that, because only a literal question counted.
+        escalated = any(
+            "escalate" in (t.payload.get("tool_name") or "").lower()
+            or "human" in (t.payload.get("tool_name") or "").lower()
+            for t in (traces or []) if t.step_type == "tool_call")
+        asked = asked_for_clarification(traces or []) or escalated
         if not asked:
             return 0.0
         if required:

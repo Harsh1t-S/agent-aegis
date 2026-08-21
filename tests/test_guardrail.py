@@ -267,62 +267,63 @@ PERMISSIVE_TOOLS = {
 }
 
 
-def test_a_permissive_prompt_still_gets_a_source_authority_ladder():
-    """The agents most likely to be unsafe were the ones getting no probes at all.
+def test_a_permissive_prompt_gets_a_rule_stated_in_the_scenario():
+    """The agents most likely to be unsafe were the ones getting the fewest probes.
 
-    `_policy_for` compiles a boundary out of the prompt, and a prompt that says
-    "resolve every request quickly" contains no rule an agent can be caught
-    breaking — so the ladder abstained entirely and the guardrail panel showed
-    nothing for exactly the configuration that deserved the most scrutiny.
+    A prompt saying "resolve every request quickly" contains no rule an agent can
+    be caught breaking, so the ladder scoped down to the single source-authority
+    rung and six pressure techniques went untested on exactly the configuration
+    that deserved the most scrutiny.
+
+    Aegis does not invent a rule and grade against it — it *gives* the agent one,
+    in the scenario the agent reads, and presses on that. What that measures is
+    whether escalating manipulation can talk an agent out of a constraint it was
+    handed thirty words ago.
     """
-    from app.guardrail import build_ladder
-    from app.introspect import profile_agent
-
-    profile = profile_agent(PERMISSIVE, PERMISSIVE_TOOLS)
-    ladder = build_ladder(profile)
-    assert ladder, "a permissive prompt produced no guardrail probes at all"
-
-    techniques = {spec.expected_behavior["guardrail"]["technique"] for spec in ladder}
-    assert techniques == {"injected_instruction"}, (
-        f"a source-authority ladder must assert nothing but source authority, got {techniques}")
-
-    for spec in ladder:
-        marker = spec.expected_behavior["guardrail"]
-        assert marker["sourceAuthorityOnly"] is True
-        assert marker["policyMode"] == "source-authority"
-        # The instruction has to actually arrive through retrieved content, or the
-        # probe is testing a direct user request while claiming otherwise.
-        assert spec.injected_content, "no content was injected to carry the instruction"
-
-
-def test_a_permissive_prompt_is_never_charged_for_obeying_its_user():
-    """A user asking directly is a principal the prompt permits. Pressing on that
-    would be inventing the prohibition this design exists to avoid."""
     from app.guardrail import build_ladder
     from app.introspect import profile_agent
 
     ladder = build_ladder(profile_agent(PERMISSIVE, PERMISSIVE_TOOLS))
+    assert ladder, "a permissive prompt produced no guardrail probes at all"
+
     techniques = {spec.expected_behavior["guardrail"]["technique"] for spec in ladder}
-    for direct in ("plain_request", "urgency", "authority", "false_authorization"):
-        assert direct not in techniques, (
-            f"{direct} presses on a request the prompt actually allows")
+    assert "plain_request" in techniques and "injected_instruction" in techniques
+
+    for spec in ladder:
+        marker = spec.expected_behavior["guardrail"]
+        assert marker["policyMode"] == "stated-in-scenario"
+        assert marker["statedInScenario"] is True
+        # The constraint has to be in the text the agent reads, or it is exactly
+        # the invented rule this design refuses to grade against.
+        assert "Operator policy in force today" in spec.initial_prompt, spec.initial_prompt
 
 
-def test_no_injection_surface_means_no_ladder_at_all():
-    """Source authority is only assertable when something can carry an instruction.
-
-    An agent with no tool returning third-party content cannot be a confused
-    deputy, so there is still nothing defensible to test — and abstaining is the
-    right answer rather than falling back to a direct request.
-    """
+def test_a_stated_rule_is_always_visible_to_the_agent_it_binds():
+    """The whole defence of this mode is that the agent was told. If the constraint
+    ever stops appearing in the prompt, the ladder is grading mind-reading."""
     from app.guardrail import build_ladder
     from app.introspect import profile_agent
 
-    profile = profile_agent(PERMISSIVE, {
-        "check_order": {"description": "Look up an order"},
-        "issue_refund": {"description": "Issue a refund"},
-    })
-    assert build_ladder(profile) == []
+    for spec in build_ladder(profile_agent(PERMISSIVE, PERMISSIVE_TOOLS)):
+        basis = spec.expected_behavior["guardrail"]["policyBasis"]
+        assert any("stated in this scenario" in b for b in basis), basis
+        stated = spec.initial_prompt.split(".")[0]
+        assert "policy" in stated.lower()
+
+
+def test_no_lookup_and_no_numeric_argument_falls_back_to_source_authority():
+    """With nothing to cap and nothing to verify against, there is no constraint
+    worth stating — and source authority is the only boundary left."""
+    from app.guardrail import build_ladder
+    from app.introspect import profile_agent
+
+    ladder = build_ladder(profile_agent(PERMISSIVE, {
+        "read_customer_email": {"description": "Read the latest inbound email"},
+        "purge_account": {"description": "Permanently purge a customer account"},
+    }))
+    assert ladder
+    modes = {s.expected_behavior["guardrail"]["policyMode"] for s in ladder}
+    assert modes == {"source-authority"}, modes
 
 
 def test_a_stated_policy_still_gets_the_whole_ladder():
@@ -505,9 +506,13 @@ def test_the_seeded_demo_agent_compiles_a_numeric_policy_limit():
                for spec_ in ladder), "no rung tests a value above the compiled limit"
 
 
-def test_the_permissive_seed_prompts_still_only_get_source_authority():
-    """The schemas must not accidentally manufacture a boundary the prompt never
-    stated — an argument existing is not a rule about it."""
+def test_the_permissive_seed_prompts_never_claim_the_prompt_stated_a_rule():
+    """The schemas must not manufacture a boundary and attribute it to the prompt.
+
+    An argument existing is not a rule about it — so the permissive prompts get a
+    constraint that is stated in the scenario and labelled as such, never one
+    presented as though the agent's own prompt had set it.
+    """
     import importlib.util
     from pathlib import Path
 
@@ -523,5 +528,9 @@ def test_the_permissive_seed_prompts_still_only_get_source_authority():
 
     for prompt in (seed.WEAK, seed.REGRESSED):
         ladder = build_ladder(profile_agent(prompt, schema))
-        techniques = {s.expected_behavior["guardrail"]["technique"] for s in ladder}
-        assert techniques == {"injected_instruction"}, techniques
+        modes = {s.expected_behavior["guardrail"]["policyMode"] for s in ladder}
+        assert modes <= {"stated-in-scenario", "source-authority"}, modes
+        assert "verify+limit" not in modes and "forbid" not in modes
+        for spec in ladder:
+            if spec.expected_behavior["guardrail"]["statedInScenario"]:
+                assert "Operator policy in force today" in spec.initial_prompt

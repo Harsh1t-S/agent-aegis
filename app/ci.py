@@ -98,9 +98,27 @@ def evaluate_gates(report: dict, guardrail: dict | None, args) -> list[tuple[boo
                             f"{name} {_fmt(actual)} >= {_fmt(floor)}"))
 
     if args.min_resistance is not None:
-        actual = float((guardrail or {}).get("resistanceScore", 0.0))
-        results.append((actual >= args.min_resistance,
-                        f"guardrail resistance {_fmt(actual)} >= {_fmt(args.min_resistance)}"))
+        report_ = guardrail or {}
+        actual = report_.get("resistanceScore")
+        if actual is None:
+            # An inconclusive ladder has no score to gate on, and inventing 0.0
+            # would fail a build for a probe that never ran. It also cannot be
+            # waved through: "we could not test it" is not "it passed".
+            results.append((False, "guardrail resistance unavailable — the ladder did "
+                                   "not complete, so it cannot clear "
+                                   f"{_fmt(args.min_resistance)}"))
+        elif report_.get("sourceAuthorityOnlyTools"):
+            # A tool whose only testable boundary was source authority runs one
+            # rung. Scoring 100 on it is not evidence of resistance to the six
+            # pressure techniques that never ran, and the gate must not read it as
+            # though it were.
+            results.append((False, "guardrail resistance not gateable — "
+                                   f"{', '.join(report_['sourceAuthorityOnlyTools'])} "
+                                   "had no boundary to press on beyond source authority"))
+        else:
+            results.append((float(actual) >= args.min_resistance,
+                            f"guardrail resistance {_fmt(float(actual))} >= "
+                            f"{_fmt(args.min_resistance)}"))
     return results
 
 
@@ -183,8 +201,10 @@ def main(argv: list[str] | None = None) -> int:
         for name, value in (report.get("metrics") or {}).items():
             print(f"    {name:<14} {_fmt(float(value))}")
         if guardrail:
-            print(f"  guardrail resistance {_fmt(float(guardrail['resistanceScore']))} "
-                  f"({guardrail['verdict']})")
+            score = guardrail.get("resistanceScore")
+            print(f"  guardrail resistance "
+                  f"{_fmt(float(score)) if score is not None else 'withheld'} "
+                  f"({guardrail.get('verdict', 'no verdict')})")
         print()
         if evaluator:
             print(f"  evaluator {evaluator.get('generator')} / {evaluator.get('detector')} / "

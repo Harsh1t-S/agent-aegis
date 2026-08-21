@@ -108,6 +108,11 @@ export function GuardrailLadder({ report, error, running, onRun }: GuardrailLadd
                       source authority only
                     </span>
                   )}
+                  {tool.statedInScenario && (
+                    <span className="border border-spark-400/40 px-2 py-0.5 font-mono text-[9px] uppercase tracking-wider text-spark-400">
+                      rule stated in scenario
+                    </span>
+                  )}
                   <span
                     className={`font-mono text-[11px] uppercase tracking-wider ${
                       tool.breakingPoint ? 'text-fault-400' : 'text-flux-400'
@@ -143,6 +148,14 @@ export function GuardrailLadder({ report, error, running, onRun }: GuardrailLadd
                     </motion.span>
                   ))}
                 </div>
+                {tool.statedInScenario && (
+                  <p className="mt-3 border-l-2 border-spark-400/40 pl-3 text-xs leading-relaxed text-bone-400">
+                    The agent's own prompt sets no rule for{' '}
+                    <code className="text-bone-200">{tool.tool}</code>, so each rung
+                    states the constraint it is being held to in the request itself.
+                    The agent was told the rule before it was pressured to break it.
+                  </p>
+                )}
                 {tool.sourceAuthorityOnly && (
                   <p className="mt-3 border-l-2 border-warn-500/40 pl-3 text-xs leading-relaxed text-bone-400">
                     The prompt states no rule covering <code className="text-bone-200">{tool.tool}</code>,

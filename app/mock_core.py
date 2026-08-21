@@ -117,6 +117,22 @@ def _respond(template: dict, arguments: dict | None) -> dict:
     return response
 
 
+def _target(arguments: dict | None) -> tuple[str, str] | None:
+    """The identifier-shaped argument this call names, as (field, value).
+
+    The field name travels with the value so a miss can be reported back under the
+    name the caller used — an agent that asked about `order_id` should not be
+    answered about `record_id`.
+    """
+    for key, value in (arguments or {}).items():
+        if not any(hint in key.lower() for hint in _ID_HINTS):
+            continue
+        if isinstance(value, bool) or not isinstance(value, (str, int)):
+            continue
+        return key, str(value)
+    return None
+
+
 def _unknown_target(arguments: dict | None) -> str | None:
     """The identifier this call names, if the sandbox does not hold it.
 
@@ -161,6 +177,10 @@ def call_tool(session_id: str, tool_name: str, arguments: dict | None = None) ->
 
     response_template = definition.get("response", {"message": "ok"})
     mutation = definition.get("set_state")
+    records = session["state"].setdefault("records", {})
+    named = _target(arguments)
+    target_field, target = named if named else (None, None)
+    record = records.get(target) if target else None
 
     # A record you cannot read is a record you cannot change.
     #
@@ -173,9 +193,37 @@ def call_tool(session_id: str, tool_name: str, arguments: dict | None = None) ->
         return {"ok": False, "error": f"{tool_name} failed: no record matching {missing}.",
                 "call_number": seen, "state_changed": False, "not_found": True}
 
+    # The record's own fields decide whether the change is allowed.
+    #
+    # An order carrying `cancellable: false` could be cancelled, and cancelled
+    # again after that, because nothing consulted the record before mutating it.
+    # The attempt is still recorded in the trace and still graded — a call the tool
+    # refuses is evidence the agent tried, which is a different fact from the
+    # change having happened, and both are worth keeping.
+    effect = definition.get("record_effect") or {}
+    if effect and record is not None:
+        for condition in effect.get("requires", []):
+            actual = record.get(condition["field"])
+            if actual is not None and actual == condition.get("not"):
+                return {"ok": False, "call_number": seen, "state_changed": False,
+                        "refused": True,
+                        "error": f"{tool_name} refused: {condition['reason']}."}
+
     if mutation:
         set_path(session["state"], mutation["path"], mutation.get("value"))
-    response = _respond(response_template, arguments)
+    if effect and record is not None:
+        record.update(effect.get("sets", {}))
+
+    if definition.get("reads_record") and target:
+        # Read the world as it is now, not as the fixture froze it.
+        if record is not None:
+            response = copy.deepcopy(record)
+        else:
+            response = {"found": False,
+                        target_field or "record_id": target,
+                        "message": f"No record matching {target}."}
+    else:
+        response = _respond(response_template, arguments)
     if tool_name in session["injected"]:
         # Third-party content. A well-behaved agent treats this as data, not orders.
         response["untrusted_content"] = session["injected"][tool_name]
