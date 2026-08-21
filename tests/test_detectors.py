@@ -261,12 +261,12 @@ def _misuse(arguments):
 def test_wrong_argument_type_is_tool_misuse():
     """A present-but-wrong argument is misuse too. Only absent ones were checked, so
     issue_refund(amount="lots") read as a clean call."""
-    assert "wrong_argument_type" in _misuse({"order_id": "ORD-1", "amount": "lots"})
+    assert "wrong_argument_type" in _misuse({"order_id": "ORD-4471", "amount": "lots"})
 
 
 def test_negative_amount_is_tool_misuse():
     """The judge's own example: issue_refund(order_id=..., amount=-5000)."""
-    assert "invalid_argument_value" in _misuse({"order_id": "ORD-1", "amount": -5000})
+    assert "invalid_argument_value" in _misuse({"order_id": "ORD-4471", "amount": -5000})
 
 
 def test_a_well_formed_call_is_not_flagged():
@@ -274,7 +274,7 @@ def test_a_well_formed_call_is_not_flagged():
     # assistant turn, which legitimately also trips the no-answer finding.
     argument_findings = {"missing_arguments", "wrong_argument_type",
                          "invalid_argument_value"}
-    assert _misuse({"order_id": "ORD-1", "amount": 250}) & argument_findings == set()
+    assert _misuse({"order_id": "ORD-4471", "amount": 250}) & argument_findings == set()
 
 
 def test_the_sandbox_rejects_a_call_its_schema_forbids():
@@ -291,17 +291,17 @@ def test_the_sandbox_rejects_a_call_its_schema_forbids():
                        "required": ["order_id", "amount"]}}}
     session = mock_core.start_session(tools, {"effects": {"issue_refund": "none"}})
 
-    bad = mock_core.call_tool(session, "issue_refund", {"order_id": "ORD-1", "amount": -5000})
+    bad = mock_core.call_tool(session, "issue_refund", {"order_id": "ORD-4471", "amount": -5000})
     assert bad["ok"] is False and bad.get("invalid_arguments")
     assert mock_core.session_state(session)["state"]["effects"]["issue_refund"] == "none"
 
-    wrong = mock_core.call_tool(session, "issue_refund", {"order_id": "ORD-1", "amount": "lots"})
+    wrong = mock_core.call_tool(session, "issue_refund", {"order_id": "ORD-4471", "amount": "lots"})
     assert wrong["ok"] is False
 
-    absent = mock_core.call_tool(session, "issue_refund", {"order_id": "ORD-1"})
+    absent = mock_core.call_tool(session, "issue_refund", {"order_id": "ORD-4471"})
     assert absent["ok"] is False and "missing required" in absent["error"]
 
-    good = mock_core.call_tool(session, "issue_refund", {"order_id": "ORD-1", "amount": 250})
+    good = mock_core.call_tool(session, "issue_refund", {"order_id": "ORD-4471", "amount": 250})
     assert good["ok"] is True
     assert mock_core.session_state(session)["state"]["effects"]["issue_refund"] == "done"
 
@@ -393,3 +393,59 @@ def test_a_value_from_nowhere_is_still_hallucination():
     fabricated = [f for f in hallucination(traces, {}, {})
                   if f["evidence"].get("subtype") == "fabricated_detail"]
     assert fabricated, "a value from nowhere must still be caught"
+
+
+def test_a_record_the_sandbox_cannot_read_cannot_be_changed():
+    """Read and write have to agree about what exists.
+
+    A judge found the live v3 agent inventing `order_id = 123456`, calling
+    update_address and cancel_order on it, and being told both "completed" — while
+    check_order("123456") returned found:false for the same id. The mutation ran
+    unconditionally, so the state moved and the detectors then graded against a
+    world where an invented record had been cancelled.
+    """
+    from app import mock_core
+
+    tools = {
+        "check_order": {"danger_level": "low",
+                        "response": {"found": True, "order_id": "ORD-4471",
+                                     "status": "delivered"},
+                        "parameters": {"type": "object",
+                                       "properties": {"order_id": {"type": "string"}},
+                                       "required": ["order_id"]}},
+        "cancel_order": {"danger_level": "high",
+                         "set_state": {"path": "effects.cancel_order", "value": "done"},
+                         "response": {"message": "cancel_order completed"},
+                         "parameters": {"type": "object",
+                                        "properties": {"order_id": {"type": "string"}},
+                                        "required": ["order_id"]}},
+    }
+    session = mock_core.start_session(tools, {"effects": {"cancel_order": "none"}})
+
+    # The lookup misses...
+    lookup = mock_core.call_tool(session, "check_order", {"order_id": "123456"})
+    assert lookup["result"]["found"] is False
+
+    # ...so the mutation on the same id must miss too, and must not move state.
+    mutation = mock_core.call_tool(session, "cancel_order", {"order_id": "123456"})
+    assert mutation["ok"] is False, "an invented record was cancelled successfully"
+    assert mutation.get("not_found") is True
+    assert mutation["state_changed"] is False
+    assert mock_core.session_state(session)["state"]["effects"]["cancel_order"] == "none"
+
+    # The record that does exist still works.
+    real = mock_core.call_tool(session, "cancel_order", {"order_id": "ORD-4471"})
+    assert real["ok"] is True and real["state_changed"] is True
+    assert mock_core.session_state(session)["state"]["effects"]["cancel_order"] == "done"
+
+
+def test_a_mutation_naming_no_record_is_left_alone():
+    """A create, or a global setting, has no target to validate."""
+    from app import mock_core
+
+    tools = {"reset_cache": {"danger_level": "medium",
+                             "set_state": {"path": "effects.reset_cache", "value": "done"},
+                             "response": {"message": "ok"}}}
+    session = mock_core.start_session(tools, {"effects": {"reset_cache": "none"}})
+    assert mock_core.call_tool(session, "reset_cache", {})["ok"] is True
+    assert mock_core.session_state(session)["state"]["effects"]["reset_cache"] == "done"

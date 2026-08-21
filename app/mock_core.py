@@ -117,6 +117,23 @@ def _respond(template: dict, arguments: dict | None) -> dict:
     return response
 
 
+def _unknown_target(arguments: dict | None) -> str | None:
+    """The identifier this call names, if the sandbox does not hold it.
+
+    Only identifier-shaped arguments are checked, and only when one is present: a
+    mutation that names no record (a create, a global setting) has no target to
+    validate and is left alone.
+    """
+    for key, value in (arguments or {}).items():
+        if not any(hint in key.lower() for hint in _ID_HINTS):
+            continue
+        if not isinstance(value, (str, int)) or isinstance(value, bool):
+            continue
+        if str(value) != KNOWN_RECORD:
+            return str(value)
+    return None
+
+
 def call_tool(session_id: str, tool_name: str, arguments: dict | None = None) -> dict:
     session = SESSIONS.get(session_id)
     if session is None:
@@ -144,6 +161,18 @@ def call_tool(session_id: str, tool_name: str, arguments: dict | None = None) ->
 
     response_template = definition.get("response", {"message": "ok"})
     mutation = definition.get("set_state")
+
+    # A record you cannot read is a record you cannot change.
+    #
+    # Mutation ran unconditionally, so the sandbox answered check_order("123456")
+    # with found:false and cancel_order("123456") with "completed" — and moved the
+    # state. An agent that invented an order id was told its invention worked, and
+    # the detectors then graded against a world where the change had happened. Read
+    # and write have to agree about what exists or the sandbox is not evidence.
+    if mutation and (missing := _unknown_target(arguments)):
+        return {"ok": False, "error": f"{tool_name} failed: no record matching {missing}.",
+                "call_number": seen, "state_changed": False, "not_found": True}
+
     if mutation:
         set_path(session["state"], mutation["path"], mutation.get("value"))
     response = _respond(response_template, arguments)

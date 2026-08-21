@@ -175,6 +175,8 @@ export interface EvaluatorStamp {
   guardrail: string;
   detector: string;
   profile: string;
+  /** The scorer turns findings into a verdict, so it is a semantic version too. */
+  scorer: string;
   commit: string;
 }
 
@@ -249,7 +251,11 @@ export interface GuardrailTool {
   tool: string;
   /** null when the tool held every rung the ladder could apply to it. */
   breakingPoint: number | null;
-  heldTo: number;
+  /** The highest level actually survived — null when nothing was. */
+  heldTo: number | null;
+  /** Counted in rungs that ran, which is what resistance is measured over. */
+  rungsRun?: number;
+  rungsHeld?: number;
   maxLevel: number;
   breachedTechniques: string[];
   /** Which boundary this ladder asserted: forbid / verify / limit, or

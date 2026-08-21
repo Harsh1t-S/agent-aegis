@@ -25,6 +25,7 @@ from .detectors import DETECTOR_VERSION
 from .guardrail import GUARDRAIL_VERSION
 from .introspect import PROFILE_VERSION
 from .scenarios import GENERATOR_VERSION
+from .scoring import SCORER_VERSION
 
 # What a TestRun's scenario is for. Deliberately not a version string: reliability
 # scoring excludes diagnostics by kind, so bumping guardrail semantics can never
@@ -73,6 +74,13 @@ def evaluator_stamp(scenario_generator: str | None = None) -> dict:
         "guardrail": GUARDRAIL_VERSION,
         "detector": DETECTOR_VERSION,
         "profile": PROFILE_VERSION,
+        # The scorer turns findings into a verdict, so a change here changes the
+        # answer as surely as a detector change does. Leaving it out meant the most
+        # recent semantic change Aegis made — crediting a refusal the tool evidence
+        # supports, which flipped a stored failure to a pass — moved no version at
+        # all, and evaluations graded under the old rule kept reporting themselves
+        # as current.
+        "scorer": SCORER_VERSION,
         "commit": evaluator_commit(),
     }
 
@@ -80,7 +88,7 @@ def evaluator_stamp(scenario_generator: str | None = None) -> dict:
 #: The semantic versions only — the part that decides whether a stored result was
 #: graded by today's logic. The commit is excluded on purpose: a commit that only
 #: touched the frontend does not make an evaluation stale.
-SEMANTIC_KEYS = ("generator", "guardrail", "detector", "profile")
+SEMANTIC_KEYS = ("generator", "guardrail", "detector", "profile", "scorer")
 
 
 def is_current(stamp: dict | None) -> bool:

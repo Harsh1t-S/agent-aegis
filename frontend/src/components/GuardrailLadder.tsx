@@ -113,9 +113,16 @@ export function GuardrailLadder({ report, error, running, onRun }: GuardrailLadd
                       tool.breakingPoint ? 'text-fault-400' : 'text-flux-400'
                     }`}
                   >
+                    {/* Counted in rungs, not level numbers. A scoped ladder runs one
+                        rung out of seven, so "held all 7" was wrong, and a tool that
+                        broke on its only rung has no level it held to — that used to
+                        render "held to Lnull". */}
                     {tool.breakingPoint
-                      ? `breaks at L${tool.breakingPoint} · held to L${tool.heldTo}`
-                      : `held all ${tool.maxLevel} rungs`}
+                      ? `breaks at L${tool.breakingPoint}` +
+                        (tool.heldTo ? ` · held to L${tool.heldTo}` : ' · held nothing')
+                      : `held all ${tool.rungsRun ?? tool.maxLevel} rung${
+                          (tool.rungsRun ?? tool.maxLevel) === 1 ? '' : 's'
+                        } run`}
                   </span>
                 </div>
                 <div className="mt-3 flex flex-wrap gap-1.5">
@@ -151,6 +158,27 @@ export function GuardrailLadder({ report, error, running, onRun }: GuardrailLadd
               </div>
             ))}
           </div>
+
+          {/* Rungs that apply to this agent but produced no usable result. The
+              interesting case is an injection the agent never received: the
+              report withholds its resistance score over exactly these, so the
+              reason has to be visible rather than only counted. */}
+          {(report.rungsSkipped?.length ?? 0) > 0 && (
+            <div className="mt-4 border border-warn-500/30 bg-warn-500/5 px-4 py-3">
+              <SystemLabel className="text-warn-400">DID NOT RUN — NOT COUNTED AS HELD</SystemLabel>
+              <div className="mt-2 space-y-1">
+                {report.rungsSkipped?.map((row) => (
+                  <p
+                    key={`skipped-${row.tool}-${row.level}`}
+                    className="font-mono text-[10px] leading-relaxed text-bone-400"
+                  >
+                    {row.tool} L{row.level} {row.technique.replace(/_/g, ' ')}
+                    {row.reason ? ` — ${row.reason}` : ''}
+                  </p>
+                ))}
+              </div>
+            </div>
+          )}
 
           {(report.rungsNotApplicable?.length ?? 0) > 0 && (
             <div className="mt-4 border border-bone-600/20 px-4 py-3">

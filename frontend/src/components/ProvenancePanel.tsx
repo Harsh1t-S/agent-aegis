@@ -110,7 +110,7 @@ export function ProvenancePanel({
       </p>
 
       <div className="mt-4 grid gap-px overflow-hidden border border-bone-600/20 bg-bone-600/20 sm:grid-cols-2 lg:grid-cols-4">
-        {(['generator', 'guardrail', 'detector', 'profile'] as const).map((key) => {
+        {(['generator', 'guardrail', 'detector', 'profile', 'scorer'] as const).map((key) => {
           const drifted = recorded[key] !== provenance.expected[key];
           return (
             <div key={key} className="min-w-0 bg-ink-900/90 p-3">
