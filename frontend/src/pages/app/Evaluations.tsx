@@ -76,7 +76,7 @@ export default function Evaluations() {
                   data?.length ? undefined : (
                     <Link
                       to="/app/agents/new"
-                      className="mt-2 border border-violet-500/40 px-5 py-2 font-mono text-[11px] uppercase tracking-wider text-violet-400 hover:bg-violet-500/10"
+                      className="mt-2 border border-signal-500/40 px-5 py-2 font-mono text-[11px] uppercase tracking-wider text-signal-400 hover:bg-signal-500/10"
                     >
                       INITIALIZE NEW AGENT
                     </Link>
@@ -91,14 +91,14 @@ export default function Evaluations() {
                     <ScrollReveal key={evaluation.id} delay={Math.min(i, 8) * 0.03}>
                       <Link
                         to={`/app/evaluations/${evaluation.id}`}
-                        className="group grid min-w-0 grid-cols-1 items-center gap-3 border border-bone-600/20 bg-ink-900/60 p-4 transition-colors hover:border-violet-500/35 hover:bg-ink-850/50 sm:grid-cols-[1fr_auto] sm:p-5"
+                        className="group grid min-w-0 grid-cols-1 items-center gap-3 border border-bone-600/20 bg-ink-900/60 p-4 transition-colors hover:border-signal-500/35 hover:bg-ink-850/50 sm:grid-cols-[1fr_auto] sm:p-5"
                       >
                         <div className="min-w-0">
                           <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
                             <span className="break-words text-sm text-bone-100">
                               {evaluation.agentName}
                             </span>
-                            <span className="font-mono text-[11px] uppercase tracking-wider text-violet-400">
+                            <span className="font-mono text-[11px] uppercase tracking-wider text-signal-400">
                               {evaluation.version}
                             </span>
                             {evaluation.status !== 'completed' && (
@@ -147,7 +147,7 @@ export default function Evaluations() {
                               )}
                             </div>
                           </div>
-                          <ArrowRight className="h-4 w-4 shrink-0 text-bone-600 transition-transform group-hover:translate-x-1 group-hover:text-violet-400" />
+                          <ArrowRight className="h-4 w-4 shrink-0 text-bone-600 transition-transform group-hover:translate-x-1 group-hover:text-signal-400" />
                         </div>
                       </Link>
                     </ScrollReveal>

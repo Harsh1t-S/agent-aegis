@@ -4,6 +4,15 @@ import { useEffect, useMemo, useState } from 'react';
 interface AgentCoreProps {
   destabilized?: boolean;
   size?: number;
+  /**
+   * Draw the solid centre node.
+   *
+   * Off wherever the graphic sits *behind* type: the node is an opaque disc with
+   * a label on it, so on the hero it punched a dark hole through the middle of
+   * "TRUST" and put the word "AI" inside the letterform. The orbits read fine
+   * behind text; the centre does not.
+   */
+  core?: boolean;
 }
 
 function useFittedSize(requested: number) {
@@ -21,7 +30,11 @@ function useFittedSize(requested: number) {
   return fitted;
 }
 
-export function AgentCore({ destabilized = false, size: requested = 400 }: AgentCoreProps) {
+export function AgentCore({
+  destabilized = false,
+  size: requested = 400,
+  core = true,
+}: AgentCoreProps) {
   const size = useFittedSize(requested);
   const orbits = useMemo(
     () => [
@@ -62,7 +75,7 @@ export function AgentCore({ destabilized = false, size: requested = 400 }: Agent
           style={{
             width: size * (0.3 + i * 0.2),
             height: size * (0.3 + i * 0.2),
-            borderColor: destabilized ? 'rgba(240,85,64,0.25)' : 'rgba(100,114,245,0.2)',
+            borderColor: destabilized ? 'rgba(240,85,64,0.25)' : 'rgba(91,200,232,0.2)',
           }}
           animate={{
             scale: [1, 1.15, 1],
@@ -85,7 +98,7 @@ export function AgentCore({ destabilized = false, size: requested = 400 }: Agent
           height: size * 0.3,
           background: destabilized
             ? 'radial-gradient(circle, rgba(240,85,64,0.4), transparent 70%)'
-            : 'radial-gradient(circle, rgba(100,114,245,0.35), transparent 70%)',
+            : 'radial-gradient(circle, rgba(91,200,232,0.35), transparent 70%)',
         }}
         animate={{ opacity: [0.6, 1, 0.6], scale: [1, 1.1, 1] }}
         transition={{ duration: 3, repeat: Infinity, ease: 'easeInOut' }}
@@ -124,7 +137,7 @@ export function AgentCore({ destabilized = false, size: requested = 400 }: Agent
                         ? '#f05540'
                         : '#8b8270'
                       : pi % 4 === 0
-                        ? '#6472f5'
+                        ? '#26a9d0'
                         : pi % 2 === 0
                           ? '#1cb8d8'
                           : '#8b8270',
@@ -133,7 +146,7 @@ export function AgentCore({ destabilized = false, size: requested = 400 }: Agent
                         ? '0 0 8px #f05540'
                         : 'none'
                       : pi % 4 === 0
-                        ? '0 0 8px #6472f5'
+                        ? '0 0 8px #26a9d0'
                         : pi % 2 === 0
                           ? '0 0 6px #1cb8d8'
                           : 'none',
@@ -160,7 +173,7 @@ export function AgentCore({ destabilized = false, size: requested = 400 }: Agent
               y1={y1}
               x2={x2}
               y2={y2}
-              stroke={destabilized ? 'rgba(240,85,64,0.15)' : 'rgba(100,114,245,0.12)'}
+              stroke={destabilized ? 'rgba(240,85,64,0.15)' : 'rgba(91,200,232,0.12)'}
               strokeWidth={1}
               initial={{ pathLength: 0 }}
               animate={{ pathLength: [0, 1, 0], opacity: [0, 0.6, 0] }}
@@ -176,13 +189,14 @@ export function AgentCore({ destabilized = false, size: requested = 400 }: Agent
       </svg>
 
       {/* Central node */}
+      {core && (
       <motion.div
-        className="relative z-10 flex items-center justify-center rounded-full border border-violet-500/40 bg-ink-850"
+        className="relative z-10 flex items-center justify-center rounded-full border border-signal-500/40 bg-ink-850"
         style={{ width: size * 0.18, height: size * 0.18 }}
         animate={{
           borderColor: destabilized
             ? ['rgba(240,85,64,0.4)', 'rgba(240,85,64,0.8)', 'rgba(240,85,64,0.4)']
-            : ['rgba(100,114,245,0.4)', 'rgba(100,114,245,0.8)', 'rgba(100,114,245,0.4)'],
+            : ['rgba(91,200,232,0.4)', 'rgba(91,200,232,0.8)', 'rgba(91,200,232,0.4)'],
         }}
         transition={{ duration: 2, repeat: Infinity, ease: 'easeInOut' }}
       >
@@ -190,6 +204,7 @@ export function AgentCore({ destabilized = false, size: requested = 400 }: Agent
           {destabilized ? 'ERR' : 'AI'}
         </span>
       </motion.div>
+      )}
 
       {/* Floating scenario fragments */}
       {fragments.slice(0, destabilized ? 10 : 5).map((frag, i) => {

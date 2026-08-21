@@ -44,7 +44,7 @@ export default function AppHome() {
           icon: Bot,
           label: 'AGENTS TESTED',
           value: String(summary.agentsTested),
-          color: 'text-violet-400',
+          color: 'text-signal-400',
           note: `${summary.evaluations ?? 0} evaluations`,
         },
         {
@@ -81,11 +81,11 @@ export default function AppHome() {
         <div className="mt-4 grid gap-8 lg:grid-cols-[1fr_auto]">
           <div>
             <h1 className="massive text-[clamp(2rem,6vw,4.5rem)] text-bone-50">YOUR AGENTS.</h1>
-            <h1 className="massive text-[clamp(2rem,6vw,4.5rem)] text-violet-400">UNDER PRESSURE.</h1>
+            <h1 className="massive text-[clamp(2rem,6vw,4.5rem)] text-signal-400">UNDER PRESSURE.</h1>
           </div>
           <Link
             to="/app/agents/new"
-            className="group flex h-fit items-center gap-2 border border-violet-500/40 bg-violet-500/10 px-6 py-3 font-mono text-xs uppercase tracking-wider text-violet-400 transition-colors hover:bg-violet-500/20"
+            className="group flex h-fit items-center gap-2 border border-signal-500/40 bg-signal-500/10 px-6 py-3 font-mono text-xs uppercase tracking-wider text-signal-400 transition-colors hover:bg-signal-500/20"
           >
             <Plus className="h-4 w-4" />
             INITIALIZE NEW AGENT
@@ -134,7 +134,7 @@ export default function AppHome() {
 
                       <Link
                         to={`/app/evaluations/${latest.id}`}
-                        className="mt-8 flex min-h-11 items-center gap-2 font-mono text-[11px] uppercase tracking-wider text-violet-400 hover:text-violet-300"
+                        className="mt-8 flex min-h-11 items-center gap-2 font-mono text-[11px] uppercase tracking-wider text-signal-400 hover:text-signal-300"
                       >
                         OPEN FULL REPORT <ArrowRight className="h-3 w-3" />
                       </Link>
@@ -152,7 +152,7 @@ export default function AppHome() {
               <div className="space-y-6">
                 {stats.map((stat, i) => (
                   <ScrollReveal key={stat.label} delay={i * 0.08}>
-                    <div className="group flex items-center justify-between border border-bone-600/20 bg-ink-850/40 p-5 transition-colors hover:border-violet-500/30">
+                    <div className="group flex items-center justify-between border border-bone-600/20 bg-ink-850/40 p-5 transition-colors hover:border-signal-500/30">
                       <div className="flex min-w-0 items-center gap-4">
                         <stat.icon className={`h-5 w-5 shrink-0 ${stat.color}`} strokeWidth={1.5} />
                         <div className="min-w-0">
@@ -215,7 +215,7 @@ export default function AppHome() {
                   <SystemLabel>AGENT NETWORK</SystemLabel>
                   <Link
                     to="/app/agents"
-                    className="group flex min-h-11 shrink-0 items-center gap-1 font-mono text-[11px] uppercase tracking-wider text-violet-400 hover:text-violet-300"
+                    className="group flex min-h-11 shrink-0 items-center gap-1 font-mono text-[11px] uppercase tracking-wider text-signal-400 hover:text-signal-300"
                   >
                     VIEW ALL <ArrowRight className="h-3 w-3 transition-transform group-hover:translate-x-1" />
                   </Link>
@@ -226,7 +226,7 @@ export default function AppHome() {
                       <Link
                         key={agent.id}
                         to={`/app/agents/${agent.id}`}
-                        className="group flex min-w-0 items-center justify-between gap-3 border border-bone-600/20 bg-ink-850/40 p-4 transition-all hover:border-violet-500/30 hover:bg-ink-800/40"
+                        className="group flex min-w-0 items-center justify-between gap-3 border border-bone-600/20 bg-ink-850/40 p-4 transition-all hover:border-signal-500/30 hover:bg-ink-800/40"
                       >
                         <div className="min-w-0">
                           <div className="font-mono text-[10px] text-bone-600">

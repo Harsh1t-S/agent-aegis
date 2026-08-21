@@ -72,7 +72,9 @@ export default function LandingPage() {
           className="absolute left-1/2 top-1/2"
           style={{ scale: coreScale, x: '-50%', y: '-50%' }}
         >
-          <AgentCore destabilized={destabilized} size={500} />
+          {/* No centre node: the heading sits on top of this, and the node is an
+              opaque disc with a label on it. */}
+          <AgentCore destabilized={destabilized} size={500} core={false} />
         </motion.div>
 
         <div className="relative z-10 px-6 text-center">
@@ -128,7 +130,7 @@ export default function LandingPage() {
           />
 
           <motion.div
-            className="my-16 h-px w-24 mx-auto bg-gradient-to-r from-transparent via-violet-500 to-transparent"
+            className="my-16 h-px w-24 mx-auto bg-gradient-to-r from-transparent via-signal-500 to-transparent"
             initial={{ scaleX: 0 }}
             whileInView={{ scaleX: 1 }}
             viewport={{ once: true }}
@@ -201,7 +203,7 @@ export default function LandingPage() {
             </div>
 
             <motion.button
-              className="mt-8 w-full border border-violet-500/40 bg-violet-500/10 py-4 font-mono text-xs uppercase tracking-[0.2em] text-violet-400 transition-colors hover:bg-violet-500/20"
+              className="mt-8 w-full border border-signal-500/40 bg-signal-500/10 py-4 font-mono text-xs uppercase tracking-[0.2em] text-signal-400 transition-colors hover:bg-signal-500/20"
               initial={{ opacity: 0 }}
               whileInView={{ opacity: 1 }}
               viewport={{ once: true }}
@@ -232,7 +234,7 @@ export default function LandingPage() {
             <CountUp
               value={suiteSize}
               pad={2}
-              className="massive mt-2 block text-6xl text-violet-400"
+              className="massive mt-2 block text-6xl text-signal-400"
             />
             <SystemLabel className="mt-3 block text-bone-600">
               {latest
@@ -322,7 +324,7 @@ export default function LandingPage() {
           />
           <MassiveHeading
             lines={["IT'S", "MEASURABLE."]}
-            className="mt-8 text-[clamp(2.5rem,8vw,6rem)] text-violet-400"
+            className="mt-8 text-[clamp(2.5rem,8vw,6rem)] text-signal-400"
             delay={0.4}
           />
         </div>
@@ -341,10 +343,10 @@ export default function LandingPage() {
           <>
             <div className="grid w-full max-w-2xl gap-6">
               {[
-                { label: 'TASK SUCCESS', value: latest.metrics.taskSuccess, color: '#6472f5' },
+                { label: 'TASK SUCCESS', value: latest.metrics.taskSuccess, color: '#26a9d0' },
                 { label: 'TOOL ACCURACY', value: latest.metrics.toolAccuracy, color: '#1cb8d8' },
                 { label: 'SAFETY', value: latest.metrics.safety, color: '#22c57e' },
-                { label: 'CONSISTENCY', value: latest.metrics.consistency, color: '#8b96ff' },
+                { label: 'CONSISTENCY', value: latest.metrics.consistency, color: '#5bc8e8' },
                 { label: 'GROUNDEDNESS', value: latest.metrics.groundedness, color: '#eda31c' },
               ].map((m, i) => (
                 <ScrollReveal key={m.label} delay={i * 0.1}>
@@ -374,7 +376,7 @@ export default function LandingPage() {
         />
         <MassiveHeading
           lines={['MAKE THEM', 'BETTER.']}
-          className="mb-16 text-center text-[clamp(2.5rem,8vw,6rem)] text-violet-400"
+          className="mb-16 text-center text-[clamp(2.5rem,8vw,6rem)] text-signal-400"
           delay={0.3}
         />
 
@@ -398,16 +400,16 @@ export default function LandingPage() {
       {/* FINAL CTA */}
       <section className="relative flex min-h-screen flex-col items-center justify-center px-6 text-center">
         <div className="absolute inset-0 grid-bg opacity-20" />
-        <div className="absolute inset-0 bg-gradient-radial from-violet-500/10 via-transparent to-transparent" />
+        <div className="absolute inset-0 bg-gradient-radial from-signal-500/10 via-transparent to-transparent" />
 
         <MassiveHeading
           lines={["DON'T DEPLOY", 'HOPE.']}
           className="text-[clamp(2.5rem,10vw,8rem)] text-bone-50"
         />
-        <div className="my-12 h-px w-32 bg-gradient-to-r from-transparent via-violet-500 to-transparent" />
+        <div className="my-12 h-px w-32 bg-gradient-to-r from-transparent via-signal-500 to-transparent" />
         <MassiveHeading
           lines={['DEPLOY', 'CONFIDENCE.']}
-          className="text-[clamp(2.5rem,10vw,8rem)] text-violet-400"
+          className="text-[clamp(2.5rem,10vw,8rem)] text-signal-400"
           delay={0.3}
         />
 
@@ -420,7 +422,7 @@ export default function LandingPage() {
         >
           <Link
             to="/app"
-            className="group border border-violet-500/40 bg-violet-500/10 px-8 py-4 font-mono text-xs uppercase tracking-[0.2em] text-violet-400 transition-all hover:bg-violet-500/20 hover:shadow-[0_0_30px_rgba(100,114,245,0.3)] sm:px-12 sm:text-sm"
+            className="group border border-signal-500/40 bg-signal-500/10 px-8 py-4 font-mono text-xs uppercase tracking-[0.2em] text-signal-400 transition-all hover:bg-signal-500/20 hover:shadow-[0_0_30px_rgba(91,200,232,0.3)] sm:px-12 sm:text-sm"
           >
             LAUNCH AEGIS →
           </Link>

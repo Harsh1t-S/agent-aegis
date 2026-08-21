@@ -16,7 +16,7 @@ export function AgentModule({ agent, index }: { agent: Agent; index: number }) {
   return (
     <Link to={`/app/agents/${agent.id}`} className="group block">
       <motion.div
-        className="relative flex h-full min-w-0 flex-col border border-bone-600/20 bg-ink-850/50 p-5 sm:p-6 transition-all duration-300 hover:border-violet-500/40 hover:bg-ink-800/50"
+        className="relative flex h-full min-w-0 flex-col border border-bone-600/20 bg-ink-850/50 p-5 sm:p-6 transition-all duration-300 hover:border-signal-500/40 hover:bg-ink-800/50"
         initial={{ opacity: 0, y: 30 }}
         whileInView={{ opacity: 1, y: 0 }}
         viewport={{ once: true }}
@@ -69,7 +69,7 @@ export function AgentModule({ agent, index }: { agent: Agent; index: number }) {
               ? `${criticalFailures} critical-class findings · ${formatDate(agent.lastEvaluated)}`
               : `${agent.tools.length} tools · not yet evaluated`}
           </span>
-          <span className="flex items-center gap-1 font-mono text-[11px] uppercase tracking-wider text-violet-400 opacity-0 transition-opacity group-hover:opacity-100">
+          <span className="flex items-center gap-1 font-mono text-[11px] uppercase tracking-wider text-signal-400 opacity-0 transition-opacity group-hover:opacity-100">
             VIEW <ArrowRight className="h-3 w-3" />
           </span>
         </div>

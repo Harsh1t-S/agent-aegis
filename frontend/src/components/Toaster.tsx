@@ -42,7 +42,7 @@ const ToastContext = createContext<ToastApi | null>(null);
 const TONE = {
   success: { icon: Check, border: 'border-flux-500/45', text: 'text-flux-300' },
   error: { icon: AlertTriangle, border: 'border-fault-500/45', text: 'text-fault-300' },
-  info: { icon: Info, border: 'border-violet-500/45', text: 'text-violet-300' },
+  info: { icon: Info, border: 'border-signal-500/45', text: 'text-signal-300' },
 } as const;
 
 export function ToastProvider({ children }: { children: ReactNode }) {

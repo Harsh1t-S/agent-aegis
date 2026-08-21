@@ -84,7 +84,7 @@ export default function AgentDetail() {
           <div className="mt-6 text-center">
             <Link
               to="/app/agents"
-              className="border border-violet-500/40 px-6 py-3 font-mono text-xs uppercase tracking-wider text-violet-400 hover:bg-violet-500/10"
+              className="border border-signal-500/40 px-6 py-3 font-mono text-xs uppercase tracking-wider text-signal-400 hover:bg-signal-500/10"
             >
               BACK TO AGENTS
             </Link>
@@ -107,7 +107,7 @@ export default function AgentDetail() {
             AGENTS
           </Link>
           <span>/</span>
-          <span className="text-violet-400">{agent.name.toUpperCase()}</span>
+          <span className="text-signal-400">{agent.name.toUpperCase()}</span>
         </div>
 
         <div className="mt-4 flex flex-col gap-6 md:flex-row md:items-end md:justify-between">
@@ -125,7 +125,7 @@ export default function AgentDetail() {
             <div className="flex flex-wrap items-center gap-2">
             <Link
               to={`/app/agents/${agent.id}/edit`}
-              className="flex min-h-11 items-center gap-2 border border-bone-600/35 px-4 font-mono text-xs uppercase tracking-wider text-bone-300 transition-colors hover:border-violet-400/50 hover:text-violet-300"
+              className="flex min-h-11 items-center gap-2 border border-bone-600/35 px-4 font-mono text-xs uppercase tracking-wider text-bone-300 transition-colors hover:border-signal-400/50 hover:text-signal-300"
             >
               <Pencil className="h-3.5 w-3.5" /> EDIT
             </Link>
@@ -133,7 +133,7 @@ export default function AgentDetail() {
               type="button"
               onClick={runEvaluation}
               disabled={starting}
-              className="group flex items-center gap-2 border border-violet-500/40 bg-violet-500/10 px-6 py-3 font-mono text-xs uppercase tracking-wider text-violet-400 transition-colors enabled:hover:bg-violet-500/20 disabled:cursor-not-allowed disabled:opacity-50"
+              className="group flex items-center gap-2 border border-signal-500/40 bg-signal-500/10 px-6 py-3 font-mono text-xs uppercase tracking-wider text-signal-400 transition-colors enabled:hover:bg-signal-500/20 disabled:cursor-not-allowed disabled:opacity-50"
             >
               {starting ? (
                 <>
@@ -225,7 +225,7 @@ export default function AgentDetail() {
               {agent.tools.map((tool) => (
                 <div key={tool.id} className="min-w-0 border border-bone-600/20 bg-ink-850/40 p-4">
                   <div className="flex items-center justify-between gap-2">
-                    <span className="truncate font-mono text-sm text-violet-400">{tool.name}</span>
+                    <span className="truncate font-mono text-sm text-signal-400">{tool.name}</span>
                     <span
                       className={`shrink-0 border px-2 py-0.5 font-mono text-[9px] uppercase tracking-wider ${
                         tool.risk === 'high'
@@ -261,7 +261,7 @@ export default function AgentDetail() {
               {agent.versions.length > 1 && (
                 <Link
                   to={`/app/compare?agent=${agent.id}`}
-                  className="group flex min-h-11 items-center gap-1 font-mono text-[11px] uppercase tracking-wider text-violet-400 hover:text-violet-300"
+                  className="group flex min-h-11 items-center gap-1 font-mono text-[11px] uppercase tracking-wider text-signal-400 hover:text-signal-300"
                 >
                   COMPARE VERSIONS{' '}
                   <ArrowRight className="h-3 w-3 transition-transform group-hover:translate-x-1" />
@@ -278,16 +278,16 @@ export default function AgentDetail() {
           <ScrollReveal className="mt-6">
             <Link
               to={`/app/evaluations/${latestVersion.id}`}
-              className="group flex items-center justify-between gap-4 border border-violet-500/30 bg-violet-500/5 p-6 transition-colors hover:bg-violet-500/10"
+              className="group flex items-center justify-between gap-4 border border-signal-500/30 bg-signal-500/5 p-6 transition-colors hover:bg-signal-500/10"
             >
               <div>
-                <SystemLabel className="text-violet-400">LATEST EVALUATION</SystemLabel>
+                <SystemLabel className="text-signal-400">LATEST EVALUATION</SystemLabel>
                 <div className="mt-1 text-sm text-bone-200">
                   {latestVersion.version} — {formatDate(latestVersion.createdAt)} — reliability{' '}
                   {latestVersion.reliability.toFixed(1)}/100
                 </div>
               </div>
-              <ArrowRight className="h-5 w-5 shrink-0 text-violet-400 transition-transform group-hover:translate-x-1" />
+              <ArrowRight className="h-5 w-5 shrink-0 text-signal-400 transition-transform group-hover:translate-x-1" />
             </Link>
           </ScrollReveal>
         )}

@@ -20,10 +20,10 @@ export function FailureAnalysis({ why, recommendation }: FailureAnalysisProps) {
         </div>
       </ScrollReveal>
       <ScrollReveal delay={0.15}>
-        <div className="border border-violet-500/20 bg-violet-500/5 p-5">
+        <div className="border border-signal-500/20 bg-signal-500/5 p-5">
           <div className="flex items-center gap-2">
-            <Lightbulb className="h-4 w-4 text-violet-400" />
-            <SystemLabel className="text-violet-400">RECOMMENDATION</SystemLabel>
+            <Lightbulb className="h-4 w-4 text-signal-400" />
+            <SystemLabel className="text-signal-400">RECOMMENDATION</SystemLabel>
           </div>
           <p className="mt-3 text-sm leading-relaxed text-bone-200">{recommendation}</p>
         </div>

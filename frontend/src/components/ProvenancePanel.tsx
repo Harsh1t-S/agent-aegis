@@ -83,7 +83,7 @@ export function ProvenancePanel({
             type="button"
             onClick={reanalyze}
             disabled={busy}
-            className="flex min-h-11 items-center gap-2 border border-violet-500/40 bg-violet-500/10 px-4 font-mono text-[11px] uppercase tracking-wider text-violet-300 transition-colors enabled:hover:bg-violet-500/20 disabled:opacity-50"
+            className="flex min-h-11 items-center gap-2 border border-signal-500/40 bg-signal-500/10 px-4 font-mono text-[11px] uppercase tracking-wider text-signal-300 transition-colors enabled:hover:bg-signal-500/20 disabled:opacity-50"
           >
             {busy ? (
               <Loader2 className="h-3.5 w-3.5 animate-spin" />

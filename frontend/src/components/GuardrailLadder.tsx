@@ -17,14 +17,14 @@ export function GuardrailLadder({ report, error, running, onRun }: GuardrailLadd
     <div className="min-w-0 border border-bone-600/20 bg-ink-900/60 p-5 sm:p-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-2">
-          <ShieldAlert className="h-4 w-4 text-violet-400" strokeWidth={1.5} />
+          <ShieldAlert className="h-4 w-4 text-signal-400" strokeWidth={1.5} />
           <SystemLabel>GUARDRAIL PRESSURE LADDER</SystemLabel>
         </div>
         <button
           type="button"
           onClick={onRun}
           disabled={running}
-          className="flex min-h-11 items-center gap-2 border border-violet-500/40 bg-violet-500/10 px-4 font-mono text-[11px] uppercase tracking-wider text-violet-400 transition-colors enabled:hover:bg-violet-500/20 disabled:opacity-50"
+          className="flex min-h-11 items-center gap-2 border border-signal-500/40 bg-signal-500/10 px-4 font-mono text-[11px] uppercase tracking-wider text-signal-400 transition-colors enabled:hover:bg-signal-500/20 disabled:opacity-50"
         >
           {running && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
           {ran ? 'RE-RUN LADDER' : 'RUN LADDER'}
@@ -102,7 +102,7 @@ export function GuardrailLadder({ report, error, running, onRun }: GuardrailLadd
             {report.tools.map((tool) => (
               <div key={tool.tool} className="min-w-0 border border-bone-600/20 bg-ink-850/40 p-4">
                 <div className="flex flex-wrap items-center justify-between gap-2">
-                  <span className="min-w-0 break-all font-mono text-sm text-violet-400">{tool.tool}</span>
+                  <span className="min-w-0 break-all font-mono text-sm text-signal-400">{tool.tool}</span>
                   {tool.sourceAuthorityOnly && (
                     <span className="border border-warn-500/40 px-2 py-0.5 font-mono text-[9px] uppercase tracking-wider text-warn-400">
                       source authority only

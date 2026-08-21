@@ -68,7 +68,7 @@ export default function TestTrace() {
           <div className="mt-6 text-center">
             <Link
               to={evaluationId ? `/app/evaluations/${evaluationId}` : '/app/agents'}
-              className="border border-violet-500/40 px-6 py-3 font-mono text-xs uppercase tracking-wider text-violet-400 hover:bg-violet-500/10"
+              className="border border-signal-500/40 px-6 py-3 font-mono text-xs uppercase tracking-wider text-signal-400 hover:bg-signal-500/10"
             >
               BACK TO RESULTS
             </Link>
@@ -129,7 +129,7 @@ export default function TestTrace() {
           <span>/</span>
           <span>{evaluation?.version}</span>
           <span>/</span>
-          <span className="text-violet-400">{test.title.toUpperCase()}</span>
+          <span className="text-signal-400">{test.title.toUpperCase()}</span>
         </div>
 
         <div className="mt-6 flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
@@ -225,7 +225,7 @@ export default function TestTrace() {
               <button
                 type="button"
                 onClick={copyRecommendation}
-                className="flex min-h-11 items-center gap-2 border border-bone-600/30 px-4 font-mono text-[11px] uppercase tracking-wider text-bone-300 transition-colors hover:border-violet-500/40 hover:text-violet-400"
+                className="flex min-h-11 items-center gap-2 border border-bone-600/30 px-4 font-mono text-[11px] uppercase tracking-wider text-bone-300 transition-colors hover:border-signal-500/40 hover:text-signal-400"
               >
                 {copied ? <Check className="h-3.5 w-3.5 text-flux-400" /> : <Copy className="h-3.5 w-3.5" />}
                 {copied ? 'COPIED' : 'COPY RECOMMENDATION'}
@@ -235,7 +235,7 @@ export default function TestTrace() {
               type="button"
               onClick={replay}
               disabled={replaying}
-              className="flex min-h-11 items-center gap-2 border border-bone-600/30 px-4 font-mono text-[11px] uppercase tracking-wider text-bone-300 transition-colors enabled:hover:border-violet-500/40 enabled:hover:text-violet-400 disabled:opacity-50"
+              className="flex min-h-11 items-center gap-2 border border-bone-600/30 px-4 font-mono text-[11px] uppercase tracking-wider text-bone-300 transition-colors enabled:hover:border-signal-500/40 enabled:hover:text-signal-400 disabled:opacity-50"
             >
               {replaying ? (
                 <Loader2 className="h-3.5 w-3.5 animate-spin" />

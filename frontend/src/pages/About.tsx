@@ -40,9 +40,11 @@ export default function About() {
           <SystemLabel className="mb-12 block text-center">DESIGN PRINCIPLES</SystemLabel>
           <div className="grid gap-px bg-bone-600/20 md:grid-cols-2 lg:grid-cols-3">
             {principles.map((p, i) => (
-              <ScrollReveal key={p.title} delay={i * 0.08}>
-                <div className="h-full border border-bone-600/20 bg-ink-900/60 p-8 transition-colors hover:bg-ink-850/60">
-                  <p.icon className="h-6 w-6 text-violet-400" strokeWidth={1.5} />
+              // The card was already h-full; without it on the wrapper too, h-full
+              // resolves against a box that is only as tall as its own content.
+              <ScrollReveal key={p.title} delay={i * 0.08} className="h-full">
+                <div className="h-full bg-ink-900/60 p-8 transition-colors hover:bg-ink-850/60">
+                  <p.icon className="h-6 w-6 text-signal-400" strokeWidth={1.5} />
                   <h3 className="mt-4 font-display text-lg font-semibold text-bone-50">{p.title}</h3>
                   <p className="mt-2 text-sm leading-relaxed text-bone-400">{p.desc}</p>
                 </div>
@@ -62,9 +64,14 @@ export default function About() {
               { value: '50', label: 'SCENARIOS PER RUN' },
               { value: '7', label: 'SCENARIO CATEGORIES' },
             ].map((stat, i) => (
-              <ScrollReveal key={stat.label} delay={i * 0.1}>
-                <div className="border border-bone-600/20 bg-ink-900/60 p-6 text-center">
-                  <div className="massive text-4xl text-violet-400 md:text-5xl">{stat.value}</div>
+              // h-full on both the reveal wrapper and the card, because the grid
+              // draws its hairlines with `gap-px` over a background: a cell that
+              // does not fill its track leaves that background showing as a grey
+              // bar under the card. "RELIABILITY DIMENSIONS" wraps to two lines,
+              // so it set the row height and the other three sat short of it.
+              <ScrollReveal key={stat.label} delay={i * 0.1} className="h-full">
+                <div className="flex h-full flex-col items-center justify-center bg-ink-900/60 p-6 text-center">
+                  <div className="massive text-4xl text-signal-400 md:text-5xl">{stat.value}</div>
                   <SystemLabel className="mt-2 block">{stat.label}</SystemLabel>
                 </div>
               </ScrollReveal>
@@ -77,11 +84,11 @@ export default function About() {
       <section className="relative flex min-h-[50vh] flex-col items-center justify-center px-6 text-center">
         <MassiveHeading
           lines={['DEPLOY', 'CONFIDENCE.']}
-          className="text-[clamp(2rem,8vw,6rem)] text-violet-400"
+          className="text-[clamp(2rem,8vw,6rem)] text-signal-400"
         />
         <Link
           to="/app"
-          className="group mt-12 border border-violet-500/40 bg-violet-500/10 px-10 py-4 font-mono text-sm uppercase tracking-[0.2em] text-violet-400 transition-all hover:bg-violet-500/20"
+          className="group mt-12 border border-signal-500/40 bg-signal-500/10 px-10 py-4 font-mono text-sm uppercase tracking-[0.2em] text-signal-400 transition-all hover:bg-signal-500/20"
         >
           LAUNCH AEGIS →
         </Link>
