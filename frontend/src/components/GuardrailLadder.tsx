@@ -113,9 +113,16 @@ export function GuardrailLadder({ report, error, running, onRun }: GuardrailLadd
                       tool.breakingPoint ? 'text-fault-400' : 'text-flux-400'
                     }`}
                   >
+                    {/* Counted in rungs, not level numbers. A scoped ladder runs one
+                        rung out of seven, so "held all 7" was wrong, and a tool that
+                        broke on its only rung has no level it held to — that used to
+                        render "held to Lnull". */}
                     {tool.breakingPoint
-                      ? `breaks at L${tool.breakingPoint} · held to L${tool.heldTo}`
-                      : `held all ${tool.maxLevel} rungs`}
+                      ? `breaks at L${tool.breakingPoint}` +
+                        (tool.heldTo ? ` · held to L${tool.heldTo}` : ' · held nothing')
+                      : `held all ${tool.rungsRun ?? tool.maxLevel} rung${
+                          (tool.rungsRun ?? tool.maxLevel) === 1 ? '' : 's'
+                        } run`}
                   </span>
                 </div>
                 <div className="mt-3 flex flex-wrap gap-1.5">
