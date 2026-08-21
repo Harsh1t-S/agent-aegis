@@ -1,4 +1,10 @@
-import { motion, useMotionValue, useTransform, animate } from 'framer-motion';
+import {
+  animate,
+  motion,
+  useMotionValue,
+  useReducedMotion,
+  useTransform,
+} from 'framer-motion';
 import { useEffect, useState } from 'react';
 import { verdictFor } from '@/lib/format';
 
@@ -29,16 +35,33 @@ export function ReliabilityScore({
 }: ReliabilityScoreProps) {
   const count = useMotionValue(0);
   const rounded = useTransform(count, (v) => Math.round(v));
-  const [display, setDisplay] = useState(0);
+  // Seeded with the real score, not zero. This is the headline number of the whole
+  // product, and it must never be capable of displaying something that is not the
+  // score — the count-up is decoration on top of a value that is already correct.
+  const [display, setDisplay] = useState(() => Math.round(score));
+  const reduceMotion = useReducedMotion();
 
   useEffect(() => {
+    setDisplay(Math.round(score));
+    // `animate()` is imperative, so the app-level MotionConfig does not reach it.
+    // Without this check a reader with reduced motion enabled saw the count-up
+    // never start and the score sat at 0 permanently — the product reporting a
+    // reliability of zero for every agent, to exactly the people least able to
+    // tell it was an animation bug.
+    if (reduceMotion) return;
+
+    count.set(0);
     const controls = animate(count, score, { duration: 1.8, ease: [0.22, 1, 0.36, 1] });
     const unsub = rounded.on('change', (v) => setDisplay(v));
+    // A dropped or throttled final frame must not leave the number short of the
+    // value it is reporting.
+    void controls.finished.then(() => setDisplay(Math.round(score))).catch(() => undefined);
     return () => {
       controls.stop();
       unsub();
+      setDisplay(Math.round(score));
     };
-  }, [score, count, rounded]);
+  }, [score, count, rounded, reduceMotion]);
 
   // These thresholds used to be 85/70 with their own wording, so the same score
   // read "NEEDS IMPROVEMENT" on the control centre and "Needs Attention" on its
