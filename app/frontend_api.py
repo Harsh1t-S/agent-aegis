@@ -413,6 +413,22 @@ def _previous_score(db: Session, agent: Agent, version: AgentVersion) -> float:
     return _version_score(db, earlier.id) if earlier else 0.0
 
 
+def _version_notes(version: AgentVersion) -> str:
+    """A one-line description of what was under test for this version."""
+    config = version.config_snapshot or {}
+    kind = config.get("adapter", "behavioral")
+    if kind == "llm":
+        models = [m for m in (config.get("models") or []) if m] or                  ([config["model"]] if config.get("model") else [])
+        if not models:
+            return "real model"
+        head = models[0].split(":")[-1]
+        return f"{head} +{len(models) - 1} more" if len(models) > 1 else head
+    if kind == "http":
+        return f"http · {config.get('url', 'endpoint')}"
+    traits = ", ".join(config.get("traits", []) or [])
+    return f"stand-in · {traits}" if traits else "stand-in"
+
+
 def _agent_payload(db: Session, agent: Agent) -> dict:
     profile = agent.profile or {}
     versions = (db.query(AgentVersion).filter_by(agent_id=agent.id)
@@ -448,7 +464,11 @@ def _agent_payload(db: Session, agent: Agent) -> dict:
             "createdAt": _iso(version.created_at),
             "reliability": _version_reliability(db, version.id),
             "passRate": round(passing / divisor * 100, 1) if runs else 0.0,
-            "notes": ", ".join(version.config_snapshot.get("traits", [])) or "—",
+            # What actually answered this version's scenarios. It read "—" for
+            # every real-model run, because only the behavioural stand-in has
+            # traits — so the column was blank in exactly the runs where knowing
+            # which model produced the score matters most.
+            "notes": _version_notes(version),
             "failures": failures,
             "metrics": {ui: round(totals[key] / divisor * 100, 1)
                         for key, ui in METRIC_TO_UI.items()},
