@@ -30,52 +30,39 @@ GROQ_API_KEY=<key>          # optional; the `llm` adapter falls back to one prov
 GOOGLE_API_KEY=<key>        # optional; a second provider doubles the rate-limit headroom
 ```
 
-### Known issue: credentials are still in this repository
+### Credentials
 
-`app/deployment_config.py` currently holds the deployment's database URL and both
-model-provider keys, and it is committed. That is deliberate and temporary: Vercel
-builds from the repository, so a gitignored file would not exist in the deployment,
-and while this repository is private the trade bought a zero-configuration demo.
+Nothing secret is committed, and nothing secret is in this repository's history.
 
-It is still a real problem and it is tracked as one. `app/__init__.py` imports that
-file inside a `try/except`, so it is one deletion away from being env-only, and no
-other module in the project contains a credential.
+`DATABASE_URL`, `GROQ_API_KEY` and `GOOGLE_API_KEY` are encrypted environment
+variables on the `aegis-api` Vercel project, and `/health` reports the provenance of
+each one by name so the claim is checkable rather than asserted:
 
-**Before this repository is shared or made public.** In this order, which has no
-downtime — the file keeps serving the deployment until the platform is provably
-serving it instead:
+```json
+"configSource": {
+  "DATABASE_URL":   "environment",
+  "GROQ_API_KEY":   "environment",
+  "GOOGLE_API_KEY": "environment"
+}
+```
 
-1. **Copy the three current values into Vercel** (`aegis-api` → Settings →
-   Environment Variables, Production): `DATABASE_URL`, `GROQ_API_KEY`,
-   `GOOGLE_API_KEY`. Redeploy. Nothing changes yet — `setdefault` means the
-   environment now wins and the file is dead weight.
-2. **Confirm the handover** before removing anything:
-   ```bash
-   python scripts/check_deployment.py
-   ```
-   Every credential must read `environment`. While any reads `bundled fallback`,
-   deleting the file takes production down.
-3. **Delete the file and redeploy**: `git rm app/deployment_config.py`. Re-run the
-   check — `database` must still be `connected`.
-4. **Rotate all three**, one at a time, updating the Vercel variable first and the
-   source second so there is no window where the deployment holds a dead value:
-   `ALTER ROLE aegis_app PASSWORD '<new>';` in the Supabase SQL editor,
-   then reissue at `console.groq.com/keys` and `aistudio.google.com/apikey`.
-5. **Purge it from history** — deleting a file does not remove it from `git log`,
-   and a public repository publishes every commit:
-   ```bash
-   git filter-repo --path app/deployment_config.py --invert-paths
-   git push --force origin main
-   ```
-6. Only now, flip the repository to public.
+`app/__init__.py` reads them from the environment only. There is no fallback, so a
+missing variable produces a `degraded` health report naming the problem rather than
+a silent fall back to an ephemeral SQLite file that loses every write.
 
-Step 4 is the one that actually matters. Steps 3 and 5 without it only make the
-values harder to find, not harmless — they were in a private repository, which is
-not the same as never having existed.
+It was not always this way. The deployment's credentials were committed while the
+repository was private, to keep the demo zero-configuration, and they were removed
+in three steps rather than one: the values were copied into Vercel first and the
+handover verified through `/health` *before* anything was deleted, so production
+never went down; the database password was then rotated; and finally the literals
+were replaced across all 94 commits on every branch with `git filter-repo`, because
+deleting a file does not remove it from `git log` and a public repository publishes
+every commit.
 
-The role behind that connection string is scoped to the `aegis` schema and cannot
-read any other table in the database, so the blast radius is this application's own
-data.
+    python scripts/check_deployment.py
+
+asserts the end state, and fails if any credential ever reads `bundled fallback`
+again.
 
 ## Quick start
 
