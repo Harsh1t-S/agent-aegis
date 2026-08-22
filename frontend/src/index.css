@@ -1,0 +1,86 @@
+@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500;600&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: dark;
+}
+
+html {
+  scroll-behavior: smooth;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+body {
+  /* ink-950 and bone-50. Kept literal because this paints before Tailwind's
+     utilities apply, and a flash of the wrong ground is worse than a duplicated
+     hex. */
+  background-color: #0b0a09;
+  color: #f6f2ea;
+  font-family: 'Inter', system-ui, sans-serif;
+  overflow-x: hidden;
+}
+
+::selection {
+  background-color: rgba(91, 200, 232, 0.32);
+  color: #f6f2ea;
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+::-webkit-scrollbar-track {
+  background: #12100e;
+}
+::-webkit-scrollbar-thumb {
+  background: #3b342d;
+  border-radius: 0;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #453d35;
+}
+
+@layer components {
+  .massive {
+    @apply font-display font-bold tracking-ultraTight leading-[0.92];
+  }
+  .tech-label {
+    /* 11px at 0.25em tracking is already at the edge of legible; it must never
+       also be the dimmest colour on the page. */
+    @apply font-mono text-[11px] uppercase tracking-[0.2em] text-bone-400;
+  }
+  .grid-bg {
+    background-image:
+      linear-gradient(to right, rgba(69, 61, 53, 0.45) 1px, transparent 1px),
+      linear-gradient(to bottom, rgba(69, 61, 53, 0.45) 1px, transparent 1px);
+    background-size: 64px 64px;
+  }
+  .noise {
+    position: relative;
+  }
+  .noise::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    opacity: 0.04;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='3'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  }
+}
+
+/* Reduced motion */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
