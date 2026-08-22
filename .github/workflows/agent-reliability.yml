@@ -21,7 +21,11 @@ jobs:
           PYTHONPATH: .
         run: pytest -q tests --ignore=tests/browser
 
+      # Skipped unless the repository has AEGIS_API_URL and AEGIS_AGENT_ID set,
+      # so a fork or a fresh clone gets the unit tests above without a red X for
+      # a deployment it was never given access to.
       - name: Evaluate the agent and fail the build if reliability drops
+        if: vars.AEGIS_API_URL != '' && vars.AEGIS_AGENT_ID != ''
         run: |
           python -m app.ci \
             --base "${{ vars.AEGIS_API_URL }}" \
