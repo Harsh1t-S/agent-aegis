@@ -41,17 +41,37 @@ It is still a real problem and it is tracked as one. `app/__init__.py` imports t
 file inside a `try/except`, so it is one deletion away from being env-only, and no
 other module in the project contains a credential.
 
-**Before this repository is shared or made public:**
+**Before this repository is shared or made public.** In this order, which has no
+downtime — the file keeps serving the deployment until the platform is provably
+serving it instead:
 
-1. Rotate all three — `ALTER ROLE aegis_app PASSWORD '<new>';` in the Supabase SQL
-   editor, reissue at `console.groq.com/keys` and `aistudio.google.com/apikey`.
-2. Set the new values as environment variables on the `aegis-api` Vercel project.
-3. `rm app/deployment_config.py` and redeploy. `/health` should still report
-   `"database": "connected"`.
-4. Purge it from history — deleting the file does not remove it from `git log`:
-   `git filter-repo --path app/deployment_config.py --invert-paths`
+1. **Copy the three current values into Vercel** (`aegis-api` → Settings →
+   Environment Variables, Production): `DATABASE_URL`, `GROQ_API_KEY`,
+   `GOOGLE_API_KEY`. Redeploy. Nothing changes yet — `setdefault` means the
+   environment now wins and the file is dead weight.
+2. **Confirm the handover** before removing anything:
+   ```bash
+   python scripts/check_deployment.py
+   ```
+   Every credential must read `environment`. While any reads `bundled fallback`,
+   deleting the file takes production down.
+3. **Delete the file and redeploy**: `git rm app/deployment_config.py`. Re-run the
+   check — `database` must still be `connected`.
+4. **Rotate all three**, one at a time, updating the Vercel variable first and the
+   source second so there is no window where the deployment holds a dead value:
+   `ALTER ROLE aegis_app PASSWORD '<new>';` in the Supabase SQL editor,
+   then reissue at `console.groq.com/keys` and `aistudio.google.com/apikey`.
+5. **Purge it from history** — deleting a file does not remove it from `git log`,
+   and a public repository publishes every commit:
+   ```bash
+   git filter-repo --path app/deployment_config.py --invert-paths
+   git push --force origin main
+   ```
+6. Only now, flip the repository to public.
 
-Step 1 is what actually matters. Steps 3 and 4 without it only hide the values.
+Step 4 is the one that actually matters. Steps 3 and 5 without it only make the
+values harder to find, not harmless — they were in a private repository, which is
+not the same as never having existed.
 
 The role behind that connection string is scoped to the `aegis` schema and cannot
 read any other table in the database, so the blast radius is this application's own
