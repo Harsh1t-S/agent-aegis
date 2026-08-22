@@ -115,8 +115,14 @@ def health():
     # serverless filesystem accepts every write and loses it between invocations,
     # which looks healthy and is not — say so by name.
     ephemeral = (os.getenv("VERCEL") or os.getenv("AWS_LAMBDA_FUNCTION_NAME"))         and not os.getenv("DATABASE_URL")
+    from . import CONFIG_SOURCE
+
     body = {"evaluator": evaluator_stamp(), "generator": GENERATOR_VERSION,
-            "migrated": DB_READY.get("migrated") or []}
+            "migrated": DB_READY.get("migrated") or [],
+            # Names and provenance only, never values. Answers "can the committed
+            # fallback file be deleted without taking production down?" without
+            # anyone having to redeploy to find out.
+            "configSource": CONFIG_SOURCE}
     if ephemeral:
         return {**body, "status": "degraded", "database": "ephemeral",
                 "detail": "DATABASE_URL is not set, so this instance is writing to a "
