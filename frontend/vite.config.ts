@@ -2,7 +2,7 @@ import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 import { fileURLToPath, URL } from 'node:url';
 
-const API_ORIGIN = process.env.AEGIS_API_ORIGIN ?? 'https://aegis-api-harsh1t.vercel.app';
+const API_ORIGIN = process.env.AEGIS_API_ORIGIN ?? 'https://agent-aegis-api.vercel.app';
 
 // https://vitejs.dev/config/
 export default defineConfig({

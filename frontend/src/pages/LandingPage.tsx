@@ -202,15 +202,19 @@ export default function LandingPage() {
               ))}
             </div>
 
-            <motion.button
-              className="mt-8 w-full border border-signal-500/40 bg-signal-500/10 py-4 font-mono text-xs uppercase tracking-[0.2em] text-signal-400 transition-colors hover:bg-signal-500/20"
+            <motion.div
               initial={{ opacity: 0 }}
               whileInView={{ opacity: 1 }}
               viewport={{ once: true }}
               transition={{ delay: 1, duration: 0.6 }}
             >
-              INITIALIZE EVALUATION →
-            </motion.button>
+              <Link
+                to="/app/agents/new"
+                className="mt-8 block w-full border border-signal-500/40 bg-signal-500/10 py-4 text-center font-mono text-xs uppercase tracking-[0.2em] text-signal-400 transition-colors hover:bg-signal-500/20"
+              >
+                INITIALIZE EVALUATION →
+              </Link>
+            </motion.div>
           </div>
         </ScrollReveal>
       </section>
@@ -399,8 +403,11 @@ export default function LandingPage() {
 
       {/* FINAL CTA */}
       <section className="relative flex min-h-screen flex-col items-center justify-center px-6 text-center">
-        <div className="absolute inset-0 grid-bg opacity-20" />
-        <div className="absolute inset-0 bg-gradient-radial from-signal-500/10 via-transparent to-transparent" />
+        {/* Decorative only. Without pointer-events-none these absolutely
+            positioned layers paint above the static content below them and
+            swallow every click on the two calls to action. */}
+        <div className="pointer-events-none absolute inset-0 grid-bg opacity-20" />
+        <div className="pointer-events-none absolute inset-0 bg-gradient-radial from-signal-500/10 via-transparent to-transparent" />
 
         <MassiveHeading
           lines={["DON'T DEPLOY", 'HOPE.']}
@@ -414,7 +421,7 @@ export default function LandingPage() {
         />
 
         <motion.div
-          className="mt-16 flex flex-col items-center gap-6"
+          className="relative z-10 mt-16 flex flex-col items-center gap-6"
           initial={{ opacity: 0, y: 30 }}
           whileInView={{ opacity: 1, y: 0 }}
           viewport={{ once: true }}

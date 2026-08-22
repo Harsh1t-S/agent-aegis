@@ -4,7 +4,7 @@ The brief asks for a platform "functioning as continuous integration for
 autonomous agents". A dashboard is not that. CI is a command that a pipeline runs,
 which fails the build when quality drops — so this is that command:
 
-    python -m app.ci --base https://aegis-api-harsh1t.vercel.app \\
+    python -m app.ci --base https://agent-aegis-api.vercel.app \\
         --agent <agent-id> --min-score 80 --max-critical 0
 
 Exit codes: 0 all gates passed, 1 a gate failed, 2 the run could not complete.

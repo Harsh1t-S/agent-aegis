@@ -14,7 +14,7 @@ import time
 import httpx
 from playwright.sync_api import sync_playwright
 
-BASE = "https://aegis-dashboard-harsh1t.vercel.app"
+BASE = "https://agent-aegis.vercel.app"
 sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 findings: list[tuple[str, str, str]] = []   # severity, area, detail
 

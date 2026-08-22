@@ -4,7 +4,7 @@ The judging pass found the deployed demo was one build stale: fixes were in the
 code and the visible data still showed the behaviour they fixed. A fix nobody can
 see is worth nothing, so this exists to be re-run after every deploy.
 
-    python demo/seed_shopease.py --base https://aegis-api-harsh1t.vercel.app --purge
+    python demo/seed_shopease.py --base https://agent-aegis-api.vercel.app --purge
 
 It creates one realistic agent and walks it through three acts on the same scenario
 suite — a weak prompt, a hardened one, and a plausible regression that trades the
@@ -192,7 +192,7 @@ def guardrail(client: httpx.Client, evaluation_id: str, label: str) -> None:
 
 def main() -> int:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--base", default="https://aegis-api-harsh1t.vercel.app")
+    parser.add_argument("--base", default="https://agent-aegis-api.vercel.app")
     parser.add_argument("--per-category", type=int, default=6)
     parser.add_argument("--purge", action="store_true",
                         help="delete EVERY existing agent first")
