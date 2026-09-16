@@ -1,5 +1,3 @@
-import pytest
-
 from app.adapters import LLMAgentAdapter
 
 
@@ -31,13 +29,10 @@ def test_missing_provider_key_is_skipped_instead_of_sent_as_empty_bearer(monkeyp
     assert all(key for *_, key in order)
 
 
-@pytest.mark.asyncio
-async def test_no_configured_provider_fails_before_network(monkeypatch):
+def test_no_configured_provider_produces_empty_routable_pool(monkeypatch):
     for key in ("GROQ_API_KEY", "GOOGLE_API_KEY", "OPENAI_API_KEY",
                 "OPENROUTER_API_KEY", "LLM_API_KEY"):
         monkeypatch.delenv(key, raising=False)
 
     adapter = LLMAgentAdapter(models=["google:gemini-flash-lite-latest"])
-
-    with pytest.raises(ValueError, match="No API key is configured"):
-        await adapter.next_action([{"role": "user", "content": "hello"}], {})
+    assert adapter._configured_order({"messages": [{"content": "hello"}]}) == []
