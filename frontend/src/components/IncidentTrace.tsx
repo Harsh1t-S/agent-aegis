@@ -7,6 +7,8 @@ const kindLabel: Record<TraceEvent['kind'], string> = {
   'tool-call': 'TOOL CALL',
   'tool-response': 'TOOL RESULT',
   response: 'AGENT',
+  reasoning: 'AGENT',
+  failure: 'EXECUTION ERROR',
 };
 
 export function IncidentTrace({ events }: { events: TraceEvent[] }) {
@@ -44,7 +46,7 @@ export function IncidentTrace({ events }: { events: TraceEvent[] }) {
               >
                 {event.failed ? '✕' : '✓'}
               </span>
-              <div className="flex-1 pt-0.5">
+              <div className="min-w-0 flex-1 pt-0.5">
                 <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
                   <span className="font-mono text-[10px] text-bone-600">
                     {String(i + 1).padStart(2, '0')}

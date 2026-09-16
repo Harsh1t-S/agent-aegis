@@ -1,4 +1,17 @@
-import type { AgentStatus, Severity, TestStatus } from '@/types';
+import type { AgentStatus, Evaluation, EvaluationStatus, Severity, TestStatus } from '@/types';
+
+export function isEvaluationActive(status?: EvaluationStatus): boolean {
+  return status === 'running' || status === 'queued';
+}
+
+export function evaluationPath(evaluation: { id: string; status?: EvaluationStatus }): string {
+  return `/app/evaluations/${evaluation.id}${isEvaluationActive(evaluation.status) ? '/running' : ''}`;
+}
+
+export function evaluationVerdict(evaluation: Pick<Evaluation, 'status' | 'score'>): string {
+  if (isEvaluationActive(evaluation.status)) return 'In progress';
+  return evaluation.status === 'failed' ? 'Execution error' : verdictFor(evaluation.score);
+}
 
 /**
  * The bands the API publishes at /scoring.
@@ -81,6 +94,8 @@ export const agentStatusTone: Record<AgentStatus, string> = {
   'needs-attention': 'text-warn-400',
   critical: 'text-fault-400',
   'never-run': 'text-bone-400',
+  running: 'text-signal-400',
+  error: 'text-fault-400',
 };
 
 export const agentStatusLabel: Record<AgentStatus, string> = {
@@ -88,7 +103,13 @@ export const agentStatusLabel: Record<AgentStatus, string> = {
   'needs-attention': 'needs attention',
   critical: 'critical',
   'never-run': 'never run',
+  running: 'evaluation in progress',
+  error: 'execution error',
 };
+
+export function hasAgentScore(agent: { status: AgentStatus }): boolean {
+  return ['reliable', 'needs-attention', 'critical'].includes(agent.status);
+}
 
 /** Shown as `—` rather than `0` so an un-run agent cannot read as a zero score. */
 export function scoreOrDash(score: number, hasRun: boolean): string {

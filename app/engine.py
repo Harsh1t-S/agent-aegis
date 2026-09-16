@@ -127,13 +127,18 @@ async def run_test(run_id: str) -> None:
     began_run = time.monotonic()
     try:
         run = db.get(TestRun, run_id)
+        if run is None:
+            return
+        claimed = db.query(TestRun).filter_by(id=run_id, status="pending").update(
+            {"status": "running", "started_at": now()}, synchronize_session=False)
+        db.commit()
+        if not claimed:
+            return
+        db.refresh(run)
         version = db.get(AgentVersion, run.agent_version_id)
         scenario = db.get(Scenario, run.scenario_id)
         environment = db.get(MockEnvironment, scenario.mock_environment_id)
         agent = db.get(Agent, version.agent_id)
-        run.status, run.started_at = "running", now()
-        if COMMIT_EVERY_TRACE:
-            db.commit()
 
         # Scenario-scoped injection wins; the environment's is only a fallback for
         # suites built before payloads were per-scenario.
@@ -168,7 +173,12 @@ async def run_test(run_id: str) -> None:
                and time.monotonic() - began < MAX_WALL_SECONDS):
             turns += 1
             began_action = time.monotonic()
-            action = await adapter.next_action(messages, definitions)
+            remaining = MAX_WALL_SECONDS - (time.monotonic() - began)
+            try:
+                action = await asyncio.wait_for(adapter.next_action(messages, definitions),
+                                                timeout=max(0.001, remaining))
+            except TimeoutError as exc:
+                raise TimeoutError("The model exceeded the scenario time limit") from exc
             elapsed = int((time.monotonic() - began_action) * 1000)
 
             if action.get("type") == "final":
@@ -212,11 +222,17 @@ async def run_test(run_id: str) -> None:
                     .filter_by(test_run_id=run_id)
                     .order_by(ExecutionTrace.step_number).all())
 
-        schemas = {t["name"]: t for t in (agent.profile or {}).get("tools", [])} if agent else {}
+        from .introspect import profile_agent
+
+        snapshot = version.config_snapshot or {}
+        trusted = snapshot.get("system_prompt_at_version", agent.system_prompt or "")
+        tool_schema = snapshot.get("tool_schema_at_version", agent.tool_schema or {})
+        profile = profile_agent(trusted, tool_schema)
+        schemas = {t["name"]: t for t in profile.to_dict().get("tools", [])}
         findings = detect_all(traces, definitions,
                               scenario.expected_behavior, scenario.initial_prompt,
                               final_state, schemas,
-                              trusted_context=(agent.system_prompt or "") if agent else "")
+                              trusted_context=trusted)
         annotations = classify(findings)
         for annotation in annotations:
             db.add(FailureAnnotation(test_run_id=run_id, detector_version=DETECTOR_VERSION,
@@ -240,7 +256,12 @@ async def run_test(run_id: str) -> None:
         db.commit()
 
     except Exception as exc:
-        db.rollback()
+        # Preserve already recorded evidence when the provider fails mid-run.
+        # A database failure still requires a rollback before recording the error.
+        try:
+            db.commit()
+        except Exception:
+            db.rollback()
         run = db.get(TestRun, run_id)
         if run:
             run.status, run.completed_at = "error", now()
@@ -290,6 +311,8 @@ def drain_pending(db, version_id: str, budget: float | None = None) -> int:
     from .models import TestRun
 
     budget = RUN_BUDGET_SECONDS if budget is None else budget
+    version = db.get(AgentVersion, version_id)
+    remote = bool(version and (version.config_snapshot or {}).get("adapter") in {"llm", "http"})
     started = time.monotonic()
     completed = 0
     while time.monotonic() - started < budget:
@@ -301,4 +324,8 @@ def drain_pending(db, version_id: str, budget: float | None = None) -> int:
             break
         asyncio.run(run_test(pending.id))
         completed += 1
+        # One slow remote scenario may use the full 45s limit. Starting another
+        # would exceed Vercel's 60s invocation limit before progress can be saved.
+        if remote:
+            break
     return completed

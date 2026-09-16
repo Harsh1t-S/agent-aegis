@@ -37,7 +37,7 @@ export interface TraceEvent {
   label: string;
   detail?: string;
   timestamp: string;
-  kind: 'start' | 'tool-call' | 'tool-response' | 'response';
+  kind: 'start' | 'tool-call' | 'tool-response' | 'response' | 'reasoning' | 'failure';
   failed: boolean;
 }
 
@@ -54,8 +54,18 @@ export interface TestScenario {
   expectedBehavior: string;
   agentResponse: string;
   explanation?: string | null;
+  executionError?: boolean;
   recommendation?: string | null;
   trace: TraceEvent[];
+}
+
+export interface TestRunDetail {
+  canContinue?: boolean;
+  evaluationId: string;
+  agentName: string;
+  version: string;
+  status: 'pending' | 'running' | 'complete' | 'error';
+  test: TestScenario | null;
 }
 
 export interface ReliabilityDimensions {
@@ -85,6 +95,8 @@ export interface CategoryBreakdownItem {
 export interface AgentVersion {
   id: string;
   version: string;
+  status?: EvaluationStatus;
+  errors?: number;
   createdAt: string;
   reliability: number;
   passRate: number;
@@ -93,7 +105,7 @@ export interface AgentVersion {
   metrics: ReliabilityDimensions;
 }
 
-export type AgentStatus = 'never-run' | 'reliable' | 'needs-attention' | 'critical';
+export type AgentStatus = 'never-run' | 'reliable' | 'needs-attention' | 'critical' | 'running' | 'error';
 
 export interface Agent {
   id: string;
@@ -110,7 +122,7 @@ export interface Agent {
   versions: AgentVersion[];
 }
 
-export type EvaluationStatus = 'completed' | 'running' | 'queued';
+export type EvaluationStatus = 'completed' | 'running' | 'queued' | 'failed';
 
 export interface Evaluation {
   id: string;
@@ -123,6 +135,7 @@ export interface Evaluation {
   passed: number;
   failed: number;
   warnings: number;
+  errors?: number;
   status: EvaluationStatus;
   date: string;
   metrics: ReliabilityDimensions;
@@ -133,12 +146,14 @@ export interface Evaluation {
 }
 
 export interface EvaluationProgressPayload {
+  canContinue?: boolean;
   evaluationId: string;
   agentName: string;
   version: string;
   total: number;
   completed: number;
-  status: 'running' | 'completed';
+  status: 'running' | 'completed' | 'failed';
+  errors?: number;
   events: string[];
 }
 
@@ -271,6 +286,8 @@ export interface GuardrailTool {
 }
 
 export interface GuardrailReport {
+  canContinue?: boolean;
+  pending?: number;
   ran?: boolean;
   guardrailVersion?: string;
   /** False when a rung did not run; the resistance score is withheld until true. */

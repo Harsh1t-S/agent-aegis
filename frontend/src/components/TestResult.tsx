@@ -7,7 +7,9 @@ import { ChevronRight } from 'lucide-react';
 
 export function TestResult({ test, evaluationId }: { test: TestScenario; evaluationId: string }) {
   const [open, setOpen] = useState(false);
-  const cfg = testStatusTone[test.status];
+  const cfg = test.executionError
+    ? { ...testStatusTone.failed, label: 'EXECUTION ERROR' }
+    : testStatusTone[test.status];
 
   return (
     <div className="border border-bone-600/20 bg-ink-850/40">

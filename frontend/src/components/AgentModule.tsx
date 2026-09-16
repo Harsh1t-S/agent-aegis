@@ -1,12 +1,12 @@
 import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import type { Agent } from '@/types';
-import { agentStatusLabel, agentStatusTone, formatDate, scoreOrDash } from '@/lib/format';
+import { agentStatusLabel, agentStatusTone, formatDate, hasAgentScore, scoreOrDash } from '@/lib/format';
 import { ArrowRight } from 'lucide-react';
 
 export function AgentModule({ agent, index }: { agent: Agent; index: number }) {
   const latest = agent.versions[agent.versions.length - 1];
-  const hasRun = agent.status !== 'never-run' && Boolean(latest);
+  const hasRun = hasAgentScore(agent) && Boolean(latest);
   const criticalFailures = latest
     ? Object.entries(latest.failures ?? {})
         .filter(([category]) => category === 'Unsafe Action' || category === 'Hallucination')
@@ -67,7 +67,7 @@ export function AgentModule({ agent, index }: { agent: Agent; index: number }) {
           <span className="tech-label min-w-0 break-words text-bone-600">
             {hasRun
               ? `${criticalFailures} critical-class findings · ${formatDate(agent.lastEvaluated)}`
-              : `${agent.tools.length} tools · not yet evaluated`}
+              : `${agent.tools.length} tools · ${agentStatusLabel[agent.status]}`}
           </span>
           <span className="flex items-center gap-1 font-mono text-[11px] uppercase tracking-wider text-signal-400 opacity-0 transition-opacity group-hover:opacity-100">
             VIEW <ArrowRight className="h-3 w-3" />

@@ -84,15 +84,12 @@ export function parseToolSchema(input: string): ParseResult {
 
   // Unwrap the common envelopes: {tools:[...]}, {functions:[...]}, {result:{tools:[...]}}
   let body = parsed;
-  for (const key of ["tools", "functions", "result"]) {
-    if (
-      body &&
-      typeof body === "object" &&
-      !Array.isArray(body) &&
-      key in (body as Record<string, unknown>)
-    ) {
-      body = (body as Record<string, unknown>)[key];
-    }
+  for (let depth = 0; depth < 5; depth += 1) {
+    if (!body || typeof body !== 'object' || Array.isArray(body)) break;
+    const record = body as Record<string, unknown>;
+    const key = ['tools', 'functions', 'result'].find((name) => name in record);
+    if (!key) break;
+    body = record[key];
   }
 
   let entries: unknown[];

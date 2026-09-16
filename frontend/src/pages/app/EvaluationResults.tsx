@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { useParams, Link } from 'react-router-dom';
+import { useParams, Link, Navigate } from 'react-router-dom';
 import { AppNavigation } from '@/components/AppNavigation';
 import { MetricLine } from '@/components/MetricLine';
 import { FailureReveal } from '@/components/FailureReveal';
@@ -14,7 +14,7 @@ import { ErrorState, LoadingState } from '@/components/AsyncState';
 import { useResource } from '@/hooks/useResource';
 import { METRIC_COLORS } from '@/lib/palette';
 import { api, ApiError } from '@/lib/api';
-import { deltaTone, formatDate, signed, verdictFrom } from '@/lib/format';
+import { deltaTone, evaluationPath, formatDate, isEvaluationActive, signed, verdictFrom } from '@/lib/format';
 import type { TestStatus } from '@/types';
 import { ArrowRight } from 'lucide-react';
 
@@ -31,14 +31,16 @@ export default function EvaluationResults() {
   const scoring = useResource(() => api.scoring(), []);
   const [filter, setFilter] = useState<Filter>('all');
   const [ladderRunning, setLadderRunning] = useState(false);
+  const [ladderStarting, setLadderStarting] = useState(false);
 
-  const ciGate = useResource(() => api.ciGate(id as string), [id], { enabled: Boolean(id) });
+  const reportReady = Boolean(evaluation) && !isEvaluationActive(evaluation?.status);
+  const ciGate = useResource(() => api.ciGate(id as string), [id], { enabled: Boolean(id) && reportReady });
   // Polls only while probes are in flight; the ladder is queued server-side and
   // rungs land one at a time.
   const guardrail = useResource(
     () => api.guardrail(id as string),
     [id],
-    { enabled: Boolean(id), pollMs: ladderRunning ? 2000 : undefined },
+    { enabled: Boolean(id) && reportReady, pollMs: ladderRunning ? 2000 : undefined },
   );
 
   // Stop polling when the ladder reports every expected rung, not on a timer.
@@ -46,17 +48,23 @@ export default function EvaluationResults() {
   // report showing a partial result as though it were the final one.
   const ladderComplete =
     ladderRunning &&
-    Boolean(guardrail.data?.rungsExpected) &&
-    (guardrail.data?.rungsRun ?? 0) >= (guardrail.data?.rungsExpected ?? 0);
+    (guardrail.data?.pending === 0 || (
+      Boolean(guardrail.data?.rungsExpected) &&
+      (guardrail.data?.rungsRun ?? 0) >= (guardrail.data?.rungsExpected ?? 0)));
   useEffect(() => {
     if (ladderComplete) setLadderRunning(false);
   }, [ladderComplete]);
+  useEffect(() => {
+    if (guardrail.data?.canContinue === false) setLadderRunning(false);
+    else if ((guardrail.data?.pending ?? 0) > 0) setLadderRunning(true);
+  }, [guardrail.data?.pending, guardrail.data?.canContinue]);
 
   const runLadder = async () => {
     if (!id) return;
-    setLadderRunning(true);
+    setLadderStarting(true);
     try {
       const queued = await api.startGuardrail(id);
+      guardrail.reload();
       toast.success(
         `Queued ${queued.queued} pressure probe${queued.queued === 1 ? '' : 's'}`,
         'Rungs appear as each one completes.',
@@ -70,6 +78,8 @@ export default function EvaluationResults() {
         'Ladder not started',
         err instanceof ApiError ? err.message : 'The guardrail probes were not queued.',
       );
+    } finally {
+      setLadderStarting(false);
     }
   };
 
@@ -111,6 +121,8 @@ export default function EvaluationResults() {
       </div>
     );
   }
+
+  if (isEvaluationActive(evaluation.status)) return <Navigate to={evaluationPath(evaluation)} replace />;
 
   const counts: Record<Filter, number> = {
     all: evaluation.tests.length,
@@ -170,13 +182,19 @@ export default function EvaluationResults() {
           <span>{formatDate(evaluation.date)}</span>
         </div>
 
+        {(evaluation.errors ?? 0) > 0 && (
+          <div role="alert" className="mt-6 border border-fault-500/40 bg-fault-500/10 p-4 text-sm text-bone-200">
+            {evaluation.errors} scenario execution{evaluation.errors === 1 ? '' : 's'} failed.
+            {' '}The score covers completed scenarios only. Review the error traces and rerun them; this evaluation cannot pass CI.
+          </div>
+        )}
         <div className="mt-6 grid gap-8 lg:grid-cols-[1fr_auto] lg:items-center">
           <div>
             <SystemLabel>RELIABILITY REPORT</SystemLabel>
             <div className="mt-4 flex flex-wrap items-center gap-x-6 gap-y-4">
               <div className="flex items-baseline gap-2">
                 <span className="massive text-5xl text-bone-50 sm:text-6xl md:text-7xl">
-                  {evaluation.score.toFixed(1)}
+                  {evaluation.tests.length === evaluation.errors ? '—' : evaluation.score.toFixed(1)}
                 </span>
                 <span className="font-mono text-lg text-bone-500 sm:text-xl">/100</span>
               </div>
@@ -190,7 +208,7 @@ export default function EvaluationResults() {
               <div className="border-l border-bone-600/30 pl-6">
                 <SystemLabel className="text-bone-600">VERDICT</SystemLabel>
                 <div className="mt-1 font-mono text-sm text-bone-200">
-                  {verdictFrom(evaluation.score, scoring.data?.verdictBands)}
+                  {evaluation.status === 'failed' ? 'EXECUTION ERROR' : verdictFrom(evaluation.score, scoring.data?.verdictBands)}
                 </div>
               </div>
               <div className="border-l border-bone-600/30 pl-6">
@@ -318,7 +336,7 @@ export default function EvaluationResults() {
           <GuardrailLadder
             report={guardrail.data}
             error={guardrail.error}
-            running={ladderRunning}
+            running={ladderRunning || ladderStarting || guardrail.loading}
             onRun={runLadder}
           />
         </ScrollReveal>

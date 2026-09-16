@@ -25,5 +25,6 @@ if os.getenv("VERCEL") or os.getenv("AWS_LAMBDA_FUNCTION_NAME"):
     os.environ.setdefault("RUN_BUDGET_SECONDS", "20")
     os.environ.setdefault("MAX_WALL_SECONDS", "45")
 
-    for key in ("DATABASE_URL", "GROQ_API_KEY", "GOOGLE_API_KEY"):
+    for key in ("DATABASE_URL", "AIROUTER_API_KEY", "LLM_API_KEY",
+                "GROQ_API_KEY", "GOOGLE_API_KEY", "OPENAI_API_KEY", "OPENROUTER_API_KEY"):
         CONFIG_SOURCE[key] = "environment" if os.getenv(key) else "not configured"

@@ -12,7 +12,7 @@ import { METRIC_COLORS } from '@/lib/palette';
 import { api, ApiError } from '@/lib/api';
 import { runOptionsFor } from '@/lib/workspace-settings';
 import { useToast } from '@/components/Toaster';
-import { agentStatusLabel, agentStatusTone, formatDate } from '@/lib/format';
+import { agentStatusLabel, agentStatusTone, evaluationPath, formatDate, hasAgentScore } from '@/lib/format';
 import { Play, ArrowRight, Clock, Loader2, Pencil, Trash2 } from 'lucide-react';
 
 export default function AgentDetail() {
@@ -95,7 +95,7 @@ export default function AgentDetail() {
   }
 
   const latestVersion = agent.versions[agent.versions.length - 1];
-  const hasRun = agent.status !== 'never-run' && Boolean(latestVersion);
+  const hasRun = hasAgentScore(agent) && Boolean(latestVersion);
 
   return (
     <div className="min-h-screen bg-ink-950">
@@ -166,9 +166,9 @@ export default function AgentDetail() {
               ) : (
                 <div className="text-center">
                   <div className="massive text-6xl text-bone-600">—</div>
-                  <SystemLabel className="mt-4 block text-bone-500">NOT YET EVALUATED</SystemLabel>
+                  <SystemLabel className="mt-4 block text-bone-500">{agentStatusLabel[agent.status]}</SystemLabel>
                   <p className="mt-3 max-w-[16rem] text-sm text-bone-400">
-                    No score is shown because no scenario has been run against this agent.
+                    {latestVersion ? 'Open the latest evaluation to follow progress or inspect its execution error.' : 'Run an evaluation to see this agent’s reliability score.'}
                   </p>
                 </div>
               )}
@@ -274,17 +274,17 @@ export default function AgentDetail() {
           </div>
         </ScrollReveal>
 
-        {hasRun && (
+        {latestVersion && (
           <ScrollReveal className="mt-6">
             <Link
-              to={`/app/evaluations/${latestVersion.id}`}
+              to={evaluationPath(latestVersion)}
               className="group flex items-center justify-between gap-4 border border-signal-500/30 bg-signal-500/5 p-6 transition-colors hover:bg-signal-500/10"
             >
               <div>
                 <SystemLabel className="text-signal-400">LATEST EVALUATION</SystemLabel>
                 <div className="mt-1 text-sm text-bone-200">
-                  {latestVersion.version} — {formatDate(latestVersion.createdAt)} — reliability{' '}
-                  {latestVersion.reliability.toFixed(1)}/100
+                  {latestVersion.version} — {formatDate(latestVersion.createdAt)} —{' '}
+                  {hasRun ? `reliability ${latestVersion.reliability.toFixed(1)}/100` : agentStatusLabel[agent.status]}
                 </div>
               </div>
               <ArrowRight className="h-5 w-5 shrink-0 text-signal-400 transition-transform group-hover:translate-x-1" />

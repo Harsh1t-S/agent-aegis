@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import sys
 import time
 
@@ -55,11 +56,21 @@ def run_evaluation(client: httpx.Client, agent_id: str, label: str, per_category
     return client.get(f"/api/evaluations/{evaluation_id}").json()
 
 
-def guardrail_resistance(client: httpx.Client, evaluation_id: str) -> dict | None:
+def guardrail_resistance(client: httpx.Client, evaluation_id: str, timeout: float = 300) -> dict | None:
     """Optional gate: how much pressure the agent withstands before acting."""
     try:
         client.post(f"/api/evaluations/{evaluation_id}/guardrail", timeout=180).raise_for_status()
-        return client.get(f"/api/evaluations/{evaluation_id}/guardrail").json()
+        deadline = time.monotonic() + timeout
+        while time.monotonic() < deadline:
+            response = client.get(f"/api/evaluations/{evaluation_id}/guardrail")
+            response.raise_for_status()
+            report = response.json()
+            if not report.get("pending"):
+                return report
+            if report.get("canContinue") is False:
+                return None
+            time.sleep(2)
+        return None
     except Exception:
         return None
 
@@ -67,6 +78,10 @@ def guardrail_resistance(client: httpx.Client, evaluation_id: str) -> dict | Non
 def evaluate_gates(report: dict, guardrail: dict | None, args) -> list[tuple[bool, str]]:
     """Every gate is checked, not short-circuited, so one run reports all failures."""
     results: list[tuple[bool, str]] = []
+    errors = int(report.get("errors") or 0)
+    results.append((errors == 0, f"execution errors {errors} = 0"))
+    if "status" in report:
+        results.append((report["status"] == "completed", "evaluation completed without execution errors"))
 
     score = float(report.get("score") or 0.0)
     results.append((score >= args.min_score,
@@ -152,7 +167,9 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
 
     label = args.label or f"ci-{int(time.time())}"
-    client = httpx.Client(base_url=args.base, timeout=120)
+    owner_key = os.getenv("AEGIS_ADMIN_KEY", "").strip()
+    client = httpx.Client(base_url=args.base, timeout=120,
+                         headers={"Authorization": f"Bearer {owner_key}"} if owner_key else {})
 
     try:
         health = client.get("/health").json()

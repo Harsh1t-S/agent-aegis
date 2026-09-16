@@ -8,7 +8,7 @@ import { EmptyState, ErrorState, LoadingState } from '@/components/AsyncState';
 import { useResource } from '@/hooks/useResource';
 import { METRIC_COLORS } from '@/lib/palette';
 import { api } from '@/lib/api';
-import { deltaTone, formatDate, signed } from '@/lib/format';
+import { deltaTone, evaluationPath, evaluationVerdict, formatDate, hasAgentScore, signed } from '@/lib/format';
 import { Plus, ArrowRight, TrendingUp, AlertTriangle, Activity, Bot } from 'lucide-react';
 
 export default function AppHome() {
@@ -57,7 +57,7 @@ export default function AppHome() {
         {
           icon: TrendingUp,
           label: 'AVG RELIABILITY',
-          value: summary.averageReliability.toFixed(1),
+          value: summary.evaluations ? summary.averageReliability.toFixed(1) : '—',
           color: 'text-flux-400',
           note: 'mean across evaluations',
         },
@@ -122,6 +122,7 @@ export default function AppHome() {
                       </div>
 
                       <div className="mt-8 flex min-w-0 flex-1 flex-col items-center justify-center">
+                      {latest.status === 'completed' ? <>
                       <ReliabilityScore score={latest.score} size="xl" />
 
                       <div className="mt-8 grid w-full min-w-0 max-w-md gap-4">
@@ -131,12 +132,17 @@ export default function AppHome() {
                         <MetricLine label="CONSISTENCY" value={latest.metrics.consistency} color={METRIC_COLORS.consistency} delay={0.1} />
                         <MetricLine label="GROUNDEDNESS" value={latest.metrics.groundedness} color={METRIC_COLORS.groundedness} delay={0.15} />
                       </div>
+                      </> : <div className="text-center">
+                        <div className="massive text-6xl text-bone-600">—</div>
+                        <p className="mt-4 font-mono text-sm text-warn-400">{evaluationVerdict(latest)}</p>
+                        <p className="mt-2 text-sm text-bone-400">Open the evaluation to follow its progress or inspect the error.</p>
+                      </div>}
 
                       <Link
-                        to={`/app/evaluations/${latest.id}`}
+                        to={evaluationPath(latest)}
                         className="mt-8 flex min-h-11 items-center gap-2 font-mono text-[11px] uppercase tracking-wider text-signal-400 hover:text-signal-300"
                       >
-                        OPEN FULL REPORT <ArrowRight className="h-3 w-3" />
+                        OPEN EVALUATION <ArrowRight className="h-3 w-3" />
                       </Link>
                       </div>
                     </>
@@ -199,7 +205,7 @@ export default function AppHome() {
                   <ScrollReveal delay={0.32}>
                     <div className="border border-bone-600/20 bg-ink-850/40 p-5">
                       <SystemLabel>VERDICT</SystemLabel>
-                      <div className="mt-2 font-mono text-lg text-bone-50">{summary.verdict}</div>
+                      <div className="mt-2 font-mono text-lg text-bone-50">{summary.evaluations ? summary.verdict : 'No scored evaluations'}</div>
                       <div className={`mt-1 font-mono text-xs ${deltaTone(summary.reliabilityDelta)}`}>
                         {signed(summary.reliabilityDelta)} since the previous evaluation
                       </div>
@@ -237,7 +243,7 @@ export default function AppHome() {
                         </div>
                         <div className="shrink-0 text-right">
                           <div className="font-mono text-xl font-bold text-bone-50 sm:text-2xl">
-                            {agent.status === 'never-run' ? '—' : agent.reliability.toFixed(1)}
+                            {hasAgentScore(agent) ? agent.reliability.toFixed(1) : '—'}
                           </div>
                           <div className="font-mono text-[10px] text-bone-500">{agent.latestVersion}</div>
                         </div>

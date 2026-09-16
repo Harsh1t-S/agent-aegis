@@ -18,15 +18,11 @@ export default function TestTrace() {
   const toast = useToast();
   const [copied, setCopied] = useState(false);
   const [replaying, setReplaying] = useState(false);
-  // Set the moment a re-run is queued. The replacement run may not have finished
-  // by the time we land on its id, so the page waits for it instead of calling it
-  // missing — which is what a plain reload did.
-  const [awaitingRerun, setAwaitingRerun] = useState(false);
-
   const { data: evaluation, error, loading, reload } = useResource(
-    () => api.evaluation(evaluationId as string),
-    [evaluationId],
-    { enabled: Boolean(evaluationId), pollMs: awaitingRerun ? 2000 : undefined },
+    () => api.testRun(evaluationId as string, testId as string),
+    [evaluationId, testId],
+    { enabled: Boolean(evaluationId && testId), pollMs: 2000,
+      pollWhile: (run) => run.canContinue !== false && (run.status === 'pending' || run.status === 'running') },
   );
 
   if (loading) {
@@ -38,19 +34,16 @@ export default function TestTrace() {
     );
   }
 
-  const test = evaluation?.tests.find((t) => t.id === testId);
-
-  // Stop polling as soon as the replacement run appears in the report.
-  if (awaitingRerun && test) setAwaitingRerun(false);
-
-  if (!test && awaitingRerun && !error) {
+  const test = evaluation?.test;
+  if (!test && evaluation && !error) {
     return (
       <div className="min-h-screen bg-ink-950">
         <AppNavigation />
-        <LoadingState label="RE-RUN IN PROGRESS" />
+        <LoadingState label="SCENARIO IN PROGRESS" />
         <p className="px-6 text-center font-mono text-[11px] text-bone-500">
-          The scenario is executing again. This page switches to the new trace as soon as
-          it completes.
+          {evaluation.canContinue === false ? <>
+            Owner access is required to continue this scenario. <Link to="/app/settings" className="underline">Unlock actions in Settings</Link>, then reopen this trace.
+          </> : 'The scenario is executing. This page switches to the saved trace as soon as it completes.'}
         </p>
       </div>
     );
@@ -97,13 +90,8 @@ export default function TestTrace() {
     setReplaying(true);
     try {
       const queued = await api.rerunTest(test.id);
-      // The re-run supersedes this one: the report keeps only the latest run per
-      // scenario, so staying on the old id would leave the page insisting the run
-      // it just re-ran is "not part of the evaluation".
-      setAwaitingRerun(true);
       toast.success('Re-run queued', 'Following the replacement run.');
       navigate(`/app/evaluations/${evaluationId}/tests/${queued.runId}`, { replace: true });
-      reload();
     } catch (err) {
       toast.error(
         'Could not re-run',
@@ -139,7 +127,7 @@ export default function TestTrace() {
               <span
                 className={`border px-2 py-0.5 font-mono text-[10px] uppercase tracking-wider ${cfg.color} border-current/40`}
               >
-                {cfg.label}
+                {test.executionError ? 'EXECUTION ERROR' : cfg.label}
               </span>
               {test.severity && (
                 <span

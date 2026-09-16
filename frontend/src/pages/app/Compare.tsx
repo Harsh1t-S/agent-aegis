@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { AppNavigation } from '@/components/AppNavigation';
 import { VersionBattle } from '@/components/VersionBattle';
@@ -13,7 +13,9 @@ export default function Compare() {
   const agents = useResource(() => api.agents(), []);
 
   const comparable = useMemo(
-    () => (agents.data ?? []).filter((a) => a.versions.length > 1),
+    () => (agents.data ?? []).map((a) => ({ ...a,
+      versions: a.versions.filter((v) => !v.status || v.status === 'completed'),
+    })).filter((a) => a.versions.length > 1),
     [agents.data],
   );
 
@@ -21,19 +23,21 @@ export default function Compare() {
   const agent =
     comparable.find((a) => a.id === requested) ?? comparable[0];
 
-  const [leftId, setLeftId] = useState<string | undefined>();
-  const [rightId, setRightId] = useState<string | undefined>();
+  const requestedLeft = agent?.versions.find((v) => v.id === params.get('baseline'));
+  const right = agent?.versions.find((v) => v.id === params.get('target') && v.id !== requestedLeft?.id)
+    ?? agent?.versions.filter((v) => v.id !== requestedLeft?.id).slice(-1)[0];
+  const left = requestedLeft ?? agent?.versions.filter((v) => v.id !== right?.id).slice(-1)[0];
+  const leftId = left?.id;
+  const rightId = right?.id;
 
-  // Default to the two most recent versions whenever the selected agent changes.
+  // Include the resolved defaults too: opening a shared URL next week should
+  // still compare this pair after more versions have been evaluated.
   useEffect(() => {
-    if (!agent) return;
-    const versions = agent.versions;
-    setLeftId(versions[versions.length - 2].id);
-    setRightId(versions[versions.length - 1].id);
-  }, [agent?.id]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  const left = agent?.versions.find((v) => v.id === leftId);
-  const right = agent?.versions.find((v) => v.id === rightId);
+    if (!agent || !leftId || !rightId) return;
+    if (params.get('agent') !== agent.id || params.get('baseline') !== leftId || params.get('target') !== rightId) {
+      setParams({ agent: agent.id, baseline: leftId, target: rightId }, { replace: true });
+    }
+  }, [agent, leftId, rightId, params, setParams]);
 
   const diff = useResource(
     () => api.compare(leftId as string, rightId as string),
@@ -96,7 +100,7 @@ export default function Compare() {
                       <button
                         key={v.id}
                         type="button"
-                        onClick={() => setLeftId(v.id)}
+                        onClick={() => setParams({ agent: agent.id, baseline: v.id, target: right.id })}
                         disabled={v.id === rightId}
                         className={`flex min-h-11 items-center border px-3 font-mono text-xs uppercase tracking-wider transition-colors disabled:opacity-30 ${
                           v.id === leftId
@@ -116,7 +120,7 @@ export default function Compare() {
                       <button
                         key={v.id}
                         type="button"
-                        onClick={() => setRightId(v.id)}
+                        onClick={() => setParams({ agent: agent.id, baseline: left.id, target: v.id })}
                         disabled={v.id === leftId}
                         className={`flex min-h-11 items-center border px-3 font-mono text-xs uppercase tracking-wider transition-colors disabled:opacity-30 ${
                           v.id === rightId

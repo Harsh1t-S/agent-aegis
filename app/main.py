@@ -1,14 +1,16 @@
 from contextlib import asynccontextmanager
-from fastapi import BackgroundTasks, Depends, FastAPI, HTTPException
+from fastapi import BackgroundTasks, Depends, FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from .classifier import TAXONOMY, classify
+from .access import access_state
 from .database import Base, engine, ensure_columns, get_db
 from .detectors import DETECTOR_VERSION, detect_all
 from .frontend_api import router as frontend_router
-from .engine import dispatch, run_test
+from .engine import SYNC_RUNS, dispatch, drain_pending, run_test
 from .guardrail import analyse as guardrail_analyse
 from .guardrail import GUARDRAIL_VERSION, build_ladder
 from .scoring import score_run
@@ -47,6 +49,27 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(title="Aegis — Agent Evaluation & Reliability API", version="1.0.0",
               lifespan=lifespan)
+
+
+@app.middleware("http")
+async def protect_mutations(request: Request, call_next):
+    # Cover both the dashboard API and legacy routes. CORS is not authorization.
+    public_read = request.url.path.startswith("/api/") or request.url.path in {
+        "/", "/health", "/taxonomy", "/docs", "/docs/oauth2-redirect", "/redoc", "/openapi.json"}
+    # Legacy agent/version endpoints expose raw configuration, which can contain
+    # HTTP credentials. Public readers use the curated dashboard report shapes.
+    if request.method != "OPTIONS" and (request.method not in {"GET", "HEAD"} or not public_read):
+        access = access_state(request)
+        if not access["authorized"]:
+            detail = ("Owner access is not configured. Set AEGIS_ADMIN_KEY on the backend."
+                      if not access["configured"] else
+                      "Owner access required. Unlock actions in Settings with your owner access key.")
+            return JSONResponse({"detail": detail}, status_code=503 if not access["configured"] else 401,
+                                headers={"Cache-Control": "no-store"})
+    response = await call_next(request)
+    if request.url.path.startswith("/api/"):
+        response.headers["Cache-Control"] = "no-store"
+    return response
 
 # In production the dashboard reaches the API through a same-origin /api rewrite,
 # so CORS only matters for local development and preview deploys. Locked down to
@@ -123,6 +146,10 @@ def health():
             # fallback file be deleted without taking production down?" without
             # anyone having to redeploy to find out.
             "configSource": CONFIG_SOURCE}
+    from .adapters import LLMAgentAdapter
+
+    configured = LLMAgentAdapter()._configured_order({})
+    body["llm"] = {"models": LLMAgentAdapter.default_pool(), "configured": bool(configured)}
     if ephemeral:
         return {**body, "status": "degraded", "database": "ephemeral",
                 "detail": "DATABASE_URL is not set, so this instance is writing to a "
@@ -288,8 +315,12 @@ def start_runs(agent_id: str, version_id: str, body: RunIn, background: Backgrou
         require(db, Scenario, scenario_id)
         run = TestRun(agent_version_id=version_id, scenario_id=scenario_id, seed=body.seed)
         db.add(run); db.commit(); db.refresh(run)
-        dispatch(background, run.id)
         runs.append(view(run))
+    if SYNC_RUNS:
+        drain_pending(db, version_id)
+    else:
+        for row in runs:
+            dispatch(background, row["id"])
     return {"runs": runs, "queued": len(runs)}
 
 
@@ -361,6 +392,10 @@ def reanalyze(run_id: str, db: Session = Depends(get_db)):
     trusted = snapshot.get("system_prompt_at_version")
     if trusted is None:
         trusted = (agent.system_prompt if agent else "") or ""
+    schema = snapshot.get("tool_schema_at_version")
+    if schema is None:
+        schema = (agent.tool_schema if agent else {}) or {}
+    schemas = {t["name"]: t for t in profile_agent(trusted, schema).to_dict().get("tools", [])}
     findings = detect_all(traces, environment.tool_definitions if environment else {},
                           scenario.expected_behavior if scenario else {},
                           scenario.initial_prompt if scenario else "",
@@ -412,7 +447,9 @@ def guardrail_test(agent_id: str, version_id: str, background: BackgroundTasks,
     if version.agent_id != agent_id:
         raise HTTPException(400, "Version does not belong to this agent")
 
-    profile = profile_agent(agent.system_prompt, agent.tool_schema)
+    from .frontend_api import _profile_at_version
+
+    profile = _profile_at_version(version, agent)
     if not profile.destructive_tools:
         raise HTTPException(400, "Agent exposes no irreversible tools to probe")
 
@@ -434,8 +471,12 @@ def guardrail_test(agent_id: str, version_id: str, background: BackgroundTasks,
         db.add(scenario); db.commit(); db.refresh(scenario)
         run = TestRun(agent_version_id=version_id, scenario_id=scenario.id, seed=seed)
         db.add(run); db.commit(); db.refresh(run)
-        dispatch(background, run.id)
         queued.append(run.id)
+    if SYNC_RUNS:
+        drain_pending(db, version_id)
+    else:
+        for run_id in queued:
+            dispatch(background, run_id)
     return {"queued": len(queued), "run_ids": queued, "version_id": version_id}
 
 

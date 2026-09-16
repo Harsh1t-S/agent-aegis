@@ -11,15 +11,18 @@ snake_case, and any UI churn is contained to this file.
 """
 from __future__ import annotations
 
+import asyncio
 import json
 from datetime import datetime
+from typing import Annotated, Literal
 
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Response
-from pydantic import BaseModel, Field
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request, Response
+from pydantic import AfterValidator, BaseModel, Field, StringConstraints
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from .classifier import TAXONOMY
+from .access import access_state, can_write
 from .database import get_db
 from .engine import SYNC_RUNS, dispatch, drain_pending, run_test
 from .introspect import profile_agent
@@ -31,6 +34,11 @@ from .scenarios import GENERATOR_VERSION, environment_for, generate
 from .scoring import VERDICT_BANDS, WEIGHTS, ceiling_for, verdict
 
 router = APIRouter(prefix="/api", tags=["frontend"])
+
+
+@router.get("/access")
+def owner_access(request: Request):
+    return access_state(request)
 
 # The UI's RiskLevel has no "critical" — clamp so a delete tool still reads as the
 # most dangerous thing on screen rather than falling through to a default.
@@ -44,8 +52,11 @@ STEP_TO_UI = {"agent_message": "reasoning", "tool_call": "tool-call",
 CATEGORY_LABEL = {key: entry["label"] for key, entry in TAXONOMY.items()}
 
 
+AgentName = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=200)]
+
+
 class ToolIn(BaseModel):
-    name: str
+    name: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1)]
     description: str = ""
     risk: str | None = None
     # The importer parses `parameters` / `input_schema` off a real tool schema.
@@ -54,27 +65,39 @@ class ToolIn(BaseModel):
     parameters: dict | None = None
 
 
+def _unique_tools(tools: list[ToolIn]) -> list[ToolIn]:
+    names = set()
+    for tool in tools:
+        if tool.name in names:
+            raise ValueError(f'Duplicate tool name "{tool.name}". Give each tool a unique name.')
+        names.add(tool.name)
+    return tools
+
+
+ToolList = Annotated[list[ToolIn], AfterValidator(_unique_tools)]
+
+
 class AgentPatch(BaseModel):
-    name: str | None = None
+    name: AgentName | None = None
     description: str | None = None
     systemPrompt: str | None = None
-    tools: list["ToolIn"] | None = None
+    tools: ToolList | None = None
 
 
 class AgentIn(BaseModel):
-    name: str
+    name: AgentName
     description: str = ""
     systemPrompt: str = ""
-    tools: list[ToolIn] = Field(default_factory=list)
+    tools: ToolList = Field(default_factory=list)
 
 
 class EvaluateIn(BaseModel):
-    versionLabel: str = "v1"
+    versionLabel: str = Field(default="v1", min_length=1, max_length=80, pattern=r"\S")
     traits: list[str] = Field(default_factory=lambda: ["complies_with_destructive",
                                                        "claims_success"])
-    perCategory: int = 3
+    perCategory: int = Field(default=3, ge=1, le=10)
     seed: int = 42
-    adapter: str = "behavioral"
+    adapter: Literal["behavioral", "llm", "http"] = "behavioral"
     url: str | None = None
     model: str | None = None
     models: list[str] | None = None
@@ -180,12 +203,12 @@ def _test_result(run: TestRun, scenario: Scenario, traces: list, failures: list)
                    str(t.payload.get("content")
                        or t.payload.get("arguments")
                        or t.payload.get("result")
-                       or t.payload.get("reason", ""))[:400]),
+                       or t.payload.get("reason", ""))),
         "timestamp": _iso(t.timestamp),
         "kind": ("start" if t.payload.get("role") == "user"
                  else "response" if t.payload.get("final")
                  else STEP_TO_UI.get(t.step_type, "reasoning")),
-        "failed": t.step_number in {s for f in failures
+        "failed": t.step_type == "error" or t.step_number in {s for f in failures
                                     for s in (f.evidence or {}).get("steps", [])},
     } for t in traces]
 
@@ -195,14 +218,18 @@ def _test_result(run: TestRun, scenario: Scenario, traces: list, failures: list)
         "title": scenario.name if scenario else "(deleted scenario)",
         "category": scenario.category if scenario else "unknown",
         "status": OUTCOME_TO_UI.get(run.outcome or "", "failed"),
+        "executionError": run.status == "error",
         "severity": _severity_rank(severities),
         "durationMs": run.duration_ms or 0,
         "failureType": CATEGORY_LABEL.get(primary.failure_type) if primary else None,
         "userPrompt": scenario.initial_prompt if scenario else "",
         "expectedBehavior": _expected_sentence(scenario.expected_behavior if scenario else {}),
         "agentResponse": (final.payload.get("content") if final else "") or "(no final answer)",
-        "explanation": (primary.evidence or {}).get("detail", "") if primary
-                       else _unmet_expectation(run, scenario, traces),
+        "explanation": (next((t.payload.get("reason") for t in reversed(traces)
+                                if t.step_type == "error"), "Execution failed")
+                        if run.status == "error" else
+                        (primary.evidence or {}).get("detail", "") if primary
+                        else _unmet_expectation(run, scenario, traces)),
         "recommendation": (primary.evidence or {}).get("recommendation", "") if primary else "",
         "trace": trace_steps,
     }
@@ -232,7 +259,8 @@ def _exclude_guardrail(query):
                                 LEGACY_GUARDRAIL_GENERATORS)))))
 
 
-def _latest_per_scenario(db: Session, version_id: str) -> dict[str, TestRun]:
+def _latest_per_scenario(db: Session, version_id: str,
+                         include_errors: bool = False) -> dict[str, TestRun]:
     """The canonical scored population for one evaluation.
 
     One definition, used by every surface. Reliability already deduplicated to the
@@ -242,9 +270,11 @@ def _latest_per_scenario(db: Session, version_id: str) -> dict[str, TestRun]:
     """
     runs = (_exclude_guardrail(db.query(TestRun))
               .filter(TestRun.agent_version_id == version_id,
-                      TestRun.status == "complete")
+                      TestRun.status.in_(["complete", "error"]))
               .order_by(TestRun.completed_at).all())
-    return {r.scenario_id: r for r in runs}
+    latest = {r.scenario_id: r for r in runs}
+    return {sid: run for sid, run in latest.items()
+            if include_errors or run.status == "complete"}
 
 
 def _evaluation_provenance(stamps: list[dict | None]) -> dict:
@@ -279,6 +309,8 @@ def _evaluation_provenance(stamps: list[dict | None]) -> dict:
 def _version_evaluation(db: Session, version: AgentVersion, agent: Agent,
                         include_tests: bool = False) -> dict:
     latest = _latest_per_scenario(db, version.id)
+    errors = [run for run in _latest_per_scenario(db, version.id, include_errors=True).values()
+              if run.status == "error"]
     pending = (_exclude_guardrail(db.query(TestRun))
                  .filter(TestRun.agent_version_id == version.id,
                          TestRun.status.in_(["pending", "running"])).count())
@@ -342,10 +374,18 @@ def _version_evaluation(db: Session, version: AgentVersion, agent: Agent,
 
     if pending:
         status = "running"
+    elif errors:
+        status = "failed"
     elif not latest:
         status = "queued"
     else:
         status = "completed"
+
+    if include_tests:
+        for run in errors:
+            traces = db.query(ExecutionTrace).filter_by(test_run_id=run.id).order_by(
+                ExecutionTrace.step_number).all()
+            tests.append(_test_result(run, db.get(Scenario, run.scenario_id), traces, []))
 
     return {
         "id": version.id,
@@ -354,7 +394,8 @@ def _version_evaluation(db: Session, version: AgentVersion, agent: Agent,
         "version": version.version_label,
         "score": score,
         "previousScore": _previous_score(db, agent, version) if agent else 0.0,
-        "total": len(latest) + pending,
+        "total": len(latest) + pending + len(errors),
+        "errors": len(errors),
         "passed": passed,
         "failed": failed,
         "warnings": warnings,
@@ -449,13 +490,19 @@ def _agent_payload(db: Session, agent: Agent) -> dict:
         # rerun made this row disagree with the evaluation report about the same
         # version — pass rate, dimensions and failure counts all drifted while the
         # reliability beside them did not.
-        runs = list(_latest_per_scenario(db, version.id).values())
+        terminal = list(_latest_per_scenario(db, version.id, include_errors=True).values())
+        runs = [run for run in terminal if run.status == "complete"]
+        errors = sum(run.status == "error" for run in terminal)
+        pending = _exclude_guardrail(db.query(TestRun)).filter(
+            TestRun.agent_version_id == version.id, TestRun.status.in_(["pending", "running"])).count()
+        version_status = "running" if pending else "failed" if errors else "completed" if runs else "queued"
         failures = _empty_failures()
         for run in runs:
             for annotation in db.query(FailureAnnotation).filter_by(test_run_id=run.id):
                 label = CATEGORY_LABEL.get(annotation.failure_type)
                 if label:
                     failures[label] += 1
+        for run in terminal:
             if run.completed_at and (last_evaluated is None or run.completed_at > last_evaluated):
                 last_evaluated = run.completed_at
         passing = sum(1 for r in runs if r.outcome == "pass")
@@ -469,6 +516,8 @@ def _agent_payload(db: Session, agent: Agent) -> dict:
             # could only diff client-side, which cannot see scenario regressions.
             "id": version.id,
             "version": version.version_label,
+            "status": version_status,
+            "errors": errors,
             "createdAt": _iso(version.created_at),
             "reliability": _version_reliability(db, version.id),
             "passRate": round(passing / divisor * 100, 1) if runs else 0.0,
@@ -485,7 +534,11 @@ def _agent_payload(db: Session, agent: Agent) -> dict:
     reliability = version_rows[-1]["reliability"] if version_rows else 0.0
     previous = version_rows[-2]["reliability"] if len(version_rows) > 1 else 0.0
 
-    if not version_rows or last_evaluated is None:
+    if version_rows and version_rows[-1]["status"] in {"queued", "running"}:
+        status = "running"
+    elif version_rows and version_rows[-1]["status"] == "failed":
+        status = "error"
+    elif not version_rows or last_evaluated is None:
         status = "never-run"
     elif reliability >= 85:
         status = "reliable"
@@ -655,6 +708,25 @@ def evaluate(agent_id: str, body: EvaluateIn, background: BackgroundTasks,
     if not agent.tool_schema:
         raise HTTPException(400, "Agent has no tools to test")
 
+    # Validate before creating any version, sandbox or run. A missing provider
+    # key must not mint a suite of errors that looks like an agent failure.
+    if body.adapter == "llm":
+        from .adapters import LLMAgentAdapter
+
+        pool = body.models or ([body.model] if body.model else LLMAgentAdapter.default_pool())
+        try:
+            LLMAgentAdapter(models=pool).validate_configuration()
+        except ValueError as exc:
+            raise HTTPException(503, str(exc)) from exc
+        config = {"adapter": "llm", "models": pool,
+                  "system_prompt": agent.system_prompt}
+    elif body.adapter == "http":
+        if not body.url or not body.url.startswith(("http://", "https://")):
+            raise HTTPException(422, "The HTTP adapter requires an http(s) agent URL")
+        config = {"adapter": "http", "url": body.url}
+    else:
+        config = {"adapter": "behavioral", "traits": body.traits}
+
     profile = profile_agent(agent.system_prompt, agent.tool_schema)
     agent.profile = profile.to_dict()
     suite = generate(profile, per_category=body.perCategory, seed=body.seed)
@@ -675,23 +747,6 @@ def evaluate(agent_id: str, body: EvaluateIn, background: BackgroundTasks,
         db.add(scenario); scenarios.append(scenario)
     db.commit()
 
-    if body.adapter == "llm":
-        # A real model under test: it gets the agent's own system prompt and the
-        # sandbox's tool schemas, and the sandbox contains whatever it decides to do.
-        from .adapters import LLMAgentAdapter
-
-        # A caller that asks for a real model without naming one gets the default
-        # pool rather than a single model on one provider's free tier. The console
-        # does exactly that, and one model's rate limit was the difference between
-        # a 12-scenario suite finishing and half of it erroring out.
-        pool = body.models or ([body.model] if body.model else list(LLMAgentAdapter.DEFAULT_POOL))
-        config = {"adapter": "llm", "model": body.model,
-                  "models": pool,
-                  "system_prompt": agent.system_prompt}
-    elif body.adapter == "http" and body.url:
-        config = {"adapter": "http", "url": body.url}
-    else:
-        config = {"adapter": "behavioral", "traits": body.traits}
     # The prompt and tools *as of this version*, whatever adapter ran it.
     #
     # Everything downstream that needed to know what the agent was configured like
@@ -745,7 +800,7 @@ def list_evaluations(db: Session = Depends(get_db)):
     rows = _exclude_guardrail(
         db.query(TestRun.id, TestRun.agent_version_id, TestRun.scenario_id,
                  TestRun.completed_at, TestRun.outcome, TestRun.reliability_score,
-                 TestRun.metrics)).filter(TestRun.status == "complete").all()
+                 TestRun.metrics, TestRun.status)).filter(TestRun.status.in_(["complete", "error"])).all()
     latest_run: dict[tuple[str, str], tuple] = {}
     for row in rows:
         key = (row.agent_version_id, row.scenario_id)
@@ -753,7 +808,11 @@ def list_evaluations(db: Session = Depends(get_db)):
         if seen is None or (row.completed_at or datetime.min) >= (seen.completed_at
                                                                  or datetime.min):
             latest_run[key] = row
-    kept = list(latest_run.values())
+    error_counts: dict[str, int] = {}
+    for row in latest_run.values():
+        if row.status == "error":
+            error_counts[row.agent_version_id] = error_counts.get(row.agent_version_id, 0) + 1
+    kept = [row for row in latest_run.values() if row.status == "complete"]
     kept_ids = {row.id for row in kept}
 
     totals: dict[str, dict] = {}
@@ -837,6 +896,7 @@ def list_evaluations(db: Session = Depends(get_db)):
                            ceilings.get(version.id, 100.0)), 1)
                  if row and row["scores"] else 0.0)
         queued = pending.get(version.id, 0)
+        errors = error_counts.get(version.id, 0)
         failures = {**_empty_failures(), **breakdown.get(version.id, {})}
         out.append({
             "id": version.id,
@@ -845,11 +905,13 @@ def list_evaluations(db: Session = Depends(get_db)):
             "version": version.version_label,
             "score": score,
             "previousScore": previous_by_agent.get(version.agent_id, 0.0),
-            "total": completed + queued,
+            "total": completed + queued + errors,
+            "errors": errors,
             "passed": row["pass"] if row else 0,
             "failed": row["fail"] if row else 0,
             "warnings": row["warning"] if row else 0,
-            "status": "running" if queued else ("completed" if completed else "queued"),
+            "status": "running" if queued else ("failed" if errors else
+                                                  ("completed" if completed else "queued")),
             "date": _iso(version.created_at),
             # The table shows none of these; the detail endpoint computes them properly.
             # These were zeroed and hardcoded to "low" when this endpoint was made
@@ -878,22 +940,26 @@ def read_evaluation(evaluation_id: str, db: Session = Depends(get_db)):
 
 
 @router.get("/evaluations/{evaluation_id}/progress")
-def evaluation_progress(evaluation_id: str, db: Session = Depends(get_db)):
+def evaluation_progress(evaluation_id: str, request: Request, db: Session = Depends(get_db)):
     """Polled by the running-evaluation screen; also feeds its activity log."""
     version = db.get(AgentVersion, evaluation_id)
     if not version:
         raise HTTPException(404, "Evaluation not found")
-    if SYNC_RUNS:
+    if SYNC_RUNS and can_write(request):
         drain_pending(db, evaluation_id)
 
-    runs = db.query(TestRun).filter_by(agent_version_id=evaluation_id).all()
-    done = [r for r in runs if r.status in ("complete", "error")]
+    pending = _exclude_guardrail(db.query(TestRun)).filter(
+        TestRun.agent_version_id == evaluation_id,
+        TestRun.status.in_(["pending", "running"])).count()
+    done = list(_latest_per_scenario(db, evaluation_id, include_errors=True).values())
+    errors = sum(r.status == "error" for r in done)
 
     events = []
     for run in sorted(done, key=lambda r: r.completed_at or datetime(1970, 1, 1))[-12:]:
         scenario = db.get(Scenario, run.scenario_id)
         name = scenario.name if scenario else "scenario"
-        label = {"pass": "passed", "warning": "passed with warnings"}.get(run.outcome, "FAILED")
+        label = ("execution error — not scored" if run.status == "error" else
+                 {"pass": "passed", "warning": "passed with warnings"}.get(run.outcome, "FAILED"))
         events.append(f"{name} — {label}")
         for annotation in db.query(FailureAnnotation).filter_by(test_run_id=run.id):
             events.append(f"  detected {CATEGORY_LABEL.get(annotation.failure_type)} "
@@ -902,13 +968,41 @@ def evaluation_progress(evaluation_id: str, db: Session = Depends(get_db)):
     agent = db.get(Agent, version.agent_id)
     return {
         "evaluationId": evaluation_id,
+        "canContinue": can_write(request),
         "agentName": agent.name if agent else "",
         "version": version.version_label,
-        "total": len(runs),
+        "total": len(done) + pending,
         "completed": len(done),
-        "status": "completed" if runs and len(done) == len(runs) else "running",
+        "errors": errors,
+        "status": ("failed" if errors else "completed") if done and not pending else "running",
         "events": events[-14:],
     }
+
+
+@router.get("/evaluations/{evaluation_id}/tests/{run_id}")
+def read_test_run(evaluation_id: str, run_id: str, request: Request, db: Session = Depends(get_db)):
+    """An incident URL addresses the saved run, even after a newer rerun exists."""
+    run = db.get(TestRun, run_id)
+    if run is None or run.agent_version_id != evaluation_id:
+        raise HTTPException(404, "This scenario run is not part of the evaluation.")
+    version = db.get(AgentVersion, evaluation_id)
+    if version is None:
+        raise HTTPException(404, "Evaluation not found")
+    # A rerun can still be queued when its POST returns. Reading the aggregate
+    # report did not advance serverless work, so the trace spinner never ended.
+    if SYNC_RUNS and run.status == "pending" and can_write(request):
+        asyncio.run(run_test(run.id))
+        db.refresh(run)
+    agent = db.get(Agent, version.agent_id)
+    test = None
+    if run.status in {"complete", "error"}:
+        traces = db.query(ExecutionTrace).filter_by(test_run_id=run.id).order_by(
+            ExecutionTrace.step_number).all()
+        failures = db.query(FailureAnnotation).filter_by(test_run_id=run.id).all()
+        test = _test_result(run, db.get(Scenario, run.scenario_id), traces, failures)
+    return {"evaluationId": evaluation_id, "canContinue": can_write(request),
+            "agentName": agent.name if agent else "",
+            "version": version.version_label, "status": run.status, "test": test}
 
 
 def _injection_delivered(db: Session, run_id: str) -> bool:
@@ -989,18 +1083,25 @@ def start_guardrail(evaluation_id: str, background: BackgroundTasks,
         db.add(scenario); db.commit(); db.refresh(scenario)
         run = TestRun(agent_version_id=version.id, scenario_id=scenario.id)
         db.add(run); db.commit(); db.refresh(run)
-        dispatch(background, run.id)
         queued.append(run.id)
+    if SYNC_RUNS:
+        drain_pending(db, evaluation_id)
+    else:
+        for run_id in queued:
+            dispatch(background, run_id)
     return {"evaluationId": evaluation_id, "queued": len(queued)}
 
 
 @router.get("/evaluations/{evaluation_id}/guardrail")
-def guardrail(evaluation_id: str, db: Session = Depends(get_db)):
+def guardrail(evaluation_id: str, request: Request, db: Session = Depends(get_db)):
     from .guardrail import LADDER, SOURCE_AUTHORITY_RUNGS, analyse
 
     version = db.get(AgentVersion, evaluation_id)
     if not version:
         raise HTTPException(404, "Evaluation not found")
+
+    if SYNC_RUNS and can_write(request):
+        drain_pending(db, evaluation_id)
 
     # Every guardrail run, not only the completed ones. Counting completions alone
     # made a rung that errored or never started vanish from the numerator and the
@@ -1020,9 +1121,9 @@ def guardrail(evaluation_id: str, db: Session = Depends(get_db)):
             continue
         key = (marker["tool"], marker["level"])
         previous = latest_probe.get(key)
-        # A completed attempt always beats an unfinished one; between two of the
-        # same kind, the newer wins.
-        rank = (run.status == "complete", run.completed_at or run.started_at or datetime.min)
+        # A new in-flight or failed attempt must not be hidden by an old success.
+        rank = (run.status in {"pending", "running"},
+                run.completed_at or run.started_at or datetime.min)
         if previous is None or rank > previous[0]:
             latest_probe[key] = (rank, run, marker)
 
@@ -1110,7 +1211,9 @@ def guardrail(evaluation_id: str, db: Session = Depends(get_db)):
                 reason, applicable = "not generated", True
             unfinished.append({"tool": tool, "level": rung.level, "technique": rung.name,
                                "applicable": applicable, "reason": reason})
-    return {"ran": True, **analyse(results, skipped=unfinished)}
+    pending = sum(run.status in {"pending", "running"} for _, run, _ in latest_probe.values())
+    return {"ran": True, "pending": pending, "canContinue": can_write(request),
+            **analyse(results, skipped=unfinished)}
 
 
 @router.get("/versions/{older_version_id}/compare/{newer_version_id}")
@@ -1266,17 +1369,20 @@ def dashboard(db: Session = Depends(get_db)):
 
     # Averaged over evaluations, not raw runs. Averaging run scores ignored the
     # ceilings entirely, so the headline moved independently of every report.
-    per_version = {v.id: _version_reliability(db, v.id) for v in versions}
-    evaluated = [score for score in per_version.values() if score > 0.0]
+    scored_version_ids = {r.agent_version_id for r in scored_runs
+                          if r.reliability_score is not None}
+    evaluated_versions = [v for v in versions if v.id in scored_version_ids]
+    per_version = {v.id: _version_reliability(db, v.id) for v in evaluated_versions}
+    evaluated = list(per_version.values())
     average = round(sum(evaluated) / len(evaluated), 1) if evaluated else 0.0
 
     # Trend: the same capped evaluation scores, by the day the version was created.
     buckets: dict[str, list[float]] = {}
-    for version in versions:
-        score = per_version.get(version.id, 0.0)
-        if score > 0.0 and version.created_at:
-            buckets.setdefault(version.created_at.strftime("%b %d"), []).append(score)
-    trend = [{"date": day, "score": round(sum(values) / len(values), 1)}
+    for version in evaluated_versions:
+        if version.created_at:
+            buckets.setdefault(version.created_at.date().isoformat(), []).append(per_version[version.id])
+    trend = [{"date": datetime.fromisoformat(day).strftime("%b %d, %Y"),
+              "score": round(sum(values) / len(values), 1)}
              for day, values in sorted(buckets.items())][-8:]
 
     # averageReliability is the mean across every evaluation; the delta used to be
@@ -1287,12 +1393,10 @@ def dashboard(db: Session = Depends(get_db)):
     # movement is reported separately under its own name.
     delta = 0.0
     latest_delta = 0.0
-    if len(versions) > 1:
-        latest_delta = round(per_version.get(versions[-1].id, 0.0)
-                             - per_version.get(versions[-2].id, 0.0), 1)
+    if len(evaluated_versions) > 1:
+        latest_delta = round(evaluated[-1] - evaluated[-2], 1)
         # The same average, minus the newest version: what the headline moved by.
-        earlier = [score for version_id, score in per_version.items()
-                   if version_id != versions[-1].id and score > 0.0]
+        earlier = evaluated[:-1]
         if earlier:
             delta = round(average - (sum(earlier) / len(earlier)), 1)
 
@@ -1300,7 +1404,7 @@ def dashboard(db: Session = Depends(get_db)):
         "averageReliability": average,
         "reliabilityDelta": delta,
         "latestVersionDelta": latest_delta,
-        "agentsTested": db.query(Agent).count(),
+        "agentsTested": len({v.agent_id for v in evaluated_versions}),
         # The population the reliability average is actually computed from.
         "scoredScenarios": len(scored_runs),
         "criticalFindings": critical_scored,
