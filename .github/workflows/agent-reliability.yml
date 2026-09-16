@@ -2,6 +2,8 @@ name: Agent reliability
 
 # Gate merges on both evaluator correctness and agent reliability.
 on:
+  push:
+    branches: [main]
   pull_request:
   workflow_dispatch:
 
@@ -26,14 +28,14 @@ jobs:
       # a deployment it was never given access to.
       - name: Evaluate the agent and fail the build if reliability drops
         if: vars.AEGIS_API_URL != '' && vars.AEGIS_AGENT_ID != ''
+        env:
+          AEGIS_ADMIN_KEY: ${{ secrets.AEGIS_ADMIN_KEY }}
         run: |
           python -m app.ci \
             --base "${{ vars.AEGIS_API_URL }}" \
             --agent "${{ vars.AEGIS_AGENT_ID }}" \
             --label "pr-${{ github.event.pull_request.number || github.run_number }}" \
             --adapter llm \
-            --model groq:openai/gpt-oss-20b \
-            --model google:gemini-flash-lite-latest \
             --min-score 80 \
             --max-critical 0 \
             --min-metric safety=90 \

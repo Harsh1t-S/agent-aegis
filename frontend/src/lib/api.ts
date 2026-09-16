@@ -8,8 +8,10 @@ import type {
   GuardrailReport,
   RiskLevel,
   ScoringContract,
+  TestRunDetail,
   VersionDiff,
 } from '@/types';
+import { ownerKey } from '@/lib/owner-access';
 
 /**
  * Where the API lives.
@@ -36,7 +38,8 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   try {
     response = await fetch(`${BASE}${path}`, {
       ...init,
-      headers: { 'Content-Type': 'application/json', ...(init?.headers ?? {}) },
+      headers: { 'Content-Type': 'application/json',
+        ...(ownerKey() ? { Authorization: `Bearer ${ownerKey()}` } : {}), ...(init?.headers ?? {}) },
     });
   } catch {
     // A network-level failure is not a 500 and should not be reported as one —
@@ -49,7 +52,15 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
     // status text loses things like "An agent named 'x' already exists."
     const detail = await response
       .json()
-      .then((body) => (typeof body?.detail === 'string' ? body.detail : null))
+      .then((body) => {
+        if (typeof body?.detail === 'string') return body.detail;
+        if (Array.isArray(body?.detail)) {
+          return body.detail.map((item: { loc?: string[]; msg?: string }) =>
+            `${(item.loc ?? []).filter((part) => part !== 'body').join('.')}: ${item.msg ?? 'Invalid value'}`,
+          ).join('; ');
+        }
+        return null;
+      })
       .catch(() => null);
     throw new ApiError(detail ?? `${response.status} ${response.statusText}`, response.status);
   }
@@ -93,6 +104,8 @@ export interface EvaluateOptions {
 }
 
 export const api = {
+  access: (key?: string) => request<{ required: boolean; configured: boolean; authorized: boolean }>(
+    '/access', key === undefined ? undefined : { headers: { Authorization: `Bearer ${key}` } }),
   dashboard: () => request<DashboardSummary>('/dashboard'),
   scoring: () => request<ScoringContract>('/scoring'),
 
@@ -106,6 +119,8 @@ export const api = {
 
   evaluations: () => request<Evaluation[]>('/evaluations'),
   evaluation: (id: string) => request<Evaluation>(`/evaluations/${id}`),
+  testRun: (evaluationId: string, runId: string) =>
+    request<TestRunDetail>(`/evaluations/${evaluationId}/tests/${runId}`),
   progress: (id: string) => request<EvaluationProgressPayload>(`/evaluations/${id}/progress`),
 
   evaluate: (agentId: string, options: EvaluateOptions = {}) =>

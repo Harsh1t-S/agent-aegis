@@ -17,6 +17,7 @@ import {
 } from 'lucide-react';
 import { api, ApiError, type ToolDraft } from '@/lib/api';
 import { parseToolSchema, toolsToJson } from '@/lib/tool-schema';
+import { clearAgentDraft, EMPTY_AGENT_FORM, loadAgentDraft, saveAgentDraft, toolNamesError, type AgentForm } from '@/lib/agent-draft';
 
 const steps = ['01 Identity', '02 Instructions', '03 Tools', '04 Review'];
 
@@ -31,34 +32,13 @@ const SCHEMA_PLACEHOLDER = [
   ']',
 ].join('\n');
 
-interface FormData {
-  name: string;
-  description: string;
-  domain: string;
-  systemPrompt: string;
-  tools: ToolDraft[];
-}
-
-const EMPTY: FormData = {
-  name: '',
-  description: '',
-  domain: '',
-  systemPrompt: '',
-  tools: [{ name: '', description: '', risk: 'low' }],
-};
-
-const DRAFT_KEY = 'aegis.agent-draft.v2';
-/** Drafts hold a full system prompt in plaintext. Expiring them bounds how long
-    that sits in a shared browser; there is no server-side store to fall back on. */
-const DRAFT_TTL_MS = 7 * 24 * 60 * 60 * 1000;
-
 export default function NewAgent() {
   const navigate = useNavigate();
   const toast = useToast();
   const [step, setStep] = useState(0);
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | undefined>();
-  const [form, setForm] = useState<FormData>(EMPTY);
+  const [form, setForm] = useState<AgentForm>(EMPTY_AGENT_FORM);
 
   const [showSchema, setShowSchema] = useState(false);
   const [schemaText, setSchemaText] = useState('');
@@ -67,30 +47,16 @@ export default function NewAgent() {
 
   // Restore a draft saved on this device, so "Save draft" survives a reload.
   useEffect(() => {
-    try {
-      const raw = localStorage.getItem(DRAFT_KEY);
-      if (!raw) return;
-      const draft = JSON.parse(raw) as FormData & { savedAt?: number };
-      if (draft.savedAt && Date.now() - draft.savedAt > DRAFT_TTL_MS) {
-        localStorage.removeItem(DRAFT_KEY);
-        return;
-      }
-      setForm({
-        name: draft.name ?? '',
-        description: draft.description ?? '',
-        domain: draft.domain ?? '',
-        systemPrompt: draft.systemPrompt ?? '',
-        tools: draft.tools?.length ? draft.tools : EMPTY.tools,
-      });
+    const draft = loadAgentDraft();
+    if (draft) {
+      setForm(draft);
       toast.info('Draft restored', 'Picked up where you left off.');
-    } catch {
-      /* a corrupt draft must never block the form */
     }
     // Once, on mount. Re-running on every toast identity change would re-restore.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const update = (key: keyof FormData, value: string | ToolDraft[]) => {
+  const update = (key: keyof AgentForm, value: string | ToolDraft[]) => {
     setForm((prev) => ({ ...prev, [key]: value }));
   };
 
@@ -163,7 +129,7 @@ export default function NewAgent() {
 
   const saveDraft = () => {
     try {
-      localStorage.setItem(DRAFT_KEY, JSON.stringify({ ...form, savedAt: Date.now() }));
+      saveAgentDraft(form);
       toast.success(
         'Draft saved in this browser',
         'Stored unencrypted in local storage, system prompt included. Cleared after 7 days, or when the agent is created.',
@@ -173,14 +139,16 @@ export default function NewAgent() {
     }
   };
 
+  const toolsError = toolNamesError(form.tools);
   const canProceed = () => {
-    if (step === 0) return Boolean(form.name.trim());
+    if (step === 0) return Boolean(form.name.trim()) && form.name.trim().length <= 200;
     if (step === 1) return Boolean(form.systemPrompt.trim());
-    if (step === 2) return form.tools.some((t) => t.name.trim());
+    if (step === 2) return !toolsError;
     return true;
   };
 
   const handleSubmit = async () => {
+    if (submitting || toolsError || !form.name.trim() || !form.systemPrompt.trim()) return;
     setSubmitting(true);
     setSubmitError(undefined);
     try {
@@ -200,10 +168,12 @@ export default function NewAgent() {
             ...(t.parameters ? { parameters: t.parameters } : {}),
           })),
       });
-      localStorage.removeItem(DRAFT_KEY);
+      // Local draft cleanup cannot undo a successful server create.
+      const cleared = clearAgentDraft();
       toast.success(
         `Agent created — ${agent.tools.length} tool${agent.tools.length === 1 ? '' : 's'} profiled`,
       );
+      if (!cleared) toast.info('Agent saved', 'This browser could not clear the saved draft.');
       navigate(`/app/agents/${agent.id}`);
     } catch (err) {
       const message = err instanceof ApiError ? err.message : 'Could not create the agent.';
@@ -296,6 +266,7 @@ export default function NewAgent() {
                     </label>
                     <input
                       id="agent-name"
+                      maxLength={200}
                       className={inputClass}
                       placeholder="e.g. Customer Support Agent"
                       value={form.name}
@@ -515,6 +486,7 @@ export default function NewAgent() {
                   >
                     <Plus className="h-4 w-4" /> ADD TOOL
                   </button>
+                  {toolsError && <p role="alert" className="font-mono text-xs text-warn-400">{toolsError}</p>}
                 </div>
               )}
 
@@ -598,7 +570,7 @@ export default function NewAgent() {
               <button
                 type="button"
                 onClick={handleSubmit}
-                disabled={submitting || !form.name.trim() || !form.systemPrompt.trim()}
+                disabled={submitting || Boolean(toolsError) || !form.name.trim() || !form.systemPrompt.trim()}
                 className="group flex min-h-11 items-center gap-2 border border-signal-500 bg-signal-500/20 px-6 font-mono text-xs uppercase tracking-wider text-signal-300 transition-colors enabled:hover:bg-signal-500/30 disabled:cursor-not-allowed disabled:opacity-40"
               >
                 {submitting ? (

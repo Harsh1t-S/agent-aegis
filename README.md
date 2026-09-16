@@ -192,10 +192,75 @@ TypeScript shapes (`app/frontend_api.py`).
 
 ### Adapters
 
+- `llm` - AIRouter's `openai/gpt-5.6-luna-fast` by default. The model stays
+  tried first on every scenario; configured Groq/Google keys are used only as fallbacks.
 - `http` - a real agent behind a gateway returning
   `{type: final|tool_call, content?, tool_name?, arguments?}`
 - `scripted` - a fixed action list, for deterministic tests
 - `behavioral` - a fake agent with declared flaws, used by the demo
+
+### AIRouter configuration
+
+On the **aegis-api backend** set `AIROUTER_API_KEY` to the new key and
+`LLM_MODEL=airouter:openai/gpt-5.6-luna-fast`. The provider prefix selects
+`https://api.airouter.in/v1`; the wire model is `openai/gpt-5.6-luna-fast`.
+`LLM_MAX_OUTPUT_TOKENS` defaults to 2048 per turn. No key belongs in the frontend,
+a `VITE_` variable, version snapshots, or a commit.
+
+Paste this into **Vercel → aegis-api → Settings → Environment Variables**,
+replace the two placeholders, select **Production**, save, and redeploy:
+
+```dotenv
+AIROUTER_API_KEY=REPLACE_WITH_YOUR_AIROUTER_KEY
+LLM_MODEL=airouter:openai/gpt-5.6-luna-fast
+LLM_FALLBACK_MODELS=groq:openai/gpt-oss-20b,google:gemini-flash-lite-latest
+LLM_MAX_OUTPUT_TOKENS=2048
+AEGIS_ADMIN_KEY=REPLACE_WITH_A_SEPARATE_RANDOM_OWNER_KEY
+```
+
+Use a random owner key of at least 32 characters and mark both keys as Secrets.
+Keep the existing `GROQ_API_KEY`, `GOOGLE_API_KEY`, and persistent `DATABASE_URL`.
+AIRouter is always first; an unavailable key/model, exhausted credits, rate limit,
+timeout or provider outage permits fallback. A malformed request is reported as
+an error. Each trace records which provider/model actually answered. Set
+`LLM_FALLBACK_MODELS` to an empty value to disable fallbacks.
+
+For local development, copy `.env.example` to `.env`, fill the key, then use
+`uvicorn app.main:app --env-file .env --port 8000`. The example SQLite URL is for
+local use; retain the production database URL in Vercel. Environment changes
+take effect after redeploying the backend. `/health` reports the selected model
+and whether credentials are configured, without returning their values.
+
+New evaluations snapshot the configured primary and fallback models. Existing
+evaluations and reruns retain their original model pool; saved results are not
+relabelled. To
+compare prompts on Luna Fast, create a new evaluation for each prompt version.
+
+Failures after the configured fallbacks are exhausted are execution errors, excluded from scoring and shown in the
+report. Any execution error blocks CI. On Vercel, each progress poll drains one
+remote scenario, keeping individual requests inside the function deadline.
+
+### Owner access and previews
+
+Saved dashboard reports remain public. On Vercel, all writes and queued execution
+require `Authorization: Bearer <AEGIS_ADMIN_KEY>`. Raw legacy API reads also require
+owner access because agent/version configurations can contain endpoint credentials.
+Without `AEGIS_ADMIN_KEY`, the deployed service is read-only. Local development
+remains open unless a key or `AEGIS_REQUIRE_AUTH=1` is configured.
+
+Open the dashboard's **Settings → Owner access**, enter that same owner key, and
+click **Unlock actions**. The browser keeps it in session storage for this tab;
+**Lock actions** clears it. Never enter an AIRouter/Groq/Gemini key into this form.
+For CLI/CI evaluation, set `AEGIS_ADMIN_KEY` in the calling process or GitHub Actions
+secret. It is sent as an authorization header and is never printed.
+
+The dashboard uses a same-origin API proxy. Production defaults to the established
+production API. A Preview deployment must set `AEGIS_API_ORIGIN` to an isolated
+backend HTTPS origin with its own preview database and owner key. Missing preview
+configuration, or a known production backend alias, returns a configuration error
+instead of touching production. For development, Vite still defaults to the local API.
+
+Provider documentation: https://www.airouter.in/docs
 
 ## Dashboard
 

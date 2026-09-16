@@ -7,7 +7,7 @@ import { AsyncBoundary, EmptyState } from '@/components/AsyncState';
 import { ScrollReveal } from '@/components/ScrollReveal';
 import { useResource } from '@/hooks/useResource';
 import { api } from '@/lib/api';
-import { formatDate, scoreTone, verdictFor } from '@/lib/format';
+import { evaluationPath, evaluationVerdict, formatDate, scoreTone } from '@/lib/format';
 import { ArrowRight, Search } from 'lucide-react';
 
 /**
@@ -29,7 +29,7 @@ export default function Evaluations() {
       (e) =>
         e.agentName.toLowerCase().includes(needle) ||
         e.version.toLowerCase().includes(needle) ||
-        verdictFor(e.score).toLowerCase().includes(needle),
+        evaluationVerdict(e).toLowerCase().includes(needle) || e.status.includes(needle),
     );
   }, [data, query]);
 
@@ -90,7 +90,7 @@ export default function Evaluations() {
                   return (
                     <ScrollReveal key={evaluation.id} delay={Math.min(i, 8) * 0.03}>
                       <Link
-                        to={`/app/evaluations/${evaluation.id}`}
+                        to={evaluationPath(evaluation)}
                         className="group grid min-w-0 grid-cols-1 items-center gap-3 border border-bone-600/20 bg-ink-900/60 p-4 transition-colors hover:border-signal-500/35 hover:bg-ink-850/50 sm:grid-cols-[1fr_auto] sm:p-5"
                       >
                         <div className="min-w-0">
@@ -112,6 +112,9 @@ export default function Evaluations() {
                             <span className="text-flux-400">{evaluation.passed} passed</span>
                             {' · '}
                             <span className="text-fault-400">{evaluation.failed} failed</span>
+                            {(evaluation.errors ?? 0) > 0 && (
+                              <span className="text-fault-400"> · {evaluation.errors} execution errors</span>
+                            )}
                             {evaluation.warnings > 0 && (
                               <>
                                 {' · '}
@@ -128,11 +131,11 @@ export default function Evaluations() {
                             <div
                               className={`font-mono text-2xl font-bold ${scoreTone(evaluation.score)}`}
                             >
-                              {evaluation.score.toFixed(1)}
+                              {evaluation.status === 'completed' ? evaluation.score.toFixed(1) : '—'}
                             </div>
                             <div className="font-mono text-[10px] text-bone-500">
-                              {verdictFor(evaluation.score)}
-                              {evaluation.previousScore > 0 && (
+                              {evaluationVerdict(evaluation)}
+                              {evaluation.status === 'completed' && evaluation.previousScore > 0 && (
                                 <>
                                   {' · '}
                                   <span

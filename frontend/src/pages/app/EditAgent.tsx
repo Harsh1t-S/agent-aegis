@@ -8,6 +8,7 @@ import { useToast } from '@/components/Toaster';
 import { useResource } from '@/hooks/useResource';
 import { api, ApiError, type ToolDraft } from '@/lib/api';
 import { parseToolSchema, toolsToJson } from '@/lib/tool-schema';
+import { toolNamesError } from '@/lib/agent-draft';
 import { ClipboardPaste, Loader2, Plus, Trash2, Upload } from 'lucide-react';
 
 /**
@@ -72,14 +73,15 @@ export default function EditAgent() {
   };
 
   const save = async () => {
-    if (!id) return;
+    if (!id || saving) return;
     const named = tools.filter((t) => t.name.trim());
     if (!name.trim() || !systemPrompt.trim()) {
       toast.error('Name and system prompt are both required.');
       return;
     }
-    if (!named.length) {
-      toast.error('Add at least one tool — scenarios are generated from the tool schema.');
+    const toolsError = toolNamesError(named);
+    if (toolsError) {
+      toast.error(toolsError);
       return;
     }
     setSaving(true);
@@ -156,6 +158,7 @@ export default function EditAgent() {
                 </label>
                 <input
                   id="edit-name"
+                  maxLength={200}
                   className={inputClass}
                   value={name}
                   onChange={(e) => setName(e.target.value)}

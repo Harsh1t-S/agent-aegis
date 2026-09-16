@@ -17,10 +17,12 @@ export default function EvaluationRunning() {
   const { data, error, loading, reload } = useResource(
     () => api.progress(id as string),
     [id],
-    { enabled: Boolean(id), pollMs: 1500 },
+    { enabled: Boolean(id), pollMs: 1500,
+      pollWhile: (run) => run.canContinue !== false && run.status === 'running' },
   );
 
-  const done = data?.status === 'completed';
+  const done = data?.status === 'completed' || data?.status === 'failed';
+  const failed = data?.status === 'failed';
 
   useEffect(() => {
     if (!done) return;
@@ -68,15 +70,18 @@ export default function EvaluationRunning() {
           </Link>
           <span>/</span>
           <span className="text-signal-400">
-            {done ? 'EVALUATION COMPLETE' : 'EVALUATION IN PROGRESS'}
+            {failed ? 'EVALUATION ENDED WITH ERRORS' : done ? 'EVALUATION COMPLETE' : 'EVALUATION IN PROGRESS'}
           </span>
         </div>
 
         <MassiveHeading
-          lines={done ? ['EVALUATION', 'COMPLETE.'] : ['EVALUATION', 'IN PROGRESS.']}
+          lines={failed ? ['EVALUATION', 'EXECUTION ERROR.'] : done ? ['EVALUATION', 'COMPLETE.'] : ['EVALUATION', 'IN PROGRESS.']}
           className="mt-2 text-[clamp(2rem,6vw,4rem)] text-bone-50"
         />
 
+        {!done && data.canContinue === false && <p className="mt-6 border border-warn-500/40 p-4 text-sm text-warn-400">
+          Owner access is required to continue queued scenarios. <Link to="/app/settings" className="underline">Unlock actions in Settings</Link>, then reopen this evaluation.
+        </p>}
         <div className="mt-12 grid min-w-0 gap-6 lg:grid-cols-2">
           <div className="min-w-0 border border-bone-600/20 bg-ink-900/60 p-5 sm:p-8">
             <div className="flex items-center gap-3">

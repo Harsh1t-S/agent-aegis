@@ -32,7 +32,7 @@ export default function LandingPage() {
   // failure this product is built to catch, so when the API is unreachable the
   // sections say so rather than showing a flattering placeholder.
   const evaluations = useResource(() => api.evaluations(), []);
-  const latest = evaluations.data?.[0];
+  const latest = evaluations.data?.find((evaluation) => evaluation.status === 'completed');
   const agents = useResource(() => api.agents(), []);
   const showcaseAgent = latest
     ? agents.data?.find((a) => a.id === latest.agentId)
@@ -340,7 +340,9 @@ export default function LandingPage() {
           viewport={{ once: true }}
           transition={{ duration: 1 }}
         >
-          <ReliabilityScore score={latest?.score ?? 0} size="xl" />
+          {latest ? <ReliabilityScore score={latest.score} size="xl" /> : (
+            <SystemLabel>{evaluations.loading ? 'LOADING SCORE' : 'SCORE UNAVAILABLE'}</SystemLabel>
+          )}
         </motion.div>
 
         {latest ? (

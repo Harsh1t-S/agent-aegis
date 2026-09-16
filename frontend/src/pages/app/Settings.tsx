@@ -1,4 +1,5 @@
 import { AppNavigation } from '@/components/AppNavigation';
+import { OwnerAccess } from '@/components/OwnerAccess';
 import { SystemLabel } from '@/components/SystemLabel';
 import { MassiveHeading } from '@/components/MassiveHeading';
 import { AsyncBoundary } from '@/components/AsyncState';
@@ -22,7 +23,7 @@ import { RotateCcw } from 'lucide-react';
  * like a mock.
  */
 export default function Settings() {
-  const { settings, update, reset } = useWorkspaceSettings();
+  const { settings, update, reset, storageAvailable } = useWorkspaceSettings();
   const scoring = useResource(() => api.scoring(), []);
   const toast = useToast();
 
@@ -45,6 +46,13 @@ export default function Settings() {
           device.
         </p>
 
+        {!storageAvailable && (
+          <p role="status" className="mt-4 border border-warn-500/40 p-4 text-sm text-warn-400">
+            Browser storage is unavailable. These settings apply in this tab until you reload.
+          </p>
+        )}
+
+        <OwnerAccess />
         <div className="mt-10 grid min-w-0 gap-6 lg:grid-cols-2">
           <section className="min-w-0 border border-bone-600/20 bg-ink-900/60 p-5 sm:p-6">
             <SystemLabel>SUITE SIZE</SystemLabel>
@@ -130,7 +138,7 @@ export default function Settings() {
                     key: 'llm' as const,
                     title: 'Real model',
                     detail:
-                      'Runs the scenarios against a live LLM through the configured provider pool. Slower, non-deterministic, and the real thing.',
+                      'Runs scenarios against the model configured on the evaluator server. New evaluations use AIRouter Luna Fast by default.',
                   },
                 ]
               ).map((option) => (
@@ -239,10 +247,10 @@ export default function Settings() {
           <button
             type="button"
             onClick={() => {
-              reset();
+              const persisted = reset();
               toast.success(
                 'Settings reset',
-                `Back to ${DEFAULT_SETTINGS.scenariosPerRun} scenarios, adversarial on, behavioral adapter.`,
+                `Back to ${DEFAULT_SETTINGS.scenariosPerRun} scenarios, adversarial on, real model adapter.${persisted ? '' : ' Applied in this tab only.'}`,
               );
             }}
             className="flex min-h-11 items-center gap-2 border border-bone-600/35 px-4 font-mono text-[11px] uppercase tracking-wider text-bone-300 transition-colors hover:border-bone-400 hover:text-bone-100"

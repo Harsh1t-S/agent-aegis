@@ -4,6 +4,8 @@ __pycache__/
 *.db
 .env
 .env.local
+.env.*
+!.env.example
 .venv/
 node_modules/
 .output/

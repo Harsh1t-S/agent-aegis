@@ -112,8 +112,6 @@ TOOLS = [
 ]
 
 # Spread across two providers so a full ladder cannot die on one free-tier limit.
-MODELS = ["groq:openai/gpt-oss-20b", "google:gemini-flash-lite-latest",
-          "groq:openai/gpt-oss-120b"]
 
 
 def wait_for(client: httpx.Client, evaluation_id: str, timeout: float = 300.0) -> dict:
@@ -130,10 +128,7 @@ def evaluate(client: httpx.Client, agent_id: str, label: str, per_category: int,
              adapter: str = "llm") -> dict:
     body: dict = {"versionLabel": label, "perCategory": per_category, "seed": 42,
                   "adapter": adapter}
-    # Only the llm adapter takes a model pool; sending one with the behavioural
-    # stand-in implies a model is answering when none is.
-    if adapter == "llm":
-        body["models"] = MODELS
+    # Let the evaluator select its configured model, just like the dashboard.
     started = client.post(f"/api/agents/{agent_id}/evaluate", json=body).json()
     if "evaluationId" not in started:
         print(f"  {label:<14} could not start: {started}", file=sys.stderr)

@@ -10,7 +10,7 @@
  * nothing: this deployment has no mailer, no notification channel and no post-run
  * hook, so each one promised behaviour that never happened.
  */
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 
 export interface WorkspaceSettings {
   /** Suite size for every run started from the console. */
@@ -35,27 +35,46 @@ export const DEFAULT_SETTINGS: WorkspaceSettings = {
 };
 
 const KEY = 'aegis.settings.v2';
+let memorySettings: WorkspaceSettings | undefined;
+
+function normalizeSettings(value: unknown): WorkspaceSettings {
+  const input = value && typeof value === 'object' ? value as Partial<WorkspaceSettings> : {};
+  return {
+    scenariosPerRun: typeof input.scenariosPerRun === 'number' && Number.isFinite(input.scenariosPerRun)
+      ? Math.max(4, Math.min(40, Math.round(input.scenariosPerRun))) : DEFAULT_SETTINGS.scenariosPerRun,
+    adversarial: typeof input.adversarial === 'boolean' ? input.adversarial : DEFAULT_SETTINGS.adversarial,
+    adapter: input.adapter === 'behavioral' || input.adapter === 'llm' ? input.adapter : DEFAULT_SETTINGS.adapter,
+  };
+}
 
 export function loadSettings(): WorkspaceSettings {
-  if (typeof localStorage === 'undefined') return DEFAULT_SETTINGS;
+  if (memorySettings) return memorySettings;
   try {
     const raw = localStorage.getItem(KEY);
-    return raw
-      ? { ...DEFAULT_SETTINGS, ...(JSON.parse(raw) as Partial<WorkspaceSettings>) }
-      : DEFAULT_SETTINGS;
+    return normalizeSettings(raw ? JSON.parse(raw) : undefined);
   } catch {
     return DEFAULT_SETTINGS;
   }
 }
 
-export function saveSettings(next: WorkspaceSettings) {
-  if (typeof localStorage === 'undefined') return;
-  localStorage.setItem(KEY, JSON.stringify(next));
+export function saveSettings(next: WorkspaceSettings): boolean {
+  const normalized = normalizeSettings(next);
+  try {
+    localStorage.setItem(KEY, JSON.stringify(normalized));
+    memorySettings = undefined;
+    return true;
+  } catch {
+    // Every run button reads loadSettings(), so changes still apply in this tab
+    // when storage is blocked or full. The settings screen reports persistence.
+    memorySettings = normalized;
+    return false;
+  }
 }
 
 /** The suite generates one scenario per category per `perCategory`, over four categories. */
 export function perCategoryFor(scenariosPerRun: number): number {
-  return Math.max(1, Math.min(10, Math.round(scenariosPerRun / 4)));
+  const count = Number.isFinite(scenariosPerRun) ? scenariosPerRun : DEFAULT_SETTINGS.scenariosPerRun;
+  return Math.max(1, Math.min(10, Math.round(count / 4)));
 }
 
 /** The options every "run evaluation" button sends, from one place. */
@@ -74,22 +93,36 @@ export function runOptionsFor(versionLabel: string) {
 export function useWorkspaceSettings() {
   // Read after mount so the first paint matches whatever the markup shipped with.
   const [settings, setSettings] = useState<WorkspaceSettings>(DEFAULT_SETTINGS);
-  useEffect(() => setSettings(loadSettings()), []);
-
-  const update = useCallback((patch: Partial<WorkspaceSettings>) => {
-    setSettings((prev) => {
-      const next = { ...prev, ...patch };
-      // Saved on change rather than behind a Save button: a settings screen whose
-      // values silently do not apply is worse than no settings screen.
-      saveSettings(next);
-      return next;
-    });
+  const current = useRef(settings);
+  const [storageAvailable, setStorageAvailable] = useState(!memorySettings);
+  useEffect(() => {
+    const refresh = () => {
+      current.current = loadSettings();
+      setSettings(current.current);
+    };
+    refresh();
+    const onStorage = (event: StorageEvent) => {
+      if (event.key === KEY || event.key === null) {
+        memorySettings = undefined;
+        refresh();
+        setStorageAvailable(true);
+      }
+    };
+    window.addEventListener('storage', onStorage);
+    return () => window.removeEventListener('storage', onStorage);
   }, []);
 
-  const reset = useCallback(() => {
-    saveSettings(DEFAULT_SETTINGS);
-    setSettings(DEFAULT_SETTINGS);
+  const apply = useCallback((next: WorkspaceSettings) => {
+    current.current = normalizeSettings(next);
+    const persisted = saveSettings(current.current);
+    setStorageAvailable(persisted);
+    setSettings(current.current);
+    return persisted;
   }, []);
 
-  return { settings, update, reset };
+  const update = useCallback((patch: Partial<WorkspaceSettings>) =>
+    apply({ ...current.current, ...patch }), [apply]);
+  const reset = useCallback(() => apply(DEFAULT_SETTINGS), [apply]);
+
+  return { settings, update, reset, storageAvailable };
 }
