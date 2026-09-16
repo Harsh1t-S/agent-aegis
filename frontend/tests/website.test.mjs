@@ -196,3 +196,52 @@ test('owner access stores only a validated key and clears it when locking', asyn
   await click(button('LOCK ACTIONS'));
   assert.equal(ownerKey(), '');
 });
+
+test('a missing authorization header is not reported as an incorrect owner key', async () => {
+  globalThis.fetch = async () => Response.json({ required: true, configured: true,
+    authorized: false, keyReceived: false });
+  await mount(OwnerAccess);
+  await act(async () => {
+    tree.root.findByProps({ id: 'owner-access-key' }).props.onChange({ target: { value: 'synthetic-owner-key' } });
+  });
+  await act(async () => {
+    await tree.root.findByType('form').props.onSubmit({ preventDefault() {} });
+  });
+  assert.match(pageText(), /did not reach the API/);
+  assert.equal(ownerKey(), '');
+});
+
+test('an unauthorized create can unlock and retry without losing unsaved form edits', async () => {
+  globalThis.localStorage = storage(JSON.stringify(draft));
+  const creates = [];
+  globalThis.fetch = async (url, options) => {
+    const authorized = options.headers.Authorization === 'Bearer synthetic-owner-key';
+    if (url === '/api/access') return Response.json({ required: true, configured: true,
+      authorized, keyReceived: Boolean(options.headers.Authorization) });
+    assert.equal(url, '/api/agents');
+    creates.push({ payload: JSON.parse(options.body), authorized });
+    return authorized ? Response.json({ id: 'created', tools: draft.tools })
+      : Response.json({ detail: 'Owner access required.' }, { status: 401 });
+  };
+  await mount(NewAgent);
+  await act(async () => {
+    tree.root.findByProps({ id: 'agent-name' }).props.onChange({ target: { value: 'Unsaved name change' } });
+  });
+  for (let step = 0; step < 3; step += 1) await click(button('CONTINUE'));
+  await click(button('CREATE AGENT'));
+  assert.equal(creates.length, 1);
+  assert.match(pageText(), /Owner access required/);
+  await act(async () => {
+    tree.root.findByProps({ id: 'owner-access-key' }).props.onChange({ target: { value: ' synthetic-owner-key ' } });
+  });
+  await act(async () => {
+    await tree.root.findByType('form').props.onSubmit({ preventDefault() {} });
+  });
+  assert.equal(creates.length, 1, 'unlocking must not automatically repeat a mutation');
+  assert.equal(ownerKey(), 'synthetic-owner-key');
+  await click(button('CREATE AGENT'));
+  assert.deepEqual(creates.map(({ payload, authorized }) => [payload.name, authorized]), [
+    ['Unsaved name change', false], ['Unsaved name change', true],
+  ]);
+  assert.equal(location(), '/app/agents/created');
+});

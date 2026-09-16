@@ -4,6 +4,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { AppNavigation } from '@/components/AppNavigation';
 import { SystemLabel } from '@/components/SystemLabel';
 import { MassiveHeading } from '@/components/MassiveHeading';
+import { OwnerAccess } from '@/components/OwnerAccess';
 import { useToast } from '@/components/Toaster';
 import {
   ArrowRight,
@@ -38,6 +39,7 @@ export default function NewAgent() {
   const [step, setStep] = useState(0);
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | undefined>();
+  const [needsOwnerAccess, setNeedsOwnerAccess] = useState(false);
   const [form, setForm] = useState<AgentForm>(EMPTY_AGENT_FORM);
 
   const [showSchema, setShowSchema] = useState(false);
@@ -178,6 +180,7 @@ export default function NewAgent() {
     } catch (err) {
       const message = err instanceof ApiError ? err.message : 'Could not create the agent.';
       setSubmitError(message);
+      setNeedsOwnerAccess(err instanceof ApiError && err.status === 401);
       toast.error('Agent not created', message);
       setSubmitting(false);
     }
@@ -527,6 +530,10 @@ export default function NewAgent() {
                       {submitError}
                     </p>
                   )}
+                  {needsOwnerAccess && <OwnerAccess onUnlocked={() => {
+                    setNeedsOwnerAccess(false);
+                    setSubmitError(undefined);
+                  }} />}
                 </div>
               )}
             </motion.div>

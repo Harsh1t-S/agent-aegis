@@ -251,6 +251,13 @@ remains open unless a key or `AEGIS_REQUIRE_AUTH=1` is configured.
 Open the dashboard's **Settings → Owner access**, enter that same owner key, and
 click **Unlock actions**. The browser keeps it in session storage for this tab;
 **Lock actions** clears it. Never enter an AIRouter/Groq/Gemini key into this form.
+Paste only the owner key's value, without `AEGIS_ADMIN_KEY=` or surrounding quotes.
+The backend reads the **aegis-api → Production** value, so changing a dashboard or
+Preview variable will not change production access. Redeploy the API after any
+key change, refresh the dashboard, and unlock again in the tab where you work.
+If creation is rejected, the review screen lets you unlock there and retry while
+keeping your unsaved form. The access check distinguishes a key that did not
+arrive from one that arrived but did not match; it never returns either key.
 For CLI/CI evaluation, set `AEGIS_ADMIN_KEY` in the calling process or GitHub Actions
 secret. It is sent as an authorization header and is never printed.
 
