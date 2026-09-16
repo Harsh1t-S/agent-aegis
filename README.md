@@ -6,8 +6,6 @@ tells you what broke and how badly.
 
 **Live demo: https://agent-aegis.vercel.app**
 
-Built for OOSC 4.0, Problem Statement 4.
-
 ## Why
 
 Agents demo well. The failures that matter show up later, under conditions nobody
