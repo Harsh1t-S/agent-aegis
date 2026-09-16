@@ -39,7 +39,8 @@ def test_missing_owner_configuration_is_read_only_on_vercel(client, monkeypatch)
     assert client.post("/api/agents", json={"name": "unsafe"}).status_code == 503
     assert client.get("/api/agents").status_code == 200
     access = client.get("/api/access")
-    assert access.json() == {"required": True, "configured": False, "authorized": False}
+    assert access.json() == {"required": True, "configured": False, "authorized": False,
+                             "keyReceived": False}
     assert access.headers["cache-control"] == "no-store"
 
 
@@ -49,6 +50,22 @@ def test_valid_owner_can_unlock_and_write_without_exposing_key(client, locked):
     response = client.post("/api/agents", headers=locked, json={"name": f"owner-{uuid4()}"})
     assert response.status_code == 201
     assert OWNER_KEY not in response.text
+
+
+def test_access_distinguishes_missing_and_incorrect_keys_without_disclosing_secrets(client, locked):
+    missing = client.get("/api/access")
+    wrong = client.get("/api/access", headers={"Authorization": "Bearer synthetic-wrong-key"})
+    valid = client.get("/api/access", headers=locked)
+    assert missing.json()["keyReceived"] is False
+    assert missing.json()["authorized"] is False
+    assert wrong.json()["keyReceived"] is True
+    assert wrong.json()["authorized"] is False
+    assert valid.json()["keyReceived"] is True
+    assert valid.json()["authorized"] is True
+    for response in [missing, wrong, valid]:
+        assert OWNER_KEY not in response.text
+        assert "synthetic-wrong-key" not in response.text
+        assert response.headers["cache-control"] == "no-store"
 
 
 def test_public_progress_and_trace_reads_never_execute_queued_work(client, monkeypatch):

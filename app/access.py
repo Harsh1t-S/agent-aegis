@@ -12,7 +12,11 @@ def access_state(request: Request) -> dict:
     scheme, _, supplied = request.headers.get("authorization", "").partition(" ")
     authorized = not required or bool(expected and scheme.lower() == "bearer" and
                                       hmac.compare_digest(supplied.encode(), expected.encode()))
-    return {"required": required, "configured": bool(expected), "authorized": authorized}
+    # Report transport separately from validation, without exposing either key
+    # (or a fingerprint of the configured secret). A lost header must not look
+    # like a password typo in the dashboard.
+    return {"required": required, "configured": bool(expected), "authorized": authorized,
+            "keyReceived": bool(scheme.lower() == "bearer" and supplied)}
 
 
 def can_write(request: Request) -> bool:

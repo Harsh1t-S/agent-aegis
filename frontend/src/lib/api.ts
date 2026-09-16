@@ -104,7 +104,7 @@ export interface EvaluateOptions {
 }
 
 export const api = {
-  access: (key?: string) => request<{ required: boolean; configured: boolean; authorized: boolean }>(
+  access: (key?: string) => request<{ required: boolean; configured: boolean; authorized: boolean; keyReceived?: boolean }>(
     '/access', key === undefined ? undefined : { headers: { Authorization: `Bearer ${key}` } }),
   dashboard: () => request<DashboardSummary>('/dashboard'),
   scoring: () => request<ScoringContract>('/scoring'),

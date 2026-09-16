@@ -5,7 +5,7 @@ import { useResource } from '@/hooks/useResource';
 import { ErrorState, LoadingState } from './AsyncState';
 import { SystemLabel } from './SystemLabel';
 
-export function OwnerAccess() {
+export function OwnerAccess({ onUnlocked }: { onUnlocked?: () => void }) {
   const access = useResource(() => api.access(), []);
   const [key, setKey] = useState('');
   const [busy, setBusy] = useState(false);
@@ -18,11 +18,15 @@ export function OwnerAccess() {
     setError('');
     try {
       const result = await api.access(key.trim());
-      if (!result.authorized) throw new Error(result.configured
-        ? 'That owner access key is not valid.' : 'Owner access has not been configured on the server.');
+      if (!result.authorized) {
+        if (!result.configured) throw new Error('Owner access has not been configured on the server.');
+        if (result.keyReceived === false) throw new Error('Your owner key did not reach the API. Refresh this page and try again.');
+        throw new Error('That owner access key is not valid for this API. Check the Production value of AEGIS_ADMIN_KEY on aegis-api, and redeploy the API if you changed it.');
+      }
       setOwnerKey(key.trim());
       setKey('');
       access.reload();
+      onUnlocked?.();
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : 'Could not unlock actions.');
     } finally { setBusy(false); }
@@ -41,7 +45,7 @@ export function OwnerAccess() {
         <label htmlFor="owner-access-key" className="block font-mono text-xs text-bone-300">Owner access key</label>
         <input id="owner-access-key" type="password" autoComplete="off" value={key} onChange={(event) => setKey(event.target.value)}
           className="w-full border border-bone-300/35 bg-ink-950 px-4 py-3 text-base text-bone-50" />
-        <p className="text-xs text-bone-400">Use your Aegis owner key here. Provider API keys stay on the server.</p>
+        <p className="text-xs text-bone-400">Paste only the value of AEGIS_ADMIN_KEY from aegis-api’s Production environment. Leave out AEGIS_ADMIN_KEY= and any surrounding quotes. Your AIRouter key belongs in AIROUTER_API_KEY on the server.</p>
         {error && <p role="alert" className="text-sm text-fault-400">{error}</p>}
         <button type="submit" disabled={busy || !key.trim() || !access.data?.configured}
           className="min-h-11 border border-signal-500/40 px-4 font-mono text-xs text-signal-300 disabled:opacity-50">
