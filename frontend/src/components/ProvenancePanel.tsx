@@ -22,10 +22,12 @@ export function ProvenancePanel({
   evaluationId,
   provenance,
   onReanalyzed,
+  canReanalyze = true,
 }: {
   evaluationId: string;
   provenance: EvaluationProvenance;
   onReanalyzed: () => void;
+  canReanalyze?: boolean;
 }) {
   const toast = useToast();
   const [busy, setBusy] = useState(false);
@@ -78,7 +80,7 @@ export function ProvenancePanel({
             {current ? 'GRADED BY THE DEPLOYED EVALUATOR' : 'GRADED BY AN EARLIER EVALUATOR'}
           </SystemLabel>
         </div>
-        {detectorStale && (
+        {detectorStale && canReanalyze && (
           <button
             type="button"
             onClick={reanalyze}

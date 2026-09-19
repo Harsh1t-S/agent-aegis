@@ -1,19 +1,21 @@
 import asyncio
 import os
+import socket
 import time
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 import httpx
 
 from . import mock_core
 from .adapters import adapter_for
 from .classifier import classify
-from .database import SessionLocal
+from .database import IS_POSTGRES, SessionLocal, set_session_context
 from .detectors import DETECTOR_VERSION, detect_all
 from .provenance import evaluator_stamp
-from .models import (Agent, AgentVersion, ExecutionTrace, FailureAnnotation,
-                     MockEnvironment, Scenario, TestRun)
+from .models import (Agent, AgentVersion, EvaluationJob, ExecutionTrace,
+                     FailureAnnotation, MockEnvironment, Scenario, TestRun)
 from .scoring import score_run
+from .usage import refund_run, settle_run
 
 MOCK_TOOL_URL = os.getenv("MOCK_TOOL_URL", "http://localhost:8001")
 # Serverless has no second process to talk to, so the sandbox is imported instead.
@@ -21,6 +23,10 @@ MOCK_INLINE = os.getenv("MOCK_INLINE", "0") == "1"
 MAX_STEPS = int(os.getenv("MAX_STEPS", "12"))
 MAX_TOOL_CALLS = int(os.getenv("MAX_TOOL_CALLS", "10"))
 MAX_WALL_SECONDS = int(os.getenv("MAX_WALL_SECONDS", "45"))
+
+
+class EvaluationCancelled(Exception):
+    pass
 
 
 def now() -> datetime:
@@ -109,10 +115,12 @@ COMMIT_EVERY_TRACE = os.getenv("COMMIT_EVERY_TRACE",
                                "0" if os.getenv("SERVERLESS") == "1" else "1") == "1"
 
 
-def add_trace(db, run_id: str, steps: StepCounter, kind: str, payload: dict,
+def add_trace(db, run_id: str, workspace_id: str, steps: StepCounter,
+              kind: str, payload: dict,
               latency_ms: int | None = None) -> int:
     number = steps.next()
-    db.add(ExecutionTrace(test_run_id=run_id, step_number=number, step_type=kind,
+    db.add(ExecutionTrace(workspace_id=workspace_id, test_run_id=run_id,
+                          step_number=number, step_type=kind,
                           payload=payload, latency_ms=latency_ms))
     if COMMIT_EVERY_TRACE:
         db.commit()
@@ -121,6 +129,7 @@ def add_trace(db, run_id: str, steps: StepCounter, kind: str, payload: dict,
 
 async def run_test(run_id: str) -> None:
     db = SessionLocal()
+    set_session_context(db, worker=True)
     sandbox = sandbox_for()
     session_id = None
     steps = StepCounter()
@@ -129,6 +138,7 @@ async def run_test(run_id: str) -> None:
         run = db.get(TestRun, run_id)
         if run is None:
             return
+        set_session_context(db, workspace_id=run.workspace_id)
         claimed = db.query(TestRun).filter_by(id=run_id, status="pending").update(
             {"status": "running", "started_at": now()}, synchronize_session=False)
         db.commit()
@@ -163,14 +173,31 @@ async def run_test(run_id: str) -> None:
         # than the number meaning something.
         is_guardrail = bool((scenario.expected_behavior or {}).get("guardrail"))
         rotation = 0 if is_guardrail else int(run.id.replace("-", "")[:8], 16)
-        adapter = adapter_for(version.config_snapshot, rotation=rotation)
+        adapter_config = dict(version.config_snapshot or {})
+        if adapter_config.get("adapter") == "http":
+            endpoint_config = agent.endpoint_config or {}
+            encrypted = endpoint_config.get("bearer_token_encrypted")
+            if encrypted and endpoint_config.get("url") == adapter_config.get("url"):
+                from .secret_store import decrypt_secret
+
+                token = decrypt_secret(
+                    encrypted,
+                    context=f"agent-endpoint:{adapter_config['url']}",
+                )
+                adapter_config["headers"] = {"Authorization": f"Bearer {token}"}
+        adapter = adapter_for(adapter_config, rotation=rotation)
         messages = [{"role": "user", "content": scenario.initial_prompt}]
-        add_trace(db, run_id, steps, "agent_message",
+        add_trace(db, run_id, run.workspace_id, steps, "agent_message",
                   {"role": "user", "content": scenario.initial_prompt})
 
         turns, tool_calls, began = 0, 0, time.monotonic()
         while (turns < MAX_STEPS and tool_calls < MAX_TOOL_CALLS
                and time.monotonic() - began < MAX_WALL_SECONDS):
+            job = db.query(EvaluationJob).filter_by(test_run_id=run_id).first()
+            if job:
+                db.refresh(job)
+                if job.status == "cancel_requested":
+                    raise EvaluationCancelled("Evaluation was canceled")
             turns += 1
             began_action = time.monotonic()
             remaining = MAX_WALL_SECONDS - (time.monotonic() - began)
@@ -183,7 +210,7 @@ async def run_test(run_id: str) -> None:
 
             if action.get("type") == "final":
                 content = action.get("content", "")
-                add_trace(db, run_id, steps, "agent_message",
+                add_trace(db, run_id, run.workspace_id, steps, "agent_message",
                           {"role": "assistant", "content": content, "final": True}, elapsed)
                 messages.append({"role": "assistant", "content": content})
                 break
@@ -195,25 +222,27 @@ async def run_test(run_id: str) -> None:
             # inspect it independently of the call it accompanies.
             if action.get("content"):
                 content = action["content"]
-                add_trace(db, run_id, steps, "agent_message",
+                add_trace(db, run_id, run.workspace_id, steps, "agent_message",
                           {"role": "assistant", "content": content, "final": False}, elapsed)
                 messages.append({"role": "assistant", "content": content})
 
             tool_calls += 1
             name, arguments = action["tool_name"], action.get("arguments", {})
-            add_trace(db, run_id, steps, "tool_call",
+            add_trace(db, run_id, run.workspace_id, steps, "tool_call",
                       {"tool_name": name, "arguments": arguments}, elapsed)
 
             result_started = time.monotonic()
             result = await sandbox.call(session_id, name, arguments)
-            add_trace(db, run_id, steps, "tool_result", {"tool_name": name, **result},
+            add_trace(db, run_id, run.workspace_id, steps, "tool_result",
+                      {"tool_name": name, **result},
                       int((time.monotonic() - result_started) * 1000))
             messages += [
                 {"role": "assistant", "tool_call": {"name": name, "arguments": arguments}},
                 {"role": "tool", "name": name, "content": result},
             ]
         else:
-            add_trace(db, run_id, steps, "error", {"reason": "execution limit exceeded"})
+            add_trace(db, run_id, run.workspace_id, steps, "error",
+                      {"reason": "execution limit exceeded"})
 
         final_state = await sandbox.state(session_id)
         db.commit()   # flush batched traces so the detectors can read them back
@@ -235,21 +264,31 @@ async def run_test(run_id: str) -> None:
                               trusted_context=trusted)
         annotations = classify(findings)
         for annotation in annotations:
-            db.add(FailureAnnotation(test_run_id=run_id, detector_version=DETECTOR_VERSION,
+            db.add(FailureAnnotation(workspace_id=run.workspace_id, test_run_id=run_id,
+                                     detector_version=DETECTOR_VERSION,
                                      **annotation))
 
         # Record which model actually served the run, so a report can show whether
         # a pool failover changed the agent under test partway through.
         served = sorted(set(getattr(adapter, "served_by", []) or []))
         if served:
-            add_trace(db, run_id, steps, "meta", {"models_used": served,
-                                                  "primary": getattr(adapter, "model", None)})
+            add_trace(db, run_id, run.workspace_id, steps, "meta",
+                      {"models_used": served,
+                       "primary": getattr(adapter, "model", None)})
 
         outcome, score, breakdown = score_run(annotations, final_state,
                                               scenario.expected_behavior, traces)
         run.outcome, run.reliability_score, run.metrics = outcome, score, breakdown
         run.final_state, run.status, run.completed_at = final_state, "complete", now()
         run.duration_ms = int((time.monotonic() - began_run) * 1000)
+        usage = getattr(adapter, "usage", {}) or {}
+        run.input_tokens = int(usage.get("input_tokens") or 0)
+        run.output_tokens = int(usage.get("output_tokens") or 0)
+        input_rate = float(os.getenv("LLM_INPUT_COST_PER_MILLION", "0"))
+        output_rate = float(os.getenv("LLM_OUTPUT_COST_PER_MILLION", "0"))
+        run.estimated_cost_usd = round(
+            (run.input_tokens * input_rate + run.output_tokens * output_rate)
+            / 1_000_000, 8)
         # Stamp what graded it. A verdict nobody can trace back to a specific
         # evaluator is a verdict nobody can reproduce.
         run.provenance = evaluator_stamp(scenario.generator_version)
@@ -264,10 +303,17 @@ async def run_test(run_id: str) -> None:
             db.rollback()
         run = db.get(TestRun, run_id)
         if run:
-            run.status, run.completed_at = "error", now()
+            set_session_context(db, workspace_id=run.workspace_id)
+            run.status = "canceled" if isinstance(exc, EvaluationCancelled) else "error"
+            run.completed_at = now()
             run.duration_ms = int((time.monotonic() - began_run) * 1000)
-            db.add(ExecutionTrace(test_run_id=run_id, step_number=steps.current + 1,
-                                  step_type="error", payload={"reason": str(exc)}))
+            db.add(ExecutionTrace(workspace_id=run.workspace_id,
+                                  test_run_id=run_id, step_number=steps.current + 1,
+                                  step_type="error", payload={
+                                      "reason": str(exc),
+                                      "kind": type(exc).__name__,
+                                      "retryable": _retryable_failure(exc),
+                                  }))
             db.commit()
     finally:
         if session_id:
@@ -279,40 +325,272 @@ async def run_test(run_id: str) -> None:
 
 
 SYNC_RUNS = os.getenv("SYNC_RUNS", "0") == "1"
+DURABLE_QUEUE = os.getenv(
+    "AEGIS_DURABLE_QUEUE", "1" if IS_POSTGRES else "0") == "1"
+JOB_LEASE_SECONDS = int(os.getenv("JOB_LEASE_SECONDS", "120"))
+
+
+def _retryable_failure(exc: Exception) -> bool:
+    if isinstance(exc, httpx.HTTPStatusError):
+        status = exc.response.status_code
+        return status in {408, 409, 425, 429} or status >= 500
+    return isinstance(exc, (TimeoutError, httpx.TransportError, ConnectionError, OSError))
+
+
+def enqueue_run(db, run: TestRun, reservation_id: str | None = None) -> EvaluationJob:
+    job = db.query(EvaluationJob).filter_by(test_run_id=run.id).first()
+    if job:
+        if reservation_id and not job.reservation_id:
+            job.reservation_id = reservation_id
+        return job
+    job = EvaluationJob(
+        workspace_id=run.workspace_id,
+        test_run_id=run.id,
+        reservation_id=reservation_id,
+    )
+    db.add(job)
+    return job
+
+
+def _finalize_job(job_id: str) -> None:
+    db = SessionLocal()
+    notification_target: tuple[str, str] | None = None
+    try:
+        set_session_context(db, worker=True)
+        job = db.get(EvaluationJob, job_id)
+        if not job:
+            return
+        set_session_context(db, workspace_id=job.workspace_id)
+        run = db.get(TestRun, job.test_run_id)
+        if not run:
+            job.status = "failed"
+            job.last_error = "Test run was deleted"
+            job.completed_at = now()
+        elif job.status == "cancel_requested" or run.status == "canceled":
+            job.status = "canceled"
+            job.completed_at = now()
+            job.lease_owner = None
+            job.lease_until = None
+            refund_run(db, job.reservation_id, run.id, job.workspace_id,
+                       "Evaluation canceled")
+        elif run.status == "complete":
+            job.status = "completed"
+            job.completed_at = now()
+            job.lease_owner = None
+            job.lease_until = None
+            settle_run(
+                db,
+                job.reservation_id,
+                run.id,
+                job.workspace_id,
+                input_tokens=run.input_tokens,
+                output_tokens=run.output_tokens,
+                estimated_cost_usd=run.estimated_cost_usd,
+            )
+        else:
+            error_trace = (db.query(ExecutionTrace)
+                           .filter_by(test_run_id=run.id, step_type="error")
+                           .order_by(ExecutionTrace.step_number.desc()).first())
+            detail = (error_trace.payload if error_trace else {}) or {}
+            job.last_error = str(detail.get("reason") or "Evaluation failed")[:1000]
+            if detail.get("retryable") and job.attempts < job.max_attempts:
+                # Retry transient provider/network failures from a clean trace.
+                # The original reservation stays held until a terminal outcome.
+                db.query(ExecutionTrace).filter_by(
+                    test_run_id=run.id).delete(synchronize_session=False)
+                db.query(FailureAnnotation).filter_by(
+                    test_run_id=run.id).delete(synchronize_session=False)
+                run.status = "pending"
+                run.started_at = None
+                run.completed_at = None
+                run.outcome = None
+                run.reliability_score = None
+                run.metrics = None
+                run.final_state = None
+                job.status = "queued"
+                job.available_at = now() + timedelta(
+                    seconds=min(60, 5 * (2 ** max(job.attempts - 1, 0))))
+                job.lease_owner = None
+                job.lease_until = None
+                job.completed_at = None
+            else:
+                job.status = "failed"
+                job.completed_at = now()
+                job.lease_owner = None
+                job.lease_until = None
+                refund_run(db, job.reservation_id, run.id, job.workspace_id,
+                           job.last_error)
+        db.commit()
+        if run and job.status in {"completed", "failed", "canceled"}:
+            notification_target = (run.agent_version_id, job.workspace_id)
+    finally:
+        db.close()
+    if notification_target:
+        from .notifications import send_evaluation_notification
+
+        try:
+            send_evaluation_notification(*notification_target)
+        except Exception:
+            # The evaluation is already durable and settled. Delivery state is
+            # retried separately and must not make a worker re-run the scenario.
+            pass
+
+
+def execute_job(job_id: str) -> None:
+    """Run one already-claimed job and settle it exactly once."""
+    db = SessionLocal()
+    try:
+        set_session_context(db, worker=True)
+        job = db.get(EvaluationJob, job_id)
+        if not job:
+            return
+        set_session_context(db, workspace_id=job.workspace_id)
+        run = db.get(TestRun, job.test_run_id)
+        if not run:
+            job.status = "failed"
+            job.last_error = "Test run was deleted"
+            job.completed_at = now()
+            db.commit()
+            return
+        if job.status == "queued":
+            job.status = "running"
+            job.attempts += 1
+            job.lease_owner = f"inline:{socket.gethostname()}"
+            job.lease_until = now() + timedelta(seconds=JOB_LEASE_SECONDS)
+            db.commit()
+        run_id = run.id
+        already_complete = run.status == "complete"
+    finally:
+        db.close()
+    if not already_complete:
+        asyncio.run(run_test(run_id))
+    _finalize_job(job_id)
+
+
+def claim_next_job(worker_id: str) -> str | None:
+    """Atomically claim a queued or expired job using SKIP LOCKED on Postgres."""
+    from sqlalchemy import or_, text
+
+    from .models import Subscription, Workspace
+    from .plans import plan_for
+
+    db = SessionLocal()
+    try:
+        set_session_context(db, worker=True)
+        current = now()
+        selected = None
+        seen: list[str] = []
+        for _ in range(20):
+            query = (
+                db.query(EvaluationJob)
+                .filter(
+                    or_(
+                        (EvaluationJob.status == "queued")
+                        & (EvaluationJob.available_at <= current),
+                        (EvaluationJob.status == "running")
+                        & (EvaluationJob.lease_until < current),
+                    ),
+                    EvaluationJob.attempts < EvaluationJob.max_attempts,
+                    EvaluationJob.id.notin_(seen),
+                )
+                .order_by(EvaluationJob.available_at, EvaluationJob.created_at)
+                .limit(1)
+            )
+            if IS_POSTGRES:
+                query = query.with_for_update(skip_locked=True)
+            candidate = query.first()
+            if candidate is None:
+                break
+            seen.append(candidate.id)
+            workspace = db.get(
+                Workspace,
+                candidate.workspace_id,
+                execution_options={"include_all_workspaces": True},
+            )
+            if IS_POSTGRES:
+                # Serialise the active-count decision per workspace. Row locks
+                # alone are insufficient because two workers can lock different
+                # queued jobs, both observe zero active jobs, and exceed a plan's
+                # concurrency limit before either commit becomes visible.
+                db.execute(
+                    text("select pg_advisory_xact_lock(hashtext(:workspace_id))"),
+                    {"workspace_id": candidate.workspace_id},
+                )
+            subscription = db.get(Subscription, workspace.organization_id) if workspace else None
+            concurrency = plan_for(subscription.plan if subscription else "trial").concurrency
+            active = (
+                db.query(EvaluationJob)
+                .execution_options(include_all_workspaces=True)
+                .filter(EvaluationJob.workspace_id == candidate.workspace_id,
+                        EvaluationJob.status == "running",
+                        EvaluationJob.lease_until >= current,
+                        EvaluationJob.id != candidate.id)
+                .count()
+            )
+            if active < concurrency:
+                selected = candidate
+                break
+        if not selected:
+            db.rollback()
+            return None
+
+        run = db.get(
+            TestRun,
+            selected.test_run_id,
+            execution_options={"include_all_workspaces": True},
+        )
+        if selected.status == "running" and run and run.status == "running":
+            # The previous worker died mid-run. Start from a clean attempt so
+            # duplicate step numbers cannot corrupt a trace.
+            db.query(ExecutionTrace).execution_options(
+                include_all_workspaces=True).filter_by(
+                test_run_id=run.id).delete(synchronize_session=False)
+            db.query(FailureAnnotation).execution_options(
+                include_all_workspaces=True).filter_by(
+                test_run_id=run.id).delete(synchronize_session=False)
+            run.status = "pending"
+            run.started_at = None
+            run.completed_at = None
+            run.outcome = None
+            run.reliability_score = None
+        selected.status = "running"
+        selected.attempts += 1
+        selected.lease_owner = worker_id
+        selected.lease_until = current + timedelta(seconds=JOB_LEASE_SECONDS)
+        db.commit()
+        return selected.id
+    finally:
+        db.close()
 
 
 def dispatch(background, run_id: str) -> None:
-    """Queue a run, or execute it inline where background work cannot survive.
-
-    On a normal server, BackgroundTasks runs after the response is flushed. On
-    serverless the function may be frozen the moment it responds, so the run would
-    never finish — there, SYNC_RUNS=1 executes it before returning instead. The
-    handler is sync and lives in a threadpool worker with no running loop, so
-    asyncio.run is the correct entry point.
-    """
+    """Ensure a durable job exists, then execute only in explicit local modes."""
+    db = SessionLocal()
+    try:
+        set_session_context(db, worker=True)
+        run = db.get(TestRun, run_id)
+        if not run:
+            return
+        set_session_context(db, workspace_id=run.workspace_id)
+        job = enqueue_run(db, run)
+        db.commit()
+        job_id = job.id
+    finally:
+        db.close()
     if SYNC_RUNS:
-        asyncio.run(run_test(run_id))
-    else:
-        background.add_task(run_test, run_id)
+        execute_job(job_id)
+    elif not DURABLE_QUEUE:
+        background.add_task(execute_job, job_id)
 
 
 RUN_BUDGET_SECONDS = float(os.getenv("RUN_BUDGET_SECONDS", "20"))
 
 
 def drain_pending(db, version_id: str, budget: float | None = None) -> int:
-    """Execute queued runs for a version until the time budget is spent.
-
-    Serverless caps how long one invocation may live, so a twelve-scenario suite
-    cannot be guaranteed to finish inside the request that created it. Instead the
-    runs are queued and drained a few at a time — including by the progress endpoint
-    the dashboard already polls, so the suite finishes without any extra machinery
-    and without the client needing to know it is happening.
-    """
-    from .models import TestRun
-
+    """Compatibility helper for local/test synchronous execution only."""
+    if DURABLE_QUEUE and not SYNC_RUNS:
+        return 0
     budget = RUN_BUDGET_SECONDS if budget is None else budget
-    version = db.get(AgentVersion, version_id)
-    remote = bool(version and (version.config_snapshot or {}).get("adapter") in {"llm", "http"})
     started = time.monotonic()
     completed = 0
     while time.monotonic() - started < budget:
@@ -322,10 +600,8 @@ def drain_pending(db, version_id: str, budget: float | None = None) -> int:
                      .order_by(TestRun.id).first())
         if pending is None:
             break
-        asyncio.run(run_test(pending.id))
+        job = enqueue_run(db, pending)
+        db.commit()
+        execute_job(job.id)
         completed += 1
-        # One slow remote scenario may use the full 45s limit. Starting another
-        # would exceed Vercel's 60s invocation limit before progress can be saved.
-        if remote:
-            break
     return completed

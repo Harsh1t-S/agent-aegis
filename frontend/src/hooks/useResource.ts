@@ -67,8 +67,8 @@ export function useResource<T>(
           loaded = true;
           setLoading(false);
           setRefreshing(false);
-          // Progress GETs execute queued work on Vercel. Wait for each response
-          // before polling again, or one slow request starts duplicate workers.
+          // Wait for each response before polling again. This prevents a slow
+          // network from building an ever-growing stack of stale reads.
           if (pollMs && continuePolling) timer = setTimeout(run, pollMs);
         }
       }

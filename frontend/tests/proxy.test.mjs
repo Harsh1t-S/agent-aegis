@@ -20,7 +20,7 @@ const response = () => ({
   send(data) { this.data = data; return this; },
 });
 
-test('proxy preserves body, query, owner authorization and upstream error status', async () => {
+test('proxy preserves body, query, workspace session and upstream error status', async () => {
   const originalFetch = globalThis.fetch;
   const priorOrigin = process.env.AEGIS_API_ORIGIN;
   process.env.AEGIS_API_ORIGIN = 'https://preview-api.example.test';
@@ -32,10 +32,12 @@ test('proxy preserves body, query, owner authorization and upstream error status
   try {
     const res = response();
     await handler({ method: 'POST', query: { __aegis_path: 'agents/abc/evaluate', seed: '42' },
-      headers: { authorization: 'Bearer synthetic-owner-key', 'content-type': 'application/json' },
+      headers: { authorization: 'Bearer signed-user-token', 'x-workspace-id': 'workspace-42',
+        'content-type': 'application/json' },
       body: { adapter: 'llm' } }, res);
     assert.equal(calls[0].url, 'https://preview-api.example.test/api/agents/abc/evaluate?seed=42');
-    assert.equal(calls[0].options.headers.Authorization, 'Bearer synthetic-owner-key');
+    assert.equal(calls[0].options.headers.Authorization, 'Bearer signed-user-token');
+    assert.equal(calls[0].options.headers['X-Workspace-ID'], 'workspace-42');
     assert.equal(calls[0].options.body, '{"adapter":"llm"}');
     assert.equal(res.code, 401);
     assert.equal(res.headers['Cache-Control'], 'no-store');

@@ -9,8 +9,7 @@ const { default: NewAgent } = await loadUi('pages/app/NewAgent.tsx');
 const { default: Compare } = await loadUi('pages/app/Compare.tsx');
 const { default: TestTrace } = await loadUi('pages/app/TestTrace.tsx');
 const { default: EvaluationResults } = await loadUi('pages/app/EvaluationResults.tsx');
-const { OwnerAccess } = await loadUi('components/OwnerAccess.tsx');
-const { ownerKey, setOwnerKey } = await loadUi('lib/owner-access.ts');
+const { configureTokenProvider, setActiveWorkspace } = await loadUi('lib/session.ts');
 const settings = await loadUi('lib/workspace-settings.ts');
 const { evaluationPath, evaluationVerdict, hasAgentScore } = await loadUi('lib/format.ts');
 
@@ -37,7 +36,8 @@ afterEach(async () => {
   settings.saveSettings(settings.DEFAULT_SETTINGS); // clear any temporary settings
   globalThis.localStorage = originalStorage;
   messages.length = 0;
-  setOwnerKey('');
+  configureTokenProvider(async () => null);
+  setActiveWorkspace(null);
 });
 
 function Location() {
@@ -107,7 +107,7 @@ test('manually duplicated tool names block the review step', async () => {
 test('invalid stored settings never send an unsupported adapter or invalid suite size', () => {
   globalThis.localStorage = storage(JSON.stringify({ scenariosPerRun: 'bad', adapter: 'http', adversarial: 'false' }));
   assert.deepEqual(settings.runOptionsFor('v2'), {
-    versionLabel: 'v2', perCategory: 3, adapter: 'llm', adversarial: true,
+    versionLabel: 'v2', perCategory: 3, adapter: 'behavioral', adversarial: true,
   });
   assert.equal(settings.perCategoryFor(NaN), 3);
 });
@@ -175,53 +175,18 @@ test('a saved trace URL loads its exact run independently of latest report membe
   assert.deepEqual(paths, ['/api/evaluations/eval/tests/old-run']);
 });
 
-test('owner access stores only a validated key and clears it when locking', async () => {
-  globalThis.fetch = async (_url, options) => Response.json({ required: true, configured: true,
-    authorized: options.headers.Authorization === 'Bearer synthetic-owner-key' });
-  await mount(OwnerAccess);
-  const enter = async (value) => act(async () => {
-    tree.root.findByProps({ id: 'owner-access-key' }).props.onChange({ target: { value } });
-  });
-  const submit = async () => act(async () => {
-    await tree.root.findByType('form').props.onSubmit({ preventDefault() {} });
-  });
-  await enter('wrong');
-  await submit();
-  assert.equal(ownerKey(), '');
-  assert.match(pageText(), /not valid/);
-  await enter('synthetic-owner-key');
-  await submit();
-  assert.equal(ownerKey(), 'synthetic-owner-key');
-  assert.match(pageText(), /Actions unlocked/);
-  await click(button('LOCK ACTIONS'));
-  assert.equal(ownerKey(), '');
-});
-
-test('a missing authorization header is not reported as an incorrect owner key', async () => {
-  globalThis.fetch = async () => Response.json({ required: true, configured: true,
-    authorized: false, keyReceived: false });
-  await mount(OwnerAccess);
-  await act(async () => {
-    tree.root.findByProps({ id: 'owner-access-key' }).props.onChange({ target: { value: 'synthetic-owner-key' } });
-  });
-  await act(async () => {
-    await tree.root.findByType('form').props.onSubmit({ preventDefault() {} });
-  });
-  assert.match(pageText(), /did not reach the API/);
-  assert.equal(ownerKey(), '');
-});
-
-test('an unauthorized create can unlock and retry without losing unsaved form edits', async () => {
+test('an expired session can retry without losing unsaved form edits', async () => {
   globalThis.localStorage = storage(JSON.stringify(draft));
   const creates = [];
+  let token = 'expired-token';
+  configureTokenProvider(async () => token);
+  setActiveWorkspace('workspace-42');
   globalThis.fetch = async (url, options) => {
-    const authorized = options.headers.Authorization === 'Bearer synthetic-owner-key';
-    if (url === '/api/access') return Response.json({ required: true, configured: true,
-      authorized, keyReceived: Boolean(options.headers.Authorization) });
     assert.equal(url, '/api/agents');
+    const authorized = options.headers.Authorization === 'Bearer refreshed-token';
     creates.push({ payload: JSON.parse(options.body), authorized });
     return authorized ? Response.json({ id: 'created', tools: draft.tools })
-      : Response.json({ detail: 'Owner access required.' }, { status: 401 });
+      : Response.json({ detail: 'Your session expired. Sign in again.' }, { status: 401 });
   };
   await mount(NewAgent);
   await act(async () => {
@@ -230,15 +195,8 @@ test('an unauthorized create can unlock and retry without losing unsaved form ed
   for (let step = 0; step < 3; step += 1) await click(button('CONTINUE'));
   await click(button('CREATE AGENT'));
   assert.equal(creates.length, 1);
-  assert.match(pageText(), /Owner access required/);
-  await act(async () => {
-    tree.root.findByProps({ id: 'owner-access-key' }).props.onChange({ target: { value: ' synthetic-owner-key ' } });
-  });
-  await act(async () => {
-    await tree.root.findByType('form').props.onSubmit({ preventDefault() {} });
-  });
-  assert.equal(creates.length, 1, 'unlocking must not automatically repeat a mutation');
-  assert.equal(ownerKey(), 'synthetic-owner-key');
+  assert.match(pageText(), /session expired/i);
+  token = 'refreshed-token';
   await click(button('CREATE AGENT'));
   assert.deepEqual(creates.map(({ payload, authorized }) => [payload.name, authorized]), [
     ['Unsaved name change', false], ['Unsaved name change', true],

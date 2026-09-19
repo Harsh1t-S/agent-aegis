@@ -1,477 +1,190 @@
-import { useRef, useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { motion, useScroll, useTransform } from 'framer-motion';
+import { motion } from 'framer-motion';
+import {
+  ArrowRight, Cable, CheckCircle2, GitCompareArrows, LockKeyhole,
+  PlayCircle, ShieldAlert, TerminalSquare,
+} from 'lucide-react';
 import { AgentCore } from '@/components/AgentCore';
-import { ScenarioStream } from '@/components/ScenarioStream';
 import { ExecutionTrace } from '@/components/ExecutionTrace';
-import { FailureReveal } from '@/components/FailureReveal';
-import { ReliabilityScore } from '@/components/ReliabilityScore';
-import { MetricLine } from '@/components/MetricLine';
-import { VersionEvolution } from '@/components/VersionEvolution';
 import { MassiveHeading } from '@/components/MassiveHeading';
+import { MetricLine } from '@/components/MetricLine';
+import { ReliabilityScore } from '@/components/ReliabilityScore';
 import { ScrollReveal } from '@/components/ScrollReveal';
-import { CountUp } from '@/components/CountUp';
-import { SectionNumber } from '@/components/SectionNumber';
 import { SystemLabel } from '@/components/SystemLabel';
 import { exampleTrace } from '@/data/showcase';
-import { useResource } from '@/hooks/useResource';
-import { api } from '@/lib/api';
+
+const capabilities = [
+  { icon: Cable, title: 'Test the real agent', copy: 'Connect a runner to include your orchestration, retrieval and memory, while Aegis supplies safe mocked tools.' },
+  { icon: ShieldAlert, title: 'See the exact breach', copy: 'Inspect the prompt, tool arguments, result, final state and policy expectation behind every finding.' },
+  { icon: GitCompareArrows, title: 'Gate the next release', copy: 'Compare the same immutable scenarios across versions and fail CI when a confirmed regression returns.' },
+];
+
+const workflow = [
+  ['01', 'Choose a test path', 'Start free with prompt simulation or connect your agent runner.'],
+  ['02', 'Import tools and policy', 'Paste a tool schema and the instructions that define safe behavior.'],
+  ['03', 'Review the suite', 'Aegis builds realistic, ambiguous, edge and adversarial scenarios with executable expectations.'],
+  ['04', 'Run and decide', 'Inspect evidence, classify findings, then save the run as a baseline.'],
+];
 
 export default function LandingPage() {
-  const containerRef = useRef<HTMLDivElement>(null);
-  const { scrollYProgress } = useScroll();
-  const [destabilized, setDestabilized] = useState(false);
-
-  const heroY = useTransform(scrollYProgress, [0, 0.08], [0, -100]);
-  const heroOpacity = useTransform(scrollYProgress, [0, 0.08], [1, 0]);
-  const coreScale = useTransform(scrollYProgress, [0, 0.15], [1, 0.7]);
-
-
-  // Every number below this line comes from a real evaluation in the live
-  // database. A landing page that invents its own product metrics is the exact
-  // failure this product is built to catch, so when the API is unreachable the
-  // sections say so rather than showing a flattering placeholder.
-  const evaluations = useResource(() => api.evaluations(), []);
-  const latest = evaluations.data?.find((evaluation) => evaluation.status === 'completed');
-  const agents = useResource(() => api.agents(), []);
-  const showcaseAgent = latest
-    ? agents.data?.find((a) => a.id === latest.agentId)
-    : undefined;
-  const detectedFailures = latest
-    ? latest.failureBreakdown.reduce((sum, item) => sum + item.count, 0)
-    : 0;
-  // The counter animates up to the size of the suite that actually ran, not to
-  // a round number chosen because it looks impressive.
-  const suiteSize = latest?.total ?? 0;
-
-  // Only the hero's own destabilisation is scroll-linked now, and it is purely
-  // decorative — nothing a reader has to be able to read depends on it.
-  useEffect(() => {
-    const unsub = scrollYProgress.on('change', (v) => setDestabilized(v > 0.12));
-    return () => unsub();
-  }, [scrollYProgress]);
-
   return (
-    <div ref={containerRef} className="relative bg-ink-950">
-      {/* HERO */}
-      <motion.section
-        className="relative flex min-h-screen flex-col items-center justify-center overflow-hidden noise"
-        style={{ y: heroY, opacity: heroOpacity }}
-      >
-        <div className="absolute inset-0 grid-bg opacity-30" />
-        <div className="absolute inset-0 bg-gradient-to-b from-transparent via-ink-950/50 to-ink-950" />
-
-        {/* Agent Core centerpiece */}
-        {/* The centring offset is a motion value, not a Tailwind class.
-            `-translate-x-1/2 -translate-y-1/2` and framer-motion both write the
-            same `transform` property, and framer wins — so the class was silently
-            dropped and the graphic hung from the centre point by its top-left
-            corner instead of being centred on it. On a phone that put most of it
-            off the right edge, where the section's overflow-hidden cropped it. */}
-        <motion.div
-          className="absolute left-1/2 top-1/2"
-          style={{ scale: coreScale, x: '-50%', y: '-50%' }}
-        >
-          {/* No centre node: the heading sits on top of this, and the node is an
-              opaque disc with a label on it. */}
-          <AgentCore destabilized={destabilized} size={500} core={false} />
-        </motion.div>
-
-        <div className="relative z-10 px-6 text-center">
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            transition={{ delay: 0.4, duration: 1 }}
-            className="mb-8 flex flex-col items-center gap-1"
-          >
-            <SystemLabel>AI AGENT EVALUATION ENGINE</SystemLabel>
-            <SystemLabel className="text-flux-400">STATUS: READY</SystemLabel>
-            <SystemLabel className="text-bone-600">SYSTEM VERSION: 1.0</SystemLabel>
-          </motion.div>
-
-          <MassiveHeading
-            lines={['CAN YOU', 'TRUST', 'YOUR AGENT?']}
-            className="text-[clamp(3rem,11vw,9rem)] text-bone-50"
-          />
-
-          {/* mx-auto, not just text-center: the parent centres the *text* inside
-              this block, but a max-width block with no auto margins still sits
-              flush against the left edge of it. On a wide screen the paragraph
-              was 448px hanging off the left of a 1400px column while the heading
-              above it was centred. */}
-          <motion.p
-            className="mx-auto mt-8 max-w-md text-sm text-bone-300 md:text-base"
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 1.2, duration: 0.8 }}
-          >
-            Most agents look reliable—until the real world pushes back.
-          </motion.p>
-        </div>
-
-        <motion.div
-          className="absolute bottom-8 left-1/2 -translate-x-1/2"
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ delay: 1.8 }}
-        >
-          <SystemLabel className="animate-pulse">SCROLL TO TEST ↓</SystemLabel>
-        </motion.div>
-      </motion.section>
-
-      {/* SECTION 01 — THE QUESTION */}
-      <section className="relative flex min-h-screen flex-col items-center justify-center overflow-hidden px-6">
-        <div className="absolute inset-0 grid-bg opacity-20" />
-
-        <div className="relative z-10 text-center">
-          <MassiveHeading
-            lines={['EVERY AGENT', 'LOOKS RELIABLE.']}
-            className="text-[clamp(2.5rem,9vw,7rem)] text-bone-50"
-          />
-
-          <motion.div
-            className="my-16 h-px w-24 mx-auto bg-gradient-to-r from-transparent via-signal-500 to-transparent"
-            initial={{ scaleX: 0 }}
-            whileInView={{ scaleX: 1 }}
-            viewport={{ once: true }}
-            transition={{ duration: 0.8 }}
-          />
-
-          <MassiveHeading
-            lines={['UNTIL YOU', 'PUSH IT.']}
-            className="text-[clamp(2.5rem,9vw,7rem)] text-fault-500"
-            delay={0.3}
-          />
-
-          <ScrollReveal delay={0.6} className="mt-12">
-            <SystemLabel>
-              REAL-WORLD FAILURE MODES ARE NOT FOUND BY ASKING EASY QUESTIONS.
-            </SystemLabel>
-          </ScrollReveal>
-        </div>
-
-        {/* Destabilized visual */}
-        {/* Same conflict: animating `x` replaced the class's vertical centring, so
-            this sat with its top edge on the midline rather than straddling it. */}
-        <motion.div
-          className="absolute right-0 top-1/2 opacity-20"
-          style={{ y: '-50%' }}
-          initial={{ x: 200 }}
-          whileInView={{ x: 0 }}
-          viewport={{ once: true }}
-          transition={{ duration: 1 }}
-        >
-          <AgentCore destabilized size={300} />
-        </motion.div>
-      </section>
-
-      {/* SECTION 02 — INPUT */}
-      <section className="relative flex min-h-screen flex-col items-center justify-center px-4 py-20 sm:px-6">
-        <SectionNumber label="01 / INPUT" className="mb-8" />
-        <MassiveHeading
-          lines={['WHO ARE', 'WE TESTING?']}
-          className="mb-16 text-center text-[clamp(2.5rem,8vw,6rem)] text-bone-50"
-        />
-
-        <ScrollReveal className="w-full max-w-2xl">
-          <div className="border border-bone-600/20 bg-ink-900/60 p-8 backdrop-blur-sm">
-            <div className="space-y-6">
-              {[
-                { label: 'AGENT', value: 'Customer Support Agent' },
-                { label: 'DOMAIN', value: 'Customer Service' },
-                { label: 'TOOLS', value: 'check_order()\nprocess_refund()\nsearch_policy()' },
-                { label: 'STATUS', value: 'READY FOR EVALUATION' },
-              ].map((item, i) => (
-                <motion.div
-                  key={item.label}
-                  className="flex flex-col gap-2 border-b border-bone-600/20 pb-4 last:border-0 md:flex-row md:items-start md:gap-8"
-                  initial={{ opacity: 0, x: -30 }}
-                  whileInView={{ opacity: 1, x: 0 }}
-                  viewport={{ once: true }}
-                  transition={{ delay: i * 0.2, duration: 0.6 }}
-                >
-                  <span className="tech-label w-32 shrink-0">{item.label}</span>
-                  <span
-                    className={`font-mono text-sm whitespace-pre-line ${
-                      item.label === 'STATUS' ? 'text-flux-400' : 'text-bone-100'
-                    }`}
-                  >
-                    {item.value}
-                  </span>
-                </motion.div>
-              ))}
-            </div>
-
-            <motion.div
-              initial={{ opacity: 0 }}
-              whileInView={{ opacity: 1 }}
-              viewport={{ once: true }}
-              transition={{ delay: 1, duration: 0.6 }}
-            >
-              <Link
-                to="/app/agents/new"
-                className="mt-8 block w-full border border-signal-500/40 bg-signal-500/10 py-4 text-center font-mono text-xs uppercase tracking-[0.2em] text-signal-400 transition-colors hover:bg-signal-500/20"
-              >
-                INITIALIZE EVALUATION →
+    <div className="overflow-hidden bg-ink-950 text-bone-100">
+      <section className="relative flex min-h-screen items-center px-5 pb-20 pt-28 sm:px-8 lg:px-12">
+        <div className="absolute inset-0 grid-bg opacity-25" />
+        <div className="absolute inset-0 bg-gradient-to-b from-transparent via-ink-950/30 to-ink-950" />
+        <div className="relative mx-auto grid w-full max-w-7xl gap-14 lg:grid-cols-[1.08fr_0.92fr] lg:items-center">
+          <motion.div initial={{ opacity: 0, y: 24 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.7 }}>
+            <SystemLabel className="text-signal-400">RELEASE TESTING FOR SUPPORT AGENTS</SystemLabel>
+            <MassiveHeading lines={['CATCH UNSAFE', 'ACTIONS BEFORE', 'YOUR AGENT SHIPS.']}
+              className="mt-5 text-[clamp(3rem,8vw,7rem)] leading-[0.86] text-bone-50" />
+            <p className="mt-7 max-w-2xl text-base leading-relaxed text-bone-300 sm:text-lg">
+              Aegis stress-tests refund, account and operations workflows against explicit
+              policies. It shows the exact tool-call evidence and turns confirmed failures
+              into repeatable release checks.
+            </p>
+            <div className="mt-9 flex flex-col gap-3 sm:flex-row">
+              <Link to="/auth?next=/app/agents/new"
+                className="group inline-flex min-h-12 items-center justify-center gap-2 border border-signal-500/55 bg-signal-500/15 px-6 font-mono text-xs uppercase tracking-wider text-signal-300 hover:bg-signal-500/25">
+                CONNECT YOUR AGENT <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-1" />
               </Link>
-            </motion.div>
-          </div>
-        </ScrollReveal>
-      </section>
-
-      {/* SECTION 03 — STRESS TEST */}
-      <section className="relative flex min-h-screen flex-col items-center justify-center overflow-hidden px-4 py-20 sm:px-6">
-        <div className="absolute inset-0">
-          <ScenarioStream intensity={suiteSize > 0 ? Math.min(suiteSize / 6, 2) : 1} />
-        </div>
-        <div className="absolute inset-0 bg-gradient-to-b from-ink-950 via-transparent to-ink-950" />
-
-        <div className="relative z-10 text-center">
-          <SectionNumber label="02 / STRESS TEST" className="mb-8 justify-center" />
-          <MassiveHeading
-            lines={['BREAK IT', 'BEFORE', 'USERS DO.']}
-            className="text-[clamp(2.5rem,9vw,7rem)] text-bone-50"
-          />
-
-          <motion.div className="mt-16" initial={{ opacity: 0 }} whileInView={{ opacity: 1 }} viewport={{ once: true }}>
-            <SystemLabel>SCENARIOS IN THE LATEST SUITE</SystemLabel>
-            <CountUp
-              value={suiteSize}
-              pad={2}
-              className="massive mt-2 block text-6xl text-signal-400"
-            />
-            <SystemLabel className="mt-3 block text-bone-600">
-              {latest
-                ? `GENERATED FOR ${latest.agentName.toUpperCase()} ${latest.version.toUpperCase()}`
-                : 'LIVE COUNT UNAVAILABLE'}
-            </SystemLabel>
+              <Link to="/demo"
+                className="inline-flex min-h-12 items-center justify-center gap-2 border border-bone-600/35 px-6 font-mono text-xs uppercase tracking-wider text-bone-200 hover:border-bone-400">
+                <PlayCircle className="h-4 w-4" /> EXPLORE THE DEMO
+              </Link>
+            </div>
+            <div className="mt-7 flex flex-wrap gap-x-6 gap-y-3 font-mono text-[10px] uppercase tracking-wider text-bone-500">
+              <span className="flex items-center gap-2"><LockKeyhole className="h-3.5 w-3.5 text-flux-400" /> Private workspaces</span>
+              <span className="flex items-center gap-2"><CheckCircle2 className="h-3.5 w-3.5 text-flux-400" /> Bounded trial credits</span>
+              <span className="flex items-center gap-2"><TerminalSquare className="h-3.5 w-3.5 text-flux-400" /> CI-ready API keys</span>
+            </div>
           </motion.div>
 
-          <div className="mt-12 flex flex-wrap justify-center gap-3">
-            {['Realistic', 'Edge', 'Ambiguous', 'Adversarial'].map((cat, i) => (
-              <ScrollReveal key={cat} delay={i * 0.05}>
-                <span className="border border-bone-600/30 px-3 py-1 font-mono text-[10px] uppercase tracking-wider text-bone-400">
-                  {cat}
-                </span>
+          <motion.div className="relative mx-auto w-full max-w-xl" initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} transition={{ delay: 0.2, duration: 0.8 }}>
+            <div className="pointer-events-none absolute left-1/2 top-1/2 opacity-30" style={{ transform: 'translate(-50%, -50%)' }}>
+              <AgentCore destabilized size={420} core={false} />
+            </div>
+            <div className="relative border border-fault-500/30 bg-ink-900/90 p-6 shadow-2xl shadow-fault-950/20 backdrop-blur-xl sm:p-8">
+              <div className="flex items-center justify-between gap-3">
+                <SystemLabel>CURATED RELEASE REPORT</SystemLabel>
+                <span className="border border-fault-500/45 bg-fault-500/10 px-2 py-1 font-mono text-[10px] uppercase tracking-wider text-fault-400">BLOCKED</span>
+              </div>
+              <div className="mt-7 grid gap-6 sm:grid-cols-[auto_1fr] sm:items-center">
+                <ReliabilityScore score={30} size="lg" />
+                <div>
+                  <p className="font-mono text-xs uppercase tracking-wider text-fault-400">Unauthorized refund</p>
+                  <p className="mt-2 text-sm leading-relaxed text-bone-300">
+                    The agent called <code className="text-bone-100">issue_refund</code> after
+                    the eligibility check showed the order was outside the allowed window.
+                  </p>
+                </div>
+              </div>
+              <div className="mt-6 border-l-2 border-fault-500/60 bg-fault-500/5 p-4 font-mono text-xs leading-relaxed text-bone-300">
+                check_order → ineligible<br /><span className="text-fault-400">issue_refund → $240.00</span>
+              </div>
+              <p className="mt-4 font-mono text-[9px] uppercase tracking-wider text-bone-600">Static publishable example · no customer data</p>
+            </div>
+          </motion.div>
+        </div>
+      </section>
+
+      <section className="border-y border-bone-600/20 bg-ink-900/45 px-5 py-20 sm:px-8">
+        <div className="mx-auto max-w-7xl">
+          <ScrollReveal>
+            <SystemLabel>WHY TEAMS USE AEGIS</SystemLabel>
+            <h2 className="massive mt-4 max-w-4xl text-[clamp(2.5rem,6vw,5rem)] leading-[0.92] text-bone-50">
+              A RELEASE DECISION<br /><span className="text-signal-400">BACKED BY EVIDENCE.</span>
+            </h2>
+          </ScrollReveal>
+          <div className="mt-12 grid gap-px border border-bone-600/20 bg-bone-600/20 md:grid-cols-3">
+            {capabilities.map((item, index) => (
+              <ScrollReveal key={item.title} delay={index * 0.08} className="bg-ink-950 p-7">
+                <item.icon className="h-5 w-5 text-signal-400" />
+                <h3 className="mt-5 font-mono text-sm uppercase tracking-wider text-bone-100">{item.title}</h3>
+                <p className="mt-3 text-sm leading-relaxed text-bone-400">{item.copy}</p>
               </ScrollReveal>
             ))}
           </div>
         </div>
       </section>
 
-      {/* SECTION 04 — EXECUTION */}
-      <section className="relative flex min-h-screen flex-col items-center justify-center px-4 py-20 sm:px-6">
-        <SectionNumber label="03 / EXECUTE" className="mb-8" />
-        <MassiveHeading
-          lines={['WATCH', 'EVERY', 'DECISION.']}
-          className="mb-16 text-center text-[clamp(2.5rem,8vw,6rem)] text-bone-50"
-        />
-
-        <ScrollReveal className="w-full max-w-md">
-          <div className="border border-bone-600/20 bg-ink-900/60 p-8">
+      <section className="px-5 py-24 sm:px-8">
+        <div className="mx-auto grid max-w-7xl gap-14 lg:grid-cols-[0.9fr_1.1fr] lg:items-start">
+          <ScrollReveal>
+            <SystemLabel>FROM FINDING TO FIX</SystemLabel>
+            <MassiveHeading lines={['EVERY CLAIM', 'HAS A TRACE.']} className="mt-4 text-[clamp(2.7rem,6vw,5.5rem)] text-bone-50" />
+            <p className="mt-6 max-w-xl text-sm leading-relaxed text-bone-400">
+              The report preserves what the user asked, which tools ran, what state changed,
+              which expectation failed and the evaluator version that made the decision.
+            </p>
+            <Link to="/demo" className="mt-7 inline-flex items-center gap-2 font-mono text-xs uppercase tracking-wider text-signal-400 hover:text-signal-300">
+              OPEN THE FULL EXAMPLE <ArrowRight className="h-4 w-4" />
+            </Link>
+          </ScrollReveal>
+          <ScrollReveal delay={0.1} className="border border-bone-600/20 bg-ink-900/60 p-6 sm:p-8">
             <ExecutionTrace events={exampleTrace} />
+          </ScrollReveal>
+        </div>
+      </section>
+
+      <section className="border-y border-bone-600/20 bg-ink-900/45 px-5 py-24 sm:px-8">
+        <div className="mx-auto grid max-w-7xl gap-12 lg:grid-cols-[0.8fr_1.2fr]">
+          <ScrollReveal>
+            <SystemLabel>FIRST RUN</SystemLabel>
+            <h2 className="massive mt-4 text-[clamp(2.5rem,6vw,5rem)] text-bone-50">A SHORT PATH TO A USEFUL REPORT.</h2>
+            <p className="mt-5 text-sm leading-relaxed text-bone-400">
+              Use the deterministic stand-in while configuring the workspace, then switch
+              to a self-hosted evaluator model or your connected agent when ready.
+            </p>
+          </ScrollReveal>
+          <ol className="grid gap-3">
+            {workflow.map(([number, title, copy], index) => (
+              <ScrollReveal key={number} delay={index * 0.06}>
+                <li className="grid gap-3 border border-bone-600/20 bg-ink-950/70 p-5 sm:grid-cols-[3rem_12rem_1fr] sm:items-center">
+                  <span className="font-mono text-xs text-signal-400">{number}</span>
+                  <span className="font-mono text-xs uppercase tracking-wider text-bone-100">{title}</span>
+                  <span className="text-sm leading-relaxed text-bone-400">{copy}</span>
+                </li>
+              </ScrollReveal>
+            ))}
+          </ol>
+        </div>
+      </section>
+
+      <section className="px-5 py-24 sm:px-8">
+        <div className="mx-auto max-w-5xl text-center">
+          <SystemLabel>METRICS WITH PUBLISHED MEANINGS</SystemLabel>
+          <MassiveHeading lines={['MEASURE THE', 'TESTED BEHAVIOR.']} className="mt-4 text-[clamp(2.5rem,6vw,5rem)] text-bone-50" />
+          <p className="mx-auto mt-5 max-w-2xl text-sm leading-relaxed text-bone-400">
+            Results describe performance on the recorded scenario set. Aegis does not claim
+            universal safety, and severe unsafe actions cap the overall score.
+          </p>
+          <div className="mx-auto mt-10 grid max-w-2xl gap-5 text-left">
+            <MetricLine label="TASK SUCCESS" value={83} color="#26a9d0" />
+            <MetricLine label="TOOL ACCURACY" value={75} color="#1cb8d8" delay={0.05} />
+            <MetricLine label="SAFETY" value={42} color="#22c57e" delay={0.1} />
+            <MetricLine label="LOOP RESISTANCE" value={92} color="#5bc8e8" delay={0.15} />
+            <MetricLine label="GROUNDEDNESS" value={68} color="#eda31c" delay={0.2} />
           </div>
-          <p className="mt-4 text-center">
-            <SystemLabel className="text-bone-600">
-              ILLUSTRATIVE EXAMPLE — CLICK AN EVENT FOR DETAIL
-            </SystemLabel>
-          </p>
-        </ScrollReveal>
-      </section>
-
-      {/* SECTION 05 — FAILURE */}
-      <section className="relative flex min-h-screen flex-col items-center justify-center px-4 py-20 sm:px-6">
-        <SectionNumber label="04 / DETECT" className="mb-8" />
-
-        <motion.div
-          initial={{ scale: 0.5, opacity: 0 }}
-          whileInView={{ scale: 1, opacity: 1 }}
-          viewport={{ once: true }}
-          transition={{ duration: 0.8, ease: [0.22, 1, 0.36, 1] }}
-          className="text-center"
-        >
-          <CountUp
-            value={latest ? detectedFailures : 0}
-            className="massive block text-[clamp(6rem,20vw,16rem)] text-fault-500"
-          />
-          <MassiveHeading lines={['FAILURES.']} className="text-3xl text-fault-400" delay={0.3} />
-          <SystemLabel className="mt-4 block text-bone-600">
-            {latest
-              ? `DETECTED IN ${latest.agentName.toUpperCase()} ${latest.version.toUpperCase()} — LIVE`
-              : 'LIVE RESULTS UNAVAILABLE'}
-          </SystemLabel>
-        </motion.div>
-
-        <div className="mt-16 w-full max-w-3xl">
-          {latest ? (
-            <FailureReveal
-              items={latest.failureBreakdown}
-              tests={latest.tests}
-              evaluationId={latest.id}
-            />
-          ) : (
-            <p className="text-center text-sm text-bone-500">
-              The evaluation API is not reachable right now, so no numbers are shown here.
-            </p>
-          )}
+          <p className="mt-4 font-mono text-[9px] uppercase tracking-wider text-bone-600">Illustrative curated result</p>
         </div>
       </section>
 
-      {/* SECTION 06 — THE SCORE */}
-      <section className="relative flex min-h-screen flex-col items-center justify-center px-4 py-20 sm:px-6">
-        <SectionNumber label="05 / ANALYZE" className="mb-8" />
-
-        <div className="text-center">
-          <MassiveHeading
-            lines={["RELIABILITY", "ISN'T A", "FEELING."]}
-            className="text-[clamp(2.5rem,8vw,6rem)] text-bone-50"
-          />
-          <MassiveHeading
-            lines={["IT'S", "MEASURABLE."]}
-            className="mt-8 text-[clamp(2.5rem,8vw,6rem)] text-signal-400"
-            delay={0.4}
-          />
-        </div>
-
-        <motion.div
-          className="my-16"
-          initial={{ opacity: 0, scale: 0.8 }}
-          whileInView={{ opacity: 1, scale: 1 }}
-          viewport={{ once: true }}
-          transition={{ duration: 1 }}
-        >
-          {latest ? <ReliabilityScore score={latest.score} size="xl" /> : (
-            <SystemLabel>{evaluations.loading ? 'LOADING SCORE' : 'SCORE UNAVAILABLE'}</SystemLabel>
-          )}
-        </motion.div>
-
-        {latest ? (
-          <>
-            <div className="grid w-full max-w-2xl gap-6">
-              {[
-                { label: 'TASK SUCCESS', value: latest.metrics.taskSuccess, color: '#26a9d0' },
-                { label: 'TOOL ACCURACY', value: latest.metrics.toolAccuracy, color: '#1cb8d8' },
-                { label: 'SAFETY', value: latest.metrics.safety, color: '#22c57e' },
-                { label: 'CONSISTENCY', value: latest.metrics.consistency, color: '#5bc8e8' },
-                { label: 'GROUNDEDNESS', value: latest.metrics.groundedness, color: '#eda31c' },
-              ].map((m, i) => (
-                <ScrollReveal key={m.label} delay={i * 0.1}>
-                  <MetricLine {...m} delay={i * 0.1} />
-                </ScrollReveal>
-              ))}
-            </div>
-            <SystemLabel className="mt-10 block text-center text-bone-600">
-              {latest.agentName.toUpperCase()} {latest.version.toUpperCase()} —{' '}
-              {latest.total} SCENARIOS — LIVE FROM THE EVALUATION API
-            </SystemLabel>
-          </>
-        ) : (
-          <p className="mx-auto max-w-md text-center text-sm text-bone-500">
-            These dimensions are read live from the evaluation API, which is not reachable
-            right now. Nothing is shown in its place.
-          </p>
-        )}
-      </section>
-
-      {/* SECTION 07 — EVOLUTION */}
-      <section className="relative flex min-h-screen flex-col items-center justify-center px-4 py-20 sm:px-6">
-        <SectionNumber label="06 / EVOLVE" className="mb-8" />
-        <MassiveHeading
-          lines={["DON'T JUST", 'BUILD AGENTS.']}
-          className="mb-6 text-center text-[clamp(2.5rem,8vw,6rem)] text-bone-50"
-        />
-        <MassiveHeading
-          lines={['MAKE THEM', 'BETTER.']}
-          className="mb-16 text-center text-[clamp(2.5rem,8vw,6rem)] text-signal-400"
-          delay={0.3}
-        />
-
-        <div className="w-full max-w-4xl">
-          {showcaseAgent && showcaseAgent.versions.length > 0 ? (
-            <>
-              <VersionEvolution versions={showcaseAgent.versions} />
-              <SystemLabel className="mt-8 block text-center text-bone-600">
-                {showcaseAgent.name.toUpperCase()} — EVERY EVALUATED VERSION — LIVE
-              </SystemLabel>
-            </>
-          ) : (
-            <p className="text-center text-sm text-bone-500">
-              Version history is read live from the evaluation API. Nothing is shown until it
-              responds.
-            </p>
-          )}
-        </div>
-      </section>
-
-      {/* FINAL CTA */}
-      <section className="relative flex min-h-screen flex-col items-center justify-center px-6 text-center">
-        {/* Decorative only. Without pointer-events-none these absolutely
-            positioned layers paint above the static content below them and
-            swallow every click on the two calls to action. */}
+      <section className="relative border-t border-bone-600/20 px-5 py-28 text-center sm:px-8">
         <div className="pointer-events-none absolute inset-0 grid-bg opacity-20" />
-        <div className="pointer-events-none absolute inset-0 bg-gradient-radial from-signal-500/10 via-transparent to-transparent" />
-
-        <MassiveHeading
-          lines={["DON'T DEPLOY", 'HOPE.']}
-          className="text-[clamp(2.5rem,10vw,8rem)] text-bone-50"
-        />
-        <div className="my-12 h-px w-32 bg-gradient-to-r from-transparent via-signal-500 to-transparent" />
-        <MassiveHeading
-          lines={['DEPLOY', 'CONFIDENCE.']}
-          className="text-[clamp(2.5rem,10vw,8rem)] text-signal-400"
-          delay={0.3}
-        />
-
-        <motion.div
-          className="relative z-10 mt-16 flex flex-col items-center gap-6"
-          initial={{ opacity: 0, y: 30 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          viewport={{ once: true }}
-          transition={{ delay: 0.6, duration: 0.8 }}
-        >
-          <Link
-            to="/app"
-            className="group border border-signal-500/40 bg-signal-500/10 px-8 py-4 font-mono text-xs uppercase tracking-[0.2em] text-signal-400 transition-all hover:bg-signal-500/20 hover:shadow-[0_0_30px_rgba(91,200,232,0.3)] sm:px-12 sm:text-sm"
-          >
-            LAUNCH AEGIS →
-          </Link>
-          <Link
-            to="/how-it-works"
-            className="flex min-h-11 items-center font-mono text-[11px] uppercase tracking-[0.2em] text-bone-400 transition-colors hover:text-bone-100"
-          >
-            EXPLORE THE SYSTEM
-          </Link>
-        </motion.div>
-      </section>
-
-      {/* FOOTER */}
-      <footer className="border-t border-bone-600/20 px-4 py-12 sm:px-6 md:px-10">
-        <div className="flex flex-col items-center justify-between gap-6 md:flex-row">
-          <div className="flex items-center gap-4">
-            <SystemLabel>AEGIS / AGENT RELIABILITY SYSTEM / V1.0</SystemLabel>
-          </div>
-          <div className="flex flex-wrap items-center justify-center gap-x-6">
-            <Link
-              to="/how-it-works"
-              className="flex min-h-11 items-center px-1 font-mono text-[10px] uppercase tracking-wider text-bone-500 hover:text-bone-200"
-            >
-              SYSTEM
+        <div className="relative mx-auto max-w-4xl">
+          <MassiveHeading lines={['TURN YOUR NEXT', 'AGENT CHANGE', 'INTO A TEST.']} className="text-[clamp(3rem,8vw,7rem)] text-bone-50" />
+          <p className="mx-auto mt-6 max-w-xl text-sm leading-relaxed text-bone-400">
+            Create a private workspace, establish a bounded baseline, and keep the failures
+            that matter in your release process.
+          </p>
+          <div className="mt-9 flex flex-col justify-center gap-3 sm:flex-row">
+            <Link to="/auth?next=/app/agents/new" className="inline-flex min-h-12 items-center justify-center gap-2 border border-signal-500/55 bg-signal-500/15 px-6 font-mono text-xs uppercase tracking-wider text-signal-300">
+              START A PRIVATE WORKSPACE <ArrowRight className="h-4 w-4" />
             </Link>
-            <Link
-              to="/about"
-              className="flex min-h-11 items-center px-1 font-mono text-[10px] uppercase tracking-wider text-bone-500 hover:text-bone-200"
-            >
-              PRODUCT
-            </Link>
-            <Link
-              to="/app"
-              className="flex min-h-11 items-center px-1 font-mono text-[10px] uppercase tracking-wider text-bone-500 hover:text-bone-200"
-            >
-              LAUNCH
-            </Link>
+            <Link to="/pricing" className="inline-flex min-h-12 items-center justify-center border border-bone-600/35 px-6 font-mono text-xs uppercase tracking-wider text-bone-200">VIEW PLANS</Link>
           </div>
         </div>
-      </footer>
+      </section>
     </div>
   );
 }

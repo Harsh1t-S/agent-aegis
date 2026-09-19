@@ -1,0 +1,6 @@
+transformers @ git+https://github.com/huggingface/transformers.git@main
+torch>=2.8
+torchvision
+pillow
+fastapi>=0.115
+uvicorn>=0.30

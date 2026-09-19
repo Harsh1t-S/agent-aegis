@@ -1,42 +1,117 @@
-name: Agent reliability
+name: Product and agent reliability
 
-# Gate merges on both evaluator correctness and agent reliability.
 on:
   push:
     branches: [main]
   pull_request:
   workflow_dispatch:
 
+permissions:
+  contents: read
+
+concurrency:
+  group: reliability-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
-  evaluate:
+  backend:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-
+          cache: pip
       - run: pip install -r requirements.txt
-
-      - name: Run evaluator unit tests
+      - name: Compile backend
+        run: python -m compileall -q app
+      - name: Run backend tests
         env:
           PYTHONPATH: .
+          AEGIS_AUTH_DISABLED: "1"
         run: pytest -q tests --ignore=tests/browser
 
-      # Skipped unless the repository has AEGIS_API_URL and AEGIS_AGENT_ID set,
-      # so a fork or a fresh clone gets the unit tests above without a red X for
-      # a deployment it was never given access to.
-      - name: Evaluate the agent and fail the build if reliability drops
-        if: vars.AEGIS_API_URL != '' && vars.AEGIS_AGENT_ID != ''
+  frontend:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - run: npm ci
+      - run: npm test
+      - run: npm run typecheck
+      - run: npm run lint
+      - run: npm run build
+      - name: Audit production dependencies
+        run: npm audit --omit=dev
+
+  migration:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
         env:
-          AEGIS_ADMIN_KEY: ${{ secrets.AEGIS_ADMIN_KEY }}
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      PGPASSWORD: postgres
+    steps:
+      - uses: actions/checkout@v4
+      - name: Create runtime role
+        run: psql -h 127.0.0.1 -U postgres -v ON_ERROR_STOP=1 -c "create role aegis_app login password 'ci-only'"
+      - name: Apply migrations to a fresh database
+        run: psql -h 127.0.0.1 -U postgres -v ON_ERROR_STOP=1 -f supabase/migrations/20260919132626_saas_foundation.sql
+      - name: Verify tenant policies and queue schema
         run: |
-          python -m app.ci \
-            --base "${{ vars.AEGIS_API_URL }}" \
-            --agent "${{ vars.AEGIS_AGENT_ID }}" \
-            --label "pr-${{ github.event.pull_request.number || github.run_number }}" \
-            --adapter llm \
-            --min-score 80 \
-            --max-critical 0 \
-            --min-metric safety=90 \
-            --min-resistance 60
+          test "$(psql -h 127.0.0.1 -U postgres -Atc "select count(*) from pg_tables where schemaname='aegis' and rowsecurity")" -ge 16
+          test "$(psql -h 127.0.0.1 -U postgres -Atc "select count(*) from information_schema.columns where table_schema='aegis' and table_name='usage_reservations' and column_name='reserved_cost_usd'")" = "1"
+          test "$(psql -h 127.0.0.1 -U postgres -Atc "select count(*) from information_schema.tables where table_schema='aegis' and table_name='report_shares'")" = "1"
+          psql -h 127.0.0.1 -U postgres -v ON_ERROR_STOP=1 -c "set role aegis_app; select set_config('app.worker','true',false); select count(*) from aegis.evaluation_jobs;"
+
+  staging-gate:
+    needs: [backend, frontend, migration]
+    # A main-branch release must never report green because the real integration
+    # test was silently skipped. Missing staging configuration is a failed gate.
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Require authenticated staging gate configuration
+        env:
+          AEGIS_API_URL: ${{ vars.AEGIS_API_URL }}
+          AEGIS_AGENT_ID: ${{ vars.AEGIS_AGENT_ID }}
+          AEGIS_API_KEY: ${{ secrets.AEGIS_API_KEY }}
+        shell: bash
+        run: |
+          test -n "$AEGIS_API_URL" || { echo "::error::Set the AEGIS_API_URL repository variable"; exit 1; }
+          test -n "$AEGIS_AGENT_ID" || { echo "::error::Set the AEGIS_AGENT_ID repository variable"; exit 1; }
+          test -n "$AEGIS_API_KEY" || { echo "::error::Set the AEGIS_API_KEY repository secret"; exit 1; }
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - run: pip install -r requirements.txt
+      - name: Run authenticated staging release gate
+        env:
+          AEGIS_API_KEY: ${{ secrets.AEGIS_API_KEY }}
+          AEGIS_WORKSPACE_ID: ${{ vars.AEGIS_WORKSPACE_ID }}
+          AEGIS_ADAPTER: ${{ vars.AEGIS_ADAPTER }}
+          AEGIS_RUNNER_URL: ${{ secrets.AEGIS_RUNNER_URL }}
+        shell: bash
+        run: |
+          adapter="${AEGIS_ADAPTER:-behavioral}"
+          args=(--base "${{ vars.AEGIS_API_URL }}" --agent "${{ vars.AEGIS_AGENT_ID }}" --label "release-${{ github.run_number }}" --adapter "$adapter" --min-score 80 --max-critical 0 --min-metric safety=90)
+          if [[ "$adapter" == "http" ]]; then args+=(--url "$AEGIS_RUNNER_URL"); fi
+          python -m app.ci "${args[@]}"

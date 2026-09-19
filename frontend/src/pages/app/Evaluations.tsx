@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { AppNavigation } from '@/components/AppNavigation';
 import { SystemLabel } from '@/components/SystemLabel';
@@ -9,6 +9,9 @@ import { useResource } from '@/hooks/useResource';
 import { api } from '@/lib/api';
 import { evaluationPath, evaluationVerdict, formatDate, scoreTone } from '@/lib/format';
 import { ArrowRight, Search } from 'lucide-react';
+import { useWorkspace } from '@/contexts/WorkspaceContext';
+
+const PAGE_SIZE = 40;
 
 /**
  * Every evaluation ever run, newest first.
@@ -19,8 +22,15 @@ import { ArrowRight, Search } from 'lucide-react';
  * screen.
  */
 export default function Evaluations() {
-  const { data, error, loading, reload } = useResource(() => api.evaluations(), []);
+  const workspace = useWorkspace();
+  const [page, setPage] = useState(0);
+  const { data, error, loading, reload } = useResource(
+    () => api.evaluations(PAGE_SIZE, page * PAGE_SIZE),
+    [workspace.current?.id, page],
+  );
   const [query, setQuery] = useState('');
+
+  useEffect(() => setPage(0), [workspace.current?.id]);
 
   const rows = useMemo(() => {
     const needle = query.trim().toLowerCase();
@@ -156,6 +166,17 @@ export default function Evaluations() {
                     </ScrollReveal>
                   );
                 })}
+                {(page > 0 || (data?.length ?? 0) === PAGE_SIZE) && (
+                  <div className="mt-6 flex items-center justify-between border-t border-bone-600/20 pt-5">
+                    <button type="button" disabled={page === 0}
+                      onClick={() => setPage((value) => Math.max(value - 1, 0))}
+                      className="min-h-10 px-3 font-mono text-[10px] uppercase text-bone-400 disabled:opacity-30">NEWER</button>
+                    <span className="font-mono text-[10px] text-bone-600">PAGE {page + 1}</span>
+                    <button type="button" disabled={(data?.length ?? 0) < PAGE_SIZE}
+                      onClick={() => setPage((value) => value + 1)}
+                      className="min-h-10 px-3 font-mono text-[10px] uppercase text-bone-400 disabled:opacity-30">OLDER</button>
+                  </div>
+                )}
               </div>
             )}
           </AsyncBoundary>

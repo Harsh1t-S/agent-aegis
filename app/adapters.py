@@ -35,10 +35,14 @@ class HttpAgentAdapter(AgentAdapter):
     """Expected remote response: {type: final|tool_call, content?, tool_name?, arguments?}."""
 
     def __init__(self, url: str, headers: dict | None = None):
-        self.url, self.headers = url, headers or {}
+        from .network_security import validate_agent_endpoint
+
+        self.url, self.headers = validate_agent_endpoint(url), headers or {}
 
     async def next_action(self, messages, tools):
-        async with httpx.AsyncClient(timeout=30) as client:
+        # Redirects are deliberately disabled. A public URL redirecting into a
+        # metadata/private address is the classic SSRF bypass.
+        async with httpx.AsyncClient(timeout=30, follow_redirects=False) as client:
             response = await client.post(self.url, json={"messages": messages, "tools": tools},
                                          headers=self.headers)
             response.raise_for_status()
@@ -217,7 +221,9 @@ class LLMAgentAdapter(AgentAdapter):
         self.system_prompt = system_prompt
         self.temperature = temperature
         self.pending_actions: deque[dict] = deque()
+        self.max_input_tokens = int(os.getenv("LLM_MAX_INPUT_TOKENS", "16000"))
         self.max_output_tokens = int(os.getenv("LLM_MAX_OUTPUT_TOKENS", "2048"))
+        self.usage = {"input_tokens": 0, "output_tokens": 0}
 
     @staticmethod
     def _schema(tools: dict[str, dict]) -> list[dict]:
@@ -313,11 +319,18 @@ class LLMAgentAdapter(AgentAdapter):
         if schema:
             payload["tools"] = schema
             payload["tool_choice"] = "auto"
+        estimated_input_tokens = max(len(json.dumps(payload, default=str)) // 4, 1)
+        if estimated_input_tokens > self.max_input_tokens:
+            raise ValueError(
+                f"The model request is approximately {estimated_input_tokens} tokens; "
+                f"the configured input limit is {self.max_input_tokens}."
+            )
 
         order = self._configured_order(payload)
         self.validate_configuration()
 
-        async with httpx.AsyncClient(timeout=15) as client:
+        request_timeout = float(os.getenv("LLM_REQUEST_TIMEOUT_SECONDS", "15"))
+        async with httpx.AsyncClient(timeout=request_timeout) as client:
             response = None
             unavailable: set[str] = set()
             candidate_index = 0
@@ -361,7 +374,13 @@ class LLMAgentAdapter(AgentAdapter):
                 break
             if response is None:
                 raise RuntimeError("LLM request did not execute")
-            choices = response.json().get("choices") or []
+            body = response.json()
+            usage = body.get("usage") or {}
+            self.usage["input_tokens"] += int(
+                usage.get("prompt_tokens") or usage.get("input_tokens") or 0)
+            self.usage["output_tokens"] += int(
+                usage.get("completion_tokens") or usage.get("output_tokens") or 0)
+            choices = body.get("choices") or []
             if not choices or not isinstance(choices[0].get("message"), dict):
                 raise ValueError("The model provider returned no usable completion")
             if choices[0].get("finish_reason") in {"length", "content_filter"}:

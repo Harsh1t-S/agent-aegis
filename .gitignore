@@ -6,6 +6,7 @@ __pycache__/
 .env.local
 .env.*
 !.env.example
+!.env.worker.example
 .venv/
 node_modules/
 .output/

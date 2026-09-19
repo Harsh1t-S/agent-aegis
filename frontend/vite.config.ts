@@ -15,10 +15,20 @@ export default defineConfig({
   optimizeDeps: {
     exclude: ['lucide-react'],
   },
+  build: {
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          'react-vendor': ['react', 'react-dom', 'react-router-dom'],
+          'auth-vendor': ['@supabase/supabase-js'],
+          'motion-vendor': ['framer-motion'],
+        },
+      },
+    },
+  },
   server: {
-    // Same-origin `/api` in dev as in production, so the browser never issues a
-    // cross-origin preflight. The API's CORS policy does not allow this origin
-    // and does not permit PATCH at all, which is why direct calls fail.
+    // Same-origin `/api` in development matches production and keeps sessions,
+    // workspace headers and error handling on the same path in both environments.
     proxy: {
       '/api': {
         target: API_ORIGIN,

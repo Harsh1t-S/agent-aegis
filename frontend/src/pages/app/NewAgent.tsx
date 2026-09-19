@@ -4,7 +4,6 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { AppNavigation } from '@/components/AppNavigation';
 import { SystemLabel } from '@/components/SystemLabel';
 import { MassiveHeading } from '@/components/MassiveHeading';
-import { OwnerAccess } from '@/components/OwnerAccess';
 import { useToast } from '@/components/Toaster';
 import {
   ArrowRight,
@@ -15,6 +14,8 @@ import {
   Save,
   Trash2,
   Upload,
+  Cable,
+  FlaskConical,
 } from 'lucide-react';
 import { api, ApiError, type ToolDraft } from '@/lib/api';
 import { parseToolSchema, toolsToJson } from '@/lib/tool-schema';
@@ -39,8 +40,8 @@ export default function NewAgent() {
   const [step, setStep] = useState(0);
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | undefined>();
-  const [needsOwnerAccess, setNeedsOwnerAccess] = useState(false);
   const [form, setForm] = useState<AgentForm>(EMPTY_AGENT_FORM);
+  const [runnerToken, setRunnerToken] = useState('');
 
   const [showSchema, setShowSchema] = useState(false);
   const [schemaText, setSchemaText] = useState('');
@@ -58,7 +59,7 @@ export default function NewAgent() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const update = (key: keyof AgentForm, value: string | ToolDraft[]) => {
+  const update = (key: keyof AgentForm, value: AgentForm[keyof AgentForm]) => {
     setForm((prev) => ({ ...prev, [key]: value }));
   };
 
@@ -143,7 +144,8 @@ export default function NewAgent() {
 
   const toolsError = toolNamesError(form.tools);
   const canProceed = () => {
-    if (step === 0) return Boolean(form.name.trim()) && form.name.trim().length <= 200;
+    if (step === 0) return Boolean(form.name.trim()) && form.name.trim().length <= 200
+      && (form.connectionMode === 'simulation' || /^https?:\/\//i.test(form.endpointUrl.trim()));
     if (step === 1) return Boolean(form.systemPrompt.trim());
     if (step === 2) return !toolsError;
     return true;
@@ -169,6 +171,11 @@ export default function NewAgent() {
             risk: t.risk,
             ...(t.parameters ? { parameters: t.parameters } : {}),
           })),
+        connection: {
+          mode: form.connectionMode,
+          ...(form.connectionMode === 'connected' ? { url: form.endpointUrl.trim() } : {}),
+          ...(form.connectionMode === 'connected' && runnerToken ? { bearerToken: runnerToken } : {}),
+        },
       });
       // Local draft cleanup cannot undo a successful server create.
       const cleared = clearAgentDraft();
@@ -180,7 +187,6 @@ export default function NewAgent() {
     } catch (err) {
       const message = err instanceof ApiError ? err.message : 'Could not create the agent.';
       setSubmitError(message);
-      setNeedsOwnerAccess(err instanceof ApiError && err.status === 401);
       toast.error('Agent not created', message);
       setSubmitting(false);
     }
@@ -263,6 +269,46 @@ export default function NewAgent() {
             >
               {step === 0 && (
                 <div className="space-y-6">
+                  <div>
+                    <SystemLabel className="block !text-bone-300">HOW SHOULD AEGIS TEST IT?</SystemLabel>
+                    <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                      {([
+                        { mode: 'simulation' as const, icon: FlaskConical, title: 'Prompt simulation', detail: 'Aegis runs the prompt and tools through the evaluator model. Fastest way to establish a low-cost baseline.' },
+                        { mode: 'connected' as const, icon: Cable, title: 'Connected agent', detail: 'Aegis calls your runner so retrieval, memory and orchestration are included in the test.' },
+                      ]).map((option) => (
+                        <button key={option.mode} type="button"
+                          aria-pressed={form.connectionMode === option.mode}
+                          onClick={() => update('connectionMode', option.mode)}
+                          className={`border p-4 text-left transition-colors ${form.connectionMode === option.mode ? 'border-signal-500/55 bg-signal-500/10' : 'border-bone-600/30 bg-ink-900/40 hover:border-bone-400/50'}`}>
+                          <option.icon className={`h-5 w-5 ${form.connectionMode === option.mode ? 'text-signal-300' : 'text-bone-400'}`} />
+                          <span className="mt-3 block font-mono text-xs uppercase tracking-wider text-bone-100">{option.title}</span>
+                          <span className="mt-2 block text-xs leading-relaxed text-bone-400">{option.detail}</span>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                  {form.connectionMode === 'connected' && (
+                    <div className="space-y-4">
+                      <div>
+                      <label htmlFor="agent-endpoint" className="tech-label mb-2 block text-bone-300">RUNNER ENDPOINT</label>
+                      <input id="agent-endpoint" type="url" className={inputClass}
+                        placeholder="https://agent.example.com/aegis/action"
+                        value={form.endpointUrl} onChange={(event) => update('endpointUrl', event.target.value)} />
+                      <p className="mt-2 text-xs leading-relaxed text-bone-400">
+                        Use a dedicated HTTPS endpoint implementing the Aegis runner contract. Do not put a token in this URL; authenticate at your gateway or private network boundary.
+                      </p>
+                      </div>
+                      <div>
+                        <label htmlFor="agent-runner-token" className="tech-label mb-2 block text-bone-300">BEARER TOKEN <span className="text-bone-600">(OPTIONAL)</span></label>
+                        <input id="agent-runner-token" type="password" autoComplete="new-password"
+                          className={inputClass} placeholder="Stored encrypted; never returned"
+                          value={runnerToken} onChange={(event) => setRunnerToken(event.target.value)} />
+                        <p className="mt-2 text-xs leading-relaxed text-bone-400">
+                          The token is encrypted by the API and injected only by the worker. It is excluded from reports, version snapshots and browser drafts.
+                        </p>
+                      </div>
+                    </div>
+                  )}
                   <div>
                     <label htmlFor="agent-name" className="tech-label mb-2 block text-bone-300">
                       AGENT NAME
@@ -498,6 +544,8 @@ export default function NewAgent() {
                   <div className="border border-bone-300/25 bg-ink-900/60 p-4 sm:p-6">
                     {[
                       { label: 'AGENT NAME', value: form.name || '—' },
+                      { label: 'TEST PATH', value: form.connectionMode === 'connected' ? `Connected runner · ${form.endpointUrl}` : 'Prompt simulation' },
+                      ...(form.connectionMode === 'connected' ? [{ label: 'RUNNER AUTH', value: runnerToken ? 'Encrypted bearer token' : 'Gateway / network boundary' }] : []),
                       { label: 'DESCRIPTION', value: form.description || '—' },
                       { label: 'DOMAIN', value: form.domain || '—' },
                       { label: 'SYSTEM PROMPT', value: form.systemPrompt || '—' },
@@ -530,10 +578,6 @@ export default function NewAgent() {
                       {submitError}
                     </p>
                   )}
-                  {needsOwnerAccess && <OwnerAccess onUnlocked={() => {
-                    setNeedsOwnerAccess(false);
-                    setSubmitError(undefined);
-                  }} />}
                 </div>
               )}
             </motion.div>

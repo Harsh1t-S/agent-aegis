@@ -1,0 +1,73 @@
+name: aegis-inference
+
+# Private, outbound-only evaluation worker. The API remains on Vercel and writes
+# durable jobs to Postgres; this stack claims those jobs and talks to Ollama over
+# an internal Docker network. Port 11434 is deliberately not published.
+services:
+  ollama:
+    image: ollama/ollama:0.34.1
+    restart: unless-stopped
+    environment:
+      OLLAMA_HOST: 0.0.0.0:11434
+      OLLAMA_CONTEXT_LENGTH: 8192
+      OLLAMA_MAX_LOADED_MODELS: 1
+      OLLAMA_NUM_PARALLEL: 1
+    volumes:
+      - ollama_models:/root/.ollama
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+    healthcheck:
+      test: ["CMD", "ollama", "list"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+
+  model-init:
+    image: ollama/ollama:0.34.1
+    restart: "no"
+    environment:
+      OLLAMA_HOST: ollama:11434
+    entrypoint: ["/bin/ollama"]
+    command: ["pull", "${AEGIS_LOCAL_MODEL:-qwen3.5:4b}"]
+    depends_on:
+      ollama:
+        condition: service_healthy
+
+  mock-tools:
+    build: .
+    restart: unless-stopped
+    command: ["uvicorn", "app.mock_server:app", "--host", "0.0.0.0", "--port", "8001"]
+
+  worker:
+    build: .
+    restart: unless-stopped
+    command: ["python", "-m", "app.worker"]
+    env_file:
+      - .env.worker
+    environment:
+      AEGIS_DURABLE_QUEUE: "1"
+      MOCK_INLINE: "0"
+      MOCK_TOOL_URL: http://mock-tools:8001
+      LLM_BASE_URL: http://ollama:11434/v1
+      LLM_API_KEY: local-ollama
+      LLM_MODEL: ${AEGIS_LOCAL_MODEL:-qwen3.5:4b}
+      LLM_FALLBACK_MODELS: ""
+      LLM_MAX_INPUT_TOKENS: "16000"
+      LLM_MAX_OUTPUT_TOKENS: "1024"
+      LLM_RESERVED_COST_PER_SCENARIO_USD: "0"
+      LLM_INPUT_COST_PER_MILLION: "0"
+      LLM_OUTPUT_COST_PER_MILLION: "0"
+      WORKER_POLL_SECONDS: "2"
+    depends_on:
+      model-init:
+        condition: service_completed_successfully
+      mock-tools:
+        condition: service_started
+
+volumes:
+  ollama_models:
