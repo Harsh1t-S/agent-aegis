@@ -8,6 +8,7 @@ import { useToast } from '@/components/Toaster';
 import { useResource } from '@/hooks/useResource';
 import { api, ApiError, type ToolDraft } from '@/lib/api';
 import { parseToolSchema, toolsToJson } from '@/lib/tool-schema';
+import { toolNamesError } from '@/lib/agent-draft';
 import { ClipboardPaste, Loader2, Plus, Trash2, Upload } from 'lucide-react';
 
 /**
@@ -27,6 +28,9 @@ export default function EditAgent() {
   const [description, setDescription] = useState('');
   const [systemPrompt, setSystemPrompt] = useState('');
   const [tools, setTools] = useState<ToolDraft[]>([]);
+  const [connectionMode, setConnectionMode] = useState<'simulation' | 'connected'>('simulation');
+  const [endpointUrl, setEndpointUrl] = useState('');
+  const [runnerToken, setRunnerToken] = useState('');
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | undefined>();
   const [showSchema, setShowSchema] = useState(false);
@@ -40,6 +44,8 @@ export default function EditAgent() {
     setName(agent.data.name);
     setDescription(agent.data.description);
     setSystemPrompt(agent.data.systemPrompt);
+    setConnectionMode(agent.data.connection?.mode ?? 'simulation');
+    setEndpointUrl(agent.data.connection?.url ?? '');
     setTools(
       agent.data.tools.map((t) => ({
         name: t.name,
@@ -72,14 +78,19 @@ export default function EditAgent() {
   };
 
   const save = async () => {
-    if (!id) return;
+    if (!id || saving) return;
     const named = tools.filter((t) => t.name.trim());
     if (!name.trim() || !systemPrompt.trim()) {
       toast.error('Name and system prompt are both required.');
       return;
     }
-    if (!named.length) {
-      toast.error('Add at least one tool — scenarios are generated from the tool schema.');
+    if (connectionMode === 'connected' && !/^https?:\/\//i.test(endpointUrl.trim())) {
+      toast.error('Enter the full HTTP(S) URL for the connected runner.');
+      return;
+    }
+    const toolsError = toolNamesError(named);
+    if (toolsError) {
+      toast.error(toolsError);
       return;
     }
     setSaving(true);
@@ -95,6 +106,11 @@ export default function EditAgent() {
           risk: t.risk,
           ...(t.parameters ? { parameters: t.parameters } : {}),
         })),
+        connection: {
+          mode: connectionMode,
+          ...(connectionMode === 'connected' ? { url: endpointUrl.trim() } : {}),
+          ...(connectionMode === 'connected' && runnerToken ? { bearerToken: runnerToken } : {}),
+        },
       });
       toast.success(
         'Agent updated',
@@ -156,6 +172,7 @@ export default function EditAgent() {
                 </label>
                 <input
                   id="edit-name"
+                  maxLength={200}
                   className={inputClass}
                   value={name}
                   onChange={(e) => setName(e.target.value)}
@@ -172,6 +189,29 @@ export default function EditAgent() {
                   value={description}
                   onChange={(e) => setDescription(e.target.value)}
                 />
+              </div>
+
+              <div>
+                <SystemLabel className="!text-bone-300">TEST PATH</SystemLabel>
+                <div className="mt-3 grid grid-cols-2 gap-2">
+                  {(['simulation', 'connected'] as const).map((mode) => (
+                    <button key={mode} type="button" aria-pressed={connectionMode === mode}
+                      onClick={() => setConnectionMode(mode)}
+                      className={`min-h-11 border px-3 font-mono text-[11px] uppercase tracking-wider ${connectionMode === mode ? 'border-signal-500/50 bg-signal-500/10 text-signal-300' : 'border-bone-600/30 text-bone-400'}`}>
+                      {mode === 'simulation' ? 'PROMPT SIMULATION' : 'CONNECTED AGENT'}
+                    </button>
+                  ))}
+                </div>
+                {connectionMode === 'connected' && (
+                  <div className="mt-3 space-y-3">
+                    <input type="url" required className={inputClass}
+                      placeholder="https://agent.example.com/aegis/action"
+                      value={endpointUrl} onChange={(event) => setEndpointUrl(event.target.value)} />
+                    <input type="password" autoComplete="new-password" className={inputClass}
+                      placeholder={agent.data?.connection.authenticated ? 'Leave blank to keep the encrypted token' : 'Optional bearer token'}
+                      value={runnerToken} onChange={(event) => setRunnerToken(event.target.value)} />
+                  </div>
+                )}
               </div>
 
               <div>

@@ -12,7 +12,7 @@ import time
 
 from playwright.sync_api import sync_playwright
 
-BASE = "https://aegis-dashboard-harsh1t.vercel.app"
+BASE = "https://agent-aegis.vercel.app"
 SCHEMA = json.dumps([
     {"type": "function", "function": {
         "name": "get_invoice", "description": "Look up an invoice by id",

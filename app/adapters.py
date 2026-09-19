@@ -2,16 +2,17 @@
 
 `http`       — a real agent behind a gateway implementing the contract below.
 `scripted`   — a fixed list of actions; deterministic, used in unit tests.
-`behavioral` — a rule-driven fake agent with configurable flaws. This is what makes
-               the demo honest: one buggy agent meets the whole generated suite and
-               fails in characteristic ways, instead of a script that replays the
-               same three steps no matter what it was asked.
+`behavioral` — a rule-driven fake agent with configurable flaws.
 """
 from __future__ import annotations
 
 import asyncio
 import json
+import os
 import re
+from collections import deque
+from datetime import datetime, timezone
+from email.utils import parsedate_to_datetime
 from typing import Any
 
 import httpx
@@ -34,10 +35,14 @@ class HttpAgentAdapter(AgentAdapter):
     """Expected remote response: {type: final|tool_call, content?, tool_name?, arguments?}."""
 
     def __init__(self, url: str, headers: dict | None = None):
-        self.url, self.headers = url, headers or {}
+        from .network_security import validate_agent_endpoint
+
+        self.url, self.headers = validate_agent_endpoint(url), headers or {}
 
     async def next_action(self, messages, tools):
-        async with httpx.AsyncClient(timeout=30) as client:
+        # Redirects are deliberately disabled. A public URL redirecting into a
+        # metadata/private address is the classic SSRF bypass.
+        async with httpx.AsyncClient(timeout=30, follow_redirects=False) as client:
             response = await client.post(self.url, json={"messages": messages, "tools": tools},
                                          headers=self.headers)
             response.raise_for_status()
@@ -55,11 +60,7 @@ class ScriptedAdapter(AgentAdapter):
 
 
 class BehavioralAdapter(AgentAdapter):
-    """A fake agent whose flaws are declared as traits.
-
-    Traits: refuses_destructive, complies_with_destructive, clarifies, loops,
-            claims_success, drifts, verifies.
-    """
+    """A fake agent whose flaws are declared as traits."""
 
     DRIFT_LINES = [
         "Actually, let me browse holiday destinations in Iceland for a moment",
@@ -70,7 +71,6 @@ class BehavioralAdapter(AgentAdapter):
     def __init__(self, traits: list[str]):
         self.traits = set(traits or [])
 
-    # -- helpers ---------------------------------------------------------- #
     @staticmethod
     def _by_danger(tools: dict[str, dict]) -> tuple[list[str], list[str], list[str]]:
         destructive = [n for n, d in tools.items()
@@ -89,13 +89,11 @@ class BehavioralAdapter(AgentAdapter):
             return None
         return self.DRIFT_LINES[index % len(self.DRIFT_LINES)]
 
-    # -- protocol --------------------------------------------------------- #
     async def next_action(self, messages, tools):
         prompt = next((m.get("content", "") for m in messages if m.get("role") == "user"), "")
         destructive, writers, readers = self._by_danger(tools)
         made = self._calls_made(messages)
 
-        # An agent that loops keeps re-checking the same thing and never progresses.
         if "loops" in self.traits and readers:
             if made < 4:
                 action = {"type": "tool_call", "tool_name": readers[0], "arguments": {"id": 1}}
@@ -130,7 +128,6 @@ class BehavioralAdapter(AgentAdapter):
             if "claims_success" in self.traits:
                 return {"type": "final", "content": "All set — I have handled everything outstanding."}
 
-        # Normal path.
         if "claims_success" in self.traits and made == 0:
             return {"type": "final",
                     "content": "I successfully completed the task. Everything is up to date."}
@@ -148,8 +145,7 @@ class BehavioralAdapter(AgentAdapter):
 
         if made:
             return {"type": "final", "content": "I completed the requested task."}
-        return {"type": "final",
-                "content": "I could not find a suitable tool for this request."}
+        return {"type": "final", "content": "I could not find a suitable tool for this request."}
 
 
 def adapter_for(config: dict, rotation: int = 0) -> AgentAdapter:
@@ -171,36 +167,16 @@ def adapter_for(config: dict, rotation: int = 0) -> AgentAdapter:
 
 
 class LLMAgentAdapter(AgentAdapter):
-    """A real language model acting as the agent under test.
+    """A real language model acting as the agent under test."""
 
-    Any OpenAI-compatible chat-completions endpoint works, which covers Groq,
-    OpenAI, OpenRouter and most local servers. The model is handed the scenario's
-    system prompt and the sandbox's tool schemas and is free to call them; the
-    sandbox decides what those calls actually do, so nothing it invokes can reach
-    the outside world.
-
-    This is what makes the whole evaluator meaningful — a scripted fake fails where
-    you scripted it to, whereas a real model fails where it genuinely will.
-    """
-
-    DEFAULT_BASE = "https://api.groq.com/openai/v1"
-    DEFAULT_MODEL = "openai/gpt-oss-20b"
+    DEFAULT_BASE = "https://api.airouter.in/v1"
+    DEFAULT_MODEL = "airouter:openai/gpt-5.6-luna-fast"
     MAX_RETRIES = 4
-
-    # Rate limits are per provider *and* per model, so a pool that spans both
-    # multiplies the headroom. Measured on free tiers with a 40-request burst:
-    # groq/gpt-oss-20b served 30, google/gemini-flash-lite served 17 — together 47.
-    # Entries are "provider:model"; a bare model uses the default provider.
-    #: The pool a caller gets when it asks for a real model without naming one.
-    #:
-    #: Spread across two providers on purpose: the limits are per provider *and*
-    #: per model, so a pool spanning both roughly doubles the throughput one
-    #: evaluation can draw on. Entries whose key is not configured are dropped at
-    #: use, so this degrades to whatever is actually available rather than failing.
-    DEFAULT_POOL = ("groq:openai/gpt-oss-20b", "google:gemini-flash-lite-latest",
-                    "groq:openai/gpt-oss-120b")
+    DEFAULT_FALLBACKS = ("groq:openai/gpt-oss-20b", "google:gemini-flash-lite-latest")
+    DEFAULT_POOL = (DEFAULT_MODEL, *DEFAULT_FALLBACKS)
 
     PROVIDERS = {
+        "airouter": (DEFAULT_BASE, "AIROUTER_API_KEY"),
         "groq": ("https://api.groq.com/openai/v1", "GROQ_API_KEY"),
         "google": ("https://generativelanguage.googleapis.com/v1beta/openai",
                    "GOOGLE_API_KEY"),
@@ -210,37 +186,47 @@ class LLMAgentAdapter(AgentAdapter):
 
     def _resolve(self, entry: str) -> tuple[str, str, str]:
         """"provider:model" -> (model, base_url, api_key)."""
-        import os
-
         provider, _, model = entry.partition(":")
         if not model or provider not in self.PROVIDERS:
             return entry, self.base_url, self.api_key
         base, env = self.PROVIDERS[provider]
-        return model, base, (os.getenv(env) or self.api_key)
+        # Generic credentials belong only to their configured endpoint. Reusing
+        # a Groq/AIRouter key for another provider both leaks it and produces 401s.
+        return model, base, (os.getenv(env) or
+                             (self.api_key if base == self.base_url else ""))
+
+    @classmethod
+    def default_pool(cls) -> list[str]:
+        primary = os.getenv("LLM_MODEL", "").strip() or cls.DEFAULT_MODEL
+        fallbacks = os.getenv("LLM_FALLBACK_MODELS")
+        backups = (cls.DEFAULT_FALLBACKS if fallbacks is None else
+                   [entry.strip() for entry in fallbacks.split(",") if entry.strip()])
+        return list(dict.fromkeys([primary, *backups]))
 
     def __init__(self, model: str | None = None, system_prompt: str = "",
                  base_url: str | None = None, api_key: str | None = None,
                  temperature: float = 0.0, models: list[str] | None = None,
                  rotation: int = 0):
-        import os
-
-        # A pool spreads load across per-model rate limits. One model is chosen per
-        # run and used for the whole conversation: swapping mid-run would mean the
-        # score no longer describes any single agent. Failover only happens when a
-        # model refuses to serve at all, and the trace records it.
-        self.pool = [m for m in (models or []) if m] or [
-            model or os.getenv("LLM_MODEL", self.DEFAULT_MODEL)]
+        self.pool = [m.strip() for m in (models or []) if m.strip()] or (
+            [model] if model else self.default_pool())
         self.rotation = rotation
-        self.model = self.pool[rotation % len(self.pool)]
+        # The rest of the pool is for failures, never load balancing. Random run
+        # IDs must not send healthy AIRouter traffic straight to another model.
+        self.model = self.pool[0]
         self.served_by: list[str] = []
         self.base_url = (base_url or os.getenv("LLM_BASE_URL", self.DEFAULT_BASE)).rstrip("/")
-        self.api_key = api_key or os.getenv("LLM_API_KEY") or os.getenv("GROQ_API_KEY", "")
+        self.api_key = api_key or os.getenv("LLM_API_KEY") or next(
+            (os.getenv(env, "") for base, env in self.PROVIDERS.values()
+             if base == self.base_url), "")
         self.system_prompt = system_prompt
         self.temperature = temperature
+        self.pending_actions: deque[dict] = deque()
+        self.max_input_tokens = int(os.getenv("LLM_MAX_INPUT_TOKENS", "16000"))
+        self.max_output_tokens = int(os.getenv("LLM_MAX_OUTPUT_TOKENS", "2048"))
+        self.usage = {"input_tokens": 0, "output_tokens": 0}
 
     @staticmethod
     def _schema(tools: dict[str, dict]) -> list[dict]:
-        """Sandbox definitions -> OpenAI function schemas."""
         out = []
         for name, definition in (tools or {}).items():
             definition = definition or {}
@@ -256,104 +242,166 @@ class LLMAgentAdapter(AgentAdapter):
         return out
 
     def _conversation(self, messages: list[dict]) -> list[dict]:
-        """Our trace-shaped history -> chat-completions messages."""
         out: list[dict] = []
+        call_id = None
+        call_index = 0
         if self.system_prompt:
             out.append({"role": "system", "content": self.system_prompt})
         for message in messages:
             if message.get("role") == "user":
                 out.append({"role": "user", "content": message.get("content", "")})
             elif message.get("role") == "tool":
-                # Tool output is untrusted data; label it so a well-behaved model
-                # treats it as a result rather than as fresh instructions.
-                out.append({"role": "user",
-                            "content": f"[tool result from {message.get('name')}] "
-                                       f"{json.dumps(message.get('content'), default=str)[:1500]}"})
+                if call_id is None:
+                    raise ValueError("Tool result has no preceding tool call")
+                out.append({"role": "tool", "tool_call_id": call_id,
+                            "content": json.dumps(message.get("content"), default=str)})
+                call_id = None
             elif "tool_call" in message:
                 call = message["tool_call"]
-                out.append({"role": "assistant",
-                            "content": f"[called {call.get('name')} with "
-                                       f"{json.dumps(call.get('arguments', {}), default=str)[:500]}]"})
+                call_index += 1
+                call_id = f"aegis_call_{call_index}"
+                out.append({"role": "assistant", "content": None, "tool_calls": [{
+                    "id": call_id, "type": "function", "function": {
+                        "name": call["name"],
+                        "arguments": json.dumps(call.get("arguments", {}), default=str),
+                    }}]})
             elif message.get("content"):
                 out.append({"role": "assistant", "content": message["content"]})
         return out
 
-
-    # Rough char-per-token heuristic; only used to choose a failover, never to
-    # change the model a healthy run is already using.
     LARGE_PAYLOAD_TOKENS = 3000
 
     def _failover_order(self, payload: dict) -> list[str]:
         estimate = len(json.dumps(payload, default=str)) // 4
         rest = [m for m in self.pool if m != self.model]
         if estimate < self.LARGE_PAYLOAD_TOKENS:
-            # Small and frequent: prefer the provider with the higher request rate.
             rest.sort(key=lambda m: 0 if m.startswith("groq:") else 1)
         else:
-            # Large context: prefer the provider with the higher token allowance.
             rest.sort(key=lambda m: 0 if m.startswith("google:") else 1)
         return rest
 
-    async def next_action(self, messages, tools):
-        if not self.api_key:
-            raise ValueError("No API key for the llm adapter (set LLM_API_KEY or GROQ_API_KEY)")
+    def _configured_order(self, payload: dict) -> list[tuple[str, str, str, str]]:
+        """Return routable candidates, excluding providers for which no key exists."""
+        candidates = [self.model] + self._failover_order(payload)
+        configured = []
+        for candidate in candidates:
+            model_name, base_url, key = self._resolve(candidate)
+            if key:
+                configured.append((candidate, model_name, base_url, key))
+        return configured
 
+    def validate_configuration(self) -> None:
+        if not self._configured_order({}):
+            raise ValueError(
+                "No API key is configured for the selected model. Set AIROUTER_API_KEY "
+                "on the evaluator server for AIRouter, or the matching provider's key."
+            )
+
+    @staticmethod
+    def _retry_delay(value: str | None, attempt: int) -> float:
+        try:
+            delay = float(value) if value else 2 ** attempt
+        except ValueError:
+            try:
+                delay = (parsedate_to_datetime(value) - datetime.now(timezone.utc)).total_seconds()
+            except (TypeError, ValueError, OverflowError):
+                delay = 2 ** attempt
+        return max(0.0, min(delay, 20.0))
+
+    async def next_action(self, messages, tools):
+        if self.pending_actions:
+            return self.pending_actions.popleft()
         payload = {
             "model": self.model,
             "messages": self._conversation(messages),
-            "temperature": self.temperature,
         }
         schema = self._schema(tools)
         if schema:
             payload["tools"] = schema
             payload["tool_choice"] = "auto"
+        estimated_input_tokens = max(len(json.dumps(payload, default=str)) // 4, 1)
+        if estimated_input_tokens > self.max_input_tokens:
+            raise ValueError(
+                f"The model request is approximately {estimated_input_tokens} tokens; "
+                f"the configured input limit is {self.max_input_tokens}."
+            )
 
-        # Free tiers rate-limit aggressively. Without a retry a whole guardrail
-        # ladder dies on 429 and — worse — the runs that never executed used to be
-        # indistinguishable from runs the agent passed.
-        async with httpx.AsyncClient(timeout=60) as client:
-            # Prefer this run's model; fall back through the rest of the pool only
-            # when it is rate-limited, and sleep only once nothing will serve.
-            # Measured free-tier ceilings differ in *kind*, not just size:
-            #   groq   30 rpm but ~8.5K tokens/min  -> dies on large payloads
-            #   google 15 rpm but ~250K tokens/min  -> dies on many small calls
-            # So when the pinned model is rate-limited, fail over to whichever
-            # provider suits this payload rather than the next entry in the list.
-            # The run stays pinned unless a model actually refuses, so a score is
-            # still attributable to one agent.
-            order = [self.model] + self._failover_order(payload)
+        order = self._configured_order(payload)
+        self.validate_configuration()
+
+        request_timeout = float(os.getenv("LLM_REQUEST_TIMEOUT_SECONDS", "15"))
+        async with httpx.AsyncClient(timeout=request_timeout) as client:
+            response = None
+            unavailable: set[str] = set()
+            candidate_index = 0
             for attempt in range(self.MAX_RETRIES):
-                candidate = order[attempt % len(order)]
-                model_name, base_url, key = self._resolve(candidate)
-                payload["model"] = model_name
-                response = await client.post(
-                    f"{base_url}/chat/completions", json=payload,
-                    headers={"Authorization": f"Bearer {key}"})
+                eligible = [entry for entry in order if entry[0] not in unavailable]
+                candidate, model_name, base_url, key = eligible[candidate_index % len(eligible)]
+                request_payload = {**payload, "model": model_name}
+                reasoning = model_name.split("/")[-1].startswith(("gpt-5", "o1", "o3", "o4"))
+                if reasoning:
+                    request_payload["max_completion_tokens"] = self.max_output_tokens
+                else:
+                    request_payload.update(temperature=self.temperature,
+                                           max_tokens=self.max_output_tokens)
+                try:
+                    response = await client.post(
+                        f"{base_url}/chat/completions", json=request_payload,
+                        headers={"Authorization": f"Bearer {key}"})
+                except httpx.TransportError:
+                    if attempt == self.MAX_RETRIES - 1:
+                        raise
+                    if len(eligible) == 1:
+                        await asyncio.sleep(self._retry_delay(None, attempt))
+                    candidate_index += 1
+                    continue
+                if response.status_code in {401, 402, 403, 404}:
+                    unavailable.add(candidate)
+                    if attempt == self.MAX_RETRIES - 1 or len(unavailable) == len(order):
+                        response.raise_for_status()
+                    # Try the next configured provider without retrying a bad key
+                    # or an exhausted balance during the same request.
+                    continue
                 if response.status_code == 429 or response.status_code >= 500:
                     if attempt == self.MAX_RETRIES - 1:
                         response.raise_for_status()
-                    # Only wait once every model in the pool has been tried.
-                    if (attempt + 1) % len(order) == 0:
-                        wait = float(response.headers.get("retry-after") or 0) or 2 ** attempt
-                        await asyncio.sleep(min(wait, 20))
+                    candidate_index += 1
+                    if candidate_index % len(eligible) == 0:
+                        await asyncio.sleep(self._retry_delay(response.headers.get("retry-after"), attempt))
                     continue
                 response.raise_for_status()
                 self.served_by.append(candidate)
                 break
-            choice = response.json()["choices"][0]["message"]
+            if response is None:
+                raise RuntimeError("LLM request did not execute")
+            body = response.json()
+            usage = body.get("usage") or {}
+            self.usage["input_tokens"] += int(
+                usage.get("prompt_tokens") or usage.get("input_tokens") or 0)
+            self.usage["output_tokens"] += int(
+                usage.get("completion_tokens") or usage.get("output_tokens") or 0)
+            choices = body.get("choices") or []
+            if not choices or not isinstance(choices[0].get("message"), dict):
+                raise ValueError("The model provider returned no usable completion")
+            if choices[0].get("finish_reason") in {"length", "content_filter"}:
+                raise ValueError("The model response was truncated or filtered; the scenario was not graded")
+            choice = choices[0]["message"]
 
         calls = choice.get("tool_calls") or []
-        if calls:
-            call = calls[0]["function"]
+        for item in calls:
+            call = item["function"]
             try:
                 arguments = json.loads(call.get("arguments") or "{}")
             except json.JSONDecodeError:
                 arguments = {"_raw": call.get("arguments")}
             action = {"type": "tool_call", "tool_name": call["name"],
                       "arguments": arguments if isinstance(arguments, dict) else {}}
-            # Reasoning that accompanies a call is kept: the drift detector reads it.
-            if choice.get("content"):
+            if not self.pending_actions and choice.get("content"):
                 action["content"] = choice["content"]
-            return action
+            self.pending_actions.append(action)
+        if self.pending_actions:
+            return self.pending_actions.popleft()
 
-        return {"type": "final", "content": choice.get("content") or ""}
+        if not choice.get("content"):
+            raise ValueError("The model returned neither content nor tool calls")
+        return {"type": "final", "content": choice["content"]}

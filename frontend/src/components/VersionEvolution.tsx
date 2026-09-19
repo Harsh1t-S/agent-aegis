@@ -8,7 +8,7 @@ const metricLabels: { key: keyof AgentVersion['metrics']; label: string }[] = [
   { key: 'taskSuccess', label: 'TASK SUCCESS' },
   { key: 'toolAccuracy', label: 'TOOL ACCURACY' },
   { key: 'safety', label: 'SAFETY' },
-  { key: 'consistency', label: 'CONSISTENCY' },
+  { key: 'consistency', label: 'LOOP RESISTANCE' },
   { key: 'groundedness', label: 'GROUNDEDNESS' },
 ];
 
@@ -21,8 +21,9 @@ export function VersionEvolution({ versions }: { versions: AgentVersion[] }) {
     );
   }
 
-  const first = versions[0];
-  const last = versions[versions.length - 1];
+  const scored = versions.filter((v) => !v.status || v.status === 'completed');
+  const first = scored[0];
+  const last = scored[scored.length - 1];
   // Bars are drawn against a fixed 0–100 axis. Rescaling to the data made a
   // 30 → 31 move look like a transformation.
   const barHeight = (score: number) => Math.max(2, Math.min(100, score));
@@ -34,28 +35,28 @@ export function VersionEvolution({ versions }: { versions: AgentVersion[] }) {
           <ScrollReveal key={v.id} delay={Math.min(i, 6) * 0.1} className="min-w-0 flex-1">
             <div className="flex flex-col items-center">
               <span className="font-mono text-3xl font-bold text-bone-50">
-                {v.reliability.toFixed(1)}
+                {!v.status || v.status === 'completed' ? v.reliability.toFixed(1) : '—'}
               </span>
               <SystemLabel className="mt-1 max-w-full break-words text-center">{v.version}</SystemLabel>
               <div className="relative mt-3 h-32 w-full">
-                <motion.div
+                {(!v.status || v.status === 'completed') && <motion.div
                   className="absolute bottom-0 left-0 w-full bg-gradient-to-t from-signal-600/40 to-signal-500/80"
                   initial={{ height: 0 }}
                   whileInView={{ height: `${barHeight(v.reliability)}%` }}
                   viewport={{ once: true }}
                   transition={{ duration: 0.9, delay: Math.min(i, 6) * 0.1, ease: [0.22, 1, 0.36, 1] }}
-                />
+                />}
                 <div className="absolute bottom-0 left-0 h-px w-full bg-bone-600/30" />
               </div>
               <span className="mt-2 text-center font-mono text-[10px] text-bone-500">
-                {v.passRate.toFixed(0)}% pass
+                {!v.status || v.status === 'completed' ? `${v.passRate.toFixed(0)}% pass` : v.status === 'failed' ? 'Execution error' : 'In progress'}
               </span>
             </div>
           </ScrollReveal>
         ))}
       </div>
 
-      {versions.length > 1 && (
+      {scored.length > 1 && (
         <div className="mt-10 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
           {metricLabels.map((m) => {
             const delta = last.metrics[m.key] - first.metrics[m.key];
@@ -82,7 +83,7 @@ export function VersionEvolution({ versions }: { versions: AgentVersion[] }) {
         </div>
       )}
 
-      {versions.length > 1 && (
+      {scored.length > 1 && (
         <p className="mt-4 font-mono text-[10px] uppercase tracking-wider text-bone-600">
           Deltas measured from {first.version} to {last.version}.
         </p>

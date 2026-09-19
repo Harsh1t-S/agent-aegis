@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { AppNavigation } from '@/components/AppNavigation';
 import { IncidentTrace } from '@/components/IncidentTrace';
@@ -11,23 +11,33 @@ import { useResource } from '@/hooks/useResource';
 import { api, ApiError } from '@/lib/api';
 import { severityTone, testStatusTone } from '@/lib/format';
 import { Check, Copy, Loader2, RotateCcw, ArrowLeft } from 'lucide-react';
+import type { ReviewDecision } from '@/types';
+import { useWorkspace } from '@/contexts/WorkspaceContext';
 
 export default function TestTrace() {
   const { evaluationId, testId } = useParams<{ evaluationId: string; testId: string }>();
   const navigate = useNavigate();
+  const workspace = useWorkspace();
+  const canMutate = workspace.current?.role !== 'viewer';
   const toast = useToast();
   const [copied, setCopied] = useState(false);
   const [replaying, setReplaying] = useState(false);
-  // Set the moment a re-run is queued. The replacement run may not have finished
-  // by the time we land on its id, so the page waits for it instead of calling it
-  // missing — which is what a plain reload did.
-  const [awaitingRerun, setAwaitingRerun] = useState(false);
-
+  const [review, setReview] = useState<ReviewDecision>('confirmed_issue');
+  const [reviewNote, setReviewNote] = useState('');
+  const [savingReview, setSavingReview] = useState(false);
   const { data: evaluation, error, loading, reload } = useResource(
-    () => api.evaluation(evaluationId as string),
-    [evaluationId],
-    { enabled: Boolean(evaluationId), pollMs: awaitingRerun ? 2000 : undefined },
+    () => api.testRun(evaluationId as string, testId as string),
+    [evaluationId, testId],
+    { enabled: Boolean(evaluationId && testId), pollMs: 2000,
+      pollWhile: (run) => run.canContinue !== false && (run.status === 'pending' || run.status === 'running') },
   );
+  const loadedTest = evaluation?.test;
+  useEffect(() => {
+    if (!loadedTest) return;
+    setReview(loadedTest.review?.decision
+      ?? (loadedTest.status === 'passed' ? 'confirmed_correct' : 'confirmed_issue'));
+    setReviewNote(loadedTest.review?.note ?? '');
+  }, [loadedTest]);
 
   if (loading) {
     return (
@@ -38,19 +48,16 @@ export default function TestTrace() {
     );
   }
 
-  const test = evaluation?.tests.find((t) => t.id === testId);
-
-  // Stop polling as soon as the replacement run appears in the report.
-  if (awaitingRerun && test) setAwaitingRerun(false);
-
-  if (!test && awaitingRerun && !error) {
+  const test = evaluation?.test;
+  if (!test && evaluation && !error) {
     return (
       <div className="min-h-screen bg-ink-950">
         <AppNavigation />
-        <LoadingState label="RE-RUN IN PROGRESS" />
+        <LoadingState label="SCENARIO IN PROGRESS" />
         <p className="px-6 text-center font-mono text-[11px] text-bone-500">
-          The scenario is executing again. This page switches to the new trace as soon as
-          it completes.
+          {evaluation.canContinue === false
+            ? 'The evaluation worker is offline. This queued scenario will resume when the worker returns.'
+            : 'The scenario is executing. This page switches to the saved trace as soon as it completes.'}
         </p>
       </div>
     );
@@ -97,13 +104,8 @@ export default function TestTrace() {
     setReplaying(true);
     try {
       const queued = await api.rerunTest(test.id);
-      // The re-run supersedes this one: the report keeps only the latest run per
-      // scenario, so staying on the old id would leave the page insisting the run
-      // it just re-ran is "not part of the evaluation".
-      setAwaitingRerun(true);
       toast.success('Re-run queued', 'Following the replacement run.');
       navigate(`/app/evaluations/${evaluationId}/tests/${queued.runId}`, { replace: true });
-      reload();
     } catch (err) {
       toast.error(
         'Could not re-run',
@@ -111,6 +113,18 @@ export default function TestTrace() {
       );
     } finally {
       setReplaying(false);
+    }
+  };
+
+  const saveReview = async () => {
+    setSavingReview(true);
+    try {
+      await api.reviewFinding(test.id, review, reviewNote.trim());
+      toast.success('Finding review saved', 'The decision is recorded in the workspace audit trail.');
+    } catch (cause) {
+      toast.error('Review not saved', cause instanceof Error ? cause.message : 'Try again.');
+    } finally {
+      setSavingReview(false);
     }
   };
 
@@ -139,7 +153,7 @@ export default function TestTrace() {
               <span
                 className={`border px-2 py-0.5 font-mono text-[10px] uppercase tracking-wider ${cfg.color} border-current/40`}
               >
-                {cfg.label}
+                {test.executionError ? 'EXECUTION ERROR' : cfg.label}
               </span>
               {test.severity && (
                 <span
@@ -219,6 +233,40 @@ export default function TestTrace() {
           </div>
         )}
 
+        {canMutate && !test.executionError && evaluation.canContinue !== false && (
+          <ScrollReveal className="mt-6">
+            <div className="border border-bone-600/20 bg-ink-900/60 p-6">
+              <SystemLabel>HUMAN REVIEW</SystemLabel>
+              <p className="mt-2 text-sm leading-relaxed text-bone-400">
+                Confirm whether this result matches your policy. The label builds a benchmark and never rewrites the original score or trace.
+              </p>
+              <div className="mt-4 flex flex-wrap gap-2">
+                {(test.status === 'passed' ? ([
+                  ['confirmed_correct', 'CONFIRMED CORRECT'],
+                  ['missed_issue', 'MISSED ISSUE'],
+                ] as const) : ([
+                  ['confirmed_issue', 'CONFIRMED ISSUE'],
+                  ['false_positive', 'FALSE POSITIVE'],
+                  ['accepted_risk', 'ACCEPTED RISK'],
+                ] as const)).map(([value, label]) => (
+                  <button key={value} type="button" aria-pressed={review === value}
+                    onClick={() => setReview(value)}
+                    className={`min-h-10 border px-3 font-mono text-[10px] uppercase tracking-wider ${review === value ? 'border-signal-500/55 bg-signal-500/10 text-signal-300' : 'border-bone-600/30 text-bone-400'}`}>
+                    {label}
+                  </button>
+                ))}
+              </div>
+              <textarea value={reviewNote} onChange={(event) => setReviewNote(event.target.value)}
+                maxLength={4000} placeholder="Optional note, ticket, or reason…"
+                className="mt-4 min-h-24 w-full resize-y border border-bone-600/30 bg-ink-950/60 p-3 text-sm text-bone-100 outline-none placeholder:text-bone-600 focus:border-signal-500/50" />
+              <button type="button" onClick={() => void saveReview()} disabled={savingReview}
+                className="mt-3 flex min-h-11 items-center gap-2 border border-signal-500/40 bg-signal-500/10 px-4 font-mono text-[11px] uppercase tracking-wider text-signal-300 disabled:opacity-50">
+                {savingReview && <Loader2 className="h-3.5 w-3.5 animate-spin" />} SAVE REVIEW
+              </button>
+            </div>
+          </ScrollReveal>
+        )}
+
         <ScrollReveal className="mt-6">
           <div className="flex flex-wrap items-center gap-3">
             {test.recommendation && (
@@ -231,7 +279,7 @@ export default function TestTrace() {
                 {copied ? 'COPIED' : 'COPY RECOMMENDATION'}
               </button>
             )}
-            <button
+            {canMutate && <button
               type="button"
               onClick={replay}
               disabled={replaying}
@@ -243,7 +291,7 @@ export default function TestTrace() {
                 <RotateCcw className="h-3.5 w-3.5" />
               )}
               RE-RUN THIS SCENARIO
-            </button>
+            </button>}
           </div>
         </ScrollReveal>
       </div>

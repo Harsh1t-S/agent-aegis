@@ -1,14 +1,18 @@
 from contextlib import asynccontextmanager
-from fastapi import BackgroundTasks, Depends, FastAPI, HTTPException
+from fastapi import BackgroundTasks, Depends, FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from .classifier import TAXONOMY, classify
-from .database import Base, engine, ensure_columns, get_db
+from .access import access_state
+from .auth import authenticate_request, auth_disabled, require_api_key_scope
+from .database import get_db, initialize_database
 from .detectors import DETECTOR_VERSION, detect_all
+from .frontend_api import public_router as public_report_router
 from .frontend_api import router as frontend_router
-from .engine import dispatch, run_test
+from .engine import SYNC_RUNS, dispatch, drain_pending, run_test
 from .guardrail import analyse as guardrail_analyse
 from .guardrail import GUARDRAIL_VERSION, build_ladder
 from .scoring import score_run
@@ -35,10 +39,7 @@ async def lifespan(app: FastAPI):
     can say precisely what is wrong.
     """
     try:
-        Base.metadata.create_all(bind=engine)
-        # create_all never alters an existing table, so a deployment that predates
-        # a new column would 500 on every query mentioning it.
-        DB_READY["migrated"] = ensure_columns()
+        DB_READY["migrated"] = initialize_database()
         DB_READY["ok"] = True
     except Exception as exc:  # noqa: BLE001 - surfaced through /health
         DB_READY["error"] = f"{type(exc).__name__}: {exc}"[:400]
@@ -48,16 +49,78 @@ async def lifespan(app: FastAPI):
 app = FastAPI(title="Aegis — Agent Evaluation & Reliability API", version="1.0.0",
               lifespan=lifespan)
 
-# The dashboard is served from a different origin in every environment we use
-# (Lovable preview, localhost, deployed). Locked down to the verbs the UI uses.
+
+def _secure_response(response, *, path: str):
+    """Apply the same browser protections to successful and early responses."""
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    response.headers["X-Frame-Options"] = "DENY"
+    response.headers["Referrer-Policy"] = "no-referrer"
+    response.headers["Permissions-Policy"] = (
+        "camera=(), microphone=(), geolocation=(), payment=()")
+    if path.startswith("/api/"):
+        response.headers["Cache-Control"] = "no-store"
+
+    import os
+
+    if os.getenv("VERCEL") or os.getenv("AWS_LAMBDA_FUNCTION_NAME") \
+            or os.getenv("SERVERLESS") == "1":
+        response.headers["Strict-Transport-Security"] = (
+            "max-age=63072000; includeSubDomains; preload")
+    return response
+
+
+@app.middleware("http")
+async def protect_mutations(request: Request, call_next):
+    # Customer data is private for every method. Only health/docs, curated public
+    # configuration, and the signature-verified billing webhook are anonymous.
+    path = request.url.path
+    public = path.startswith("/api/shared-reports/") or path in {
+        "/", "/health", "/taxonomy", "/docs", "/docs/oauth2-redirect",
+        "/redoc", "/openapi.json", "/api/public/config", "/api/webhooks/stripe",
+    }
+    if request.method != "OPTIONS" and path.startswith("/api/") and not public:
+        try:
+            request.state.principal = authenticate_request(request)
+            require_api_key_scope(request, request.state.principal)
+        except HTTPException as exc:
+            return _secure_response(JSONResponse(
+                {"detail": exc.detail},
+                status_code=exc.status_code,
+                headers={"Cache-Control": "no-store"},
+            ), path=path)
+    elif request.method != "OPTIONS" and not public:
+        # The old snake_case API is retained for administrators and CI migration,
+        # but browser users never receive access to its unscoped record shapes.
+        # It has no workspace ownership model, so it must never exist on a hosted
+        # multi-tenant deployment even when an obsolete shared key is present.
+        import os
+
+        if os.getenv("VERCEL") or os.getenv("AWS_LAMBDA_FUNCTION_NAME") \
+                or os.getenv("SERVERLESS") == "1":
+            return _secure_response(JSONResponse(
+                {"detail": "Not found."}, status_code=404,
+                headers={"Cache-Control": "no-store"},
+            ), path=path)
+        access = access_state(request)
+        if not access["authorized"]:
+            return _secure_response(JSONResponse(
+                {"detail": "Administrative API access required."},
+                status_code=401 if access["configured"] else 404,
+                headers={"Cache-Control": "no-store"},
+            ), path=path)
+    response = await call_next(request)
+    return _secure_response(response, path=path)
+
+# In production the dashboard reaches the API through a same-origin /api rewrite,
+# so CORS only matters for local development and preview deploys. Locked down to
+# the verbs the UI actually uses.
 app.add_middleware(
     CORSMiddleware,
     allow_origin_regex=(r"https?://(localhost|127\.0\.0\.1)(:\d+)?"
-                        r"|https://.*\.lovable\.app"
-                        r"|https://.*\.trycloudflare\.com"),
+                        r"|https://[\w-]+\.vercel\.app"),
     # PATCH is how the console edits an agent between versions; leaving it out
     # made "save changes" fail from any cross-origin caller.
-    allow_methods=["GET", "POST", "PATCH", "DELETE", "OPTIONS"],
+    allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
     allow_headers=["*"],
 )
 
@@ -95,6 +158,12 @@ def _rows_for_version(db: Session, version_id: str) -> tuple[list[dict], dict[st
 # --------------------------------------------------------------------------- #
 # health & metadata
 # --------------------------------------------------------------------------- #
+from .billing_api import router as billing_router
+from .saas_api import router as saas_router
+
+app.include_router(saas_router)
+app.include_router(billing_router)
+app.include_router(public_report_router)
 app.include_router(frontend_router)
 
 @app.get("/", include_in_schema=False)
@@ -119,22 +188,34 @@ def health():
 
     body = {"evaluator": evaluator_stamp(), "generator": GENERATOR_VERSION,
             "migrated": DB_READY.get("migrated") or [],
+            "auth": {"required": not auth_disabled()},
+            "execution": {"mode": "durable-worker" if os.getenv(
+                "AEGIS_DURABLE_QUEUE", "1" if os.getenv("VERCEL") else "0") == "1"
+                else "in-process"},
             # Names and provenance only, never values. Answers "can the committed
             # fallback file be deleted without taking production down?" without
             # anyone having to redeploy to find out.
             "configSource": CONFIG_SOURCE}
+    from .adapters import LLMAgentAdapter
+
+    configured = LLMAgentAdapter()._configured_order({})
+    body["llm"] = {"models": LLMAgentAdapter.default_pool(), "configured": bool(configured)}
     if ephemeral:
-        return {**body, "status": "degraded", "database": "ephemeral",
-                "detail": "DATABASE_URL is not set, so this instance is writing to a "
-                          "temporary SQLite file that does not survive the invocation.",
-                "fix": "Set DATABASE_URL in the Vercel project's environment variables."}
+        return JSONResponse({
+            **body, "status": "degraded", "database": "ephemeral",
+            "detail": "DATABASE_URL is not set, so this instance is writing to a "
+                      "temporary SQLite file that does not survive the invocation.",
+            "fix": "Set DATABASE_URL in the Vercel project's environment variables.",
+        }, status_code=503)
     if DB_READY["ok"]:
         return {**body, "status": "ok", "database": "connected"}
-    return {**body,
-            "status": "degraded",
-            "database": "unavailable",
-            "detail": DB_READY["error"],
-            "fix": "Set DATABASE_URL in the deployment environment, then redeploy."}
+    return JSONResponse({
+        **body,
+        "status": "degraded",
+        "database": "unavailable",
+        "detail": DB_READY["error"],
+        "fix": "Set DATABASE_URL in the deployment environment, then redeploy.",
+    }, status_code=503)
 
 
 @app.get("/taxonomy")
@@ -288,8 +369,12 @@ def start_runs(agent_id: str, version_id: str, body: RunIn, background: Backgrou
         require(db, Scenario, scenario_id)
         run = TestRun(agent_version_id=version_id, scenario_id=scenario_id, seed=body.seed)
         db.add(run); db.commit(); db.refresh(run)
-        dispatch(background, run.id)
         runs.append(view(run))
+    if SYNC_RUNS:
+        drain_pending(db, version_id)
+    else:
+        for row in runs:
+            dispatch(background, row["id"])
     return {"runs": runs, "queued": len(runs)}
 
 
@@ -361,6 +446,10 @@ def reanalyze(run_id: str, db: Session = Depends(get_db)):
     trusted = snapshot.get("system_prompt_at_version")
     if trusted is None:
         trusted = (agent.system_prompt if agent else "") or ""
+    schema = snapshot.get("tool_schema_at_version")
+    if schema is None:
+        schema = (agent.tool_schema if agent else {}) or {}
+    schemas = {t["name"]: t for t in profile_agent(trusted, schema).to_dict().get("tools", [])}
     findings = detect_all(traces, environment.tool_definitions if environment else {},
                           scenario.expected_behavior if scenario else {},
                           scenario.initial_prompt if scenario else "",
@@ -412,7 +501,9 @@ def guardrail_test(agent_id: str, version_id: str, background: BackgroundTasks,
     if version.agent_id != agent_id:
         raise HTTPException(400, "Version does not belong to this agent")
 
-    profile = profile_agent(agent.system_prompt, agent.tool_schema)
+    from .frontend_api import _profile_at_version
+
+    profile = _profile_at_version(version, agent)
     if not profile.destructive_tools:
         raise HTTPException(400, "Agent exposes no irreversible tools to probe")
 
@@ -434,8 +525,12 @@ def guardrail_test(agent_id: str, version_id: str, background: BackgroundTasks,
         db.add(scenario); db.commit(); db.refresh(scenario)
         run = TestRun(agent_version_id=version_id, scenario_id=scenario.id, seed=seed)
         db.add(run); db.commit(); db.refresh(run)
-        dispatch(background, run.id)
         queued.append(run.id)
+    if SYNC_RUNS:
+        drain_pending(db, version_id)
+    else:
+        for run_id in queued:
+            dispatch(background, run_id)
     return {"queued": len(queued), "run_ids": queued, "version_id": version_id}
 
 

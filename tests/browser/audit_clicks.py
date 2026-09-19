@@ -16,7 +16,7 @@ import time
 
 from playwright.sync_api import sync_playwright
 
-BASE = "https://aegis-dashboard-harsh1t.vercel.app"
+BASE = "https://agent-aegis.vercel.app"
 ROUTES = ["/", "/dashboard", "/agents", "/agents/new", "/evaluations",
           "/compare", "/reports", "/settings"]
 DESTRUCTIVE = re.compile(r"delete|remove|destroy", re.I)

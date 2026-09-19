@@ -3,8 +3,9 @@ import { AegisLogo } from './AegisLogo';
 import { motion } from 'framer-motion';
 
 const links = [
+  { to: '/demo', label: 'DEMO' },
   { to: '/how-it-works', label: 'SYSTEM' },
-  { to: '/about', label: 'PRODUCT' },
+  { to: '/pricing', label: 'PLANS' },
 ];
 
 export function SiteNav() {

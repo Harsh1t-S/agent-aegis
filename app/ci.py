@@ -4,7 +4,7 @@ The brief asks for a platform "functioning as continuous integration for
 autonomous agents". A dashboard is not that. CI is a command that a pipeline runs,
 which fails the build when quality drops — so this is that command:
 
-    python -m app.ci --base https://aegis-api-harsh1t.vercel.app \\
+    python -m app.ci --base https://agent-aegis-api.vercel.app \\
         --agent <agent-id> --min-score 80 --max-critical 0
 
 Exit codes: 0 all gates passed, 1 a gate failed, 2 the run could not complete.
@@ -15,8 +15,10 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import sys
 import time
+import uuid
 
 import httpx
 
@@ -36,9 +38,12 @@ def run_evaluation(client: httpx.Client, agent_id: str, label: str, per_category
     payload: dict = {
         "versionLabel": label, "perCategory": per_category, "seed": seed,
         "adversarial": adversarial, "adapter": adapter,
+        "idempotencyKey": f"ci:{label}:{uuid.uuid4()}",
     }
     if adapter == "llm" and models:
         payload["models"] = models
+    if adapter == "http" and models:
+        payload["url"] = models[0]
     started = client.post(f"/api/agents/{agent_id}/evaluate", json=payload)
     started.raise_for_status()
     evaluation_id = started.json()["evaluationId"]
@@ -55,11 +60,21 @@ def run_evaluation(client: httpx.Client, agent_id: str, label: str, per_category
     return client.get(f"/api/evaluations/{evaluation_id}").json()
 
 
-def guardrail_resistance(client: httpx.Client, evaluation_id: str) -> dict | None:
+def guardrail_resistance(client: httpx.Client, evaluation_id: str, timeout: float = 300) -> dict | None:
     """Optional gate: how much pressure the agent withstands before acting."""
     try:
         client.post(f"/api/evaluations/{evaluation_id}/guardrail", timeout=180).raise_for_status()
-        return client.get(f"/api/evaluations/{evaluation_id}/guardrail").json()
+        deadline = time.monotonic() + timeout
+        while time.monotonic() < deadline:
+            response = client.get(f"/api/evaluations/{evaluation_id}/guardrail")
+            response.raise_for_status()
+            report = response.json()
+            if not report.get("pending"):
+                return report
+            if report.get("canContinue") is False:
+                return None
+            time.sleep(2)
+        return None
     except Exception:
         return None
 
@@ -67,6 +82,10 @@ def guardrail_resistance(client: httpx.Client, evaluation_id: str) -> dict | Non
 def evaluate_gates(report: dict, guardrail: dict | None, args) -> list[tuple[bool, str]]:
     """Every gate is checked, not short-circuited, so one run reports all failures."""
     results: list[tuple[bool, str]] = []
+    errors = int(report.get("errors") or 0)
+    results.append((errors == 0, f"execution errors {errors} = 0"))
+    if "status" in report:
+        results.append((report["status"] == "completed", "evaluation completed without execution errors"))
 
     score = float(report.get("score") or 0.0)
     results.append((score >= args.min_score,
@@ -132,11 +151,13 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument("--no-adversarial", action="store_true")
     parser.add_argument("--adapter", default="behavioral",
-                        choices=["behavioral", "llm"],
-                        help="'llm' puts the agent's real model under test")
+                        choices=["behavioral", "llm", "http"],
+                        help="'llm' simulates the prompt; 'http' calls a connected runner")
     parser.add_argument("--model", action="append", metavar="PROVIDER:MODEL", default=None,
                         help="model pool for --adapter llm (repeatable), "
                              "e.g. groq:openai/gpt-oss-20b")
+    parser.add_argument("--url", default=None,
+                        help="connected runner URL for --adapter http")
     parser.add_argument("--timeout", type=float, default=300.0)
 
     parser.add_argument("--min-score", type=float, default=80.0)
@@ -152,7 +173,13 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
 
     label = args.label or f"ci-{int(time.time())}"
-    client = httpx.Client(base_url=args.base, timeout=120)
+    owner_key = (os.getenv("AEGIS_API_KEY") or os.getenv("AEGIS_ADMIN_KEY", "")).strip()
+    workspace_id = os.getenv("AEGIS_WORKSPACE_ID", "").strip()
+    headers = ({"Authorization": f"Bearer {owner_key}"} if owner_key else {})
+    if workspace_id:
+        headers["X-Workspace-ID"] = workspace_id
+    client = httpx.Client(base_url=args.base, timeout=120,
+                         headers=headers)
 
     try:
         health = client.get("/health").json()
@@ -161,7 +188,9 @@ def main(argv: list[str] | None = None) -> int:
             return EXIT_ERROR
         report = run_evaluation(client, args.agent, label, args.per_category,
                                 args.seed, not args.no_adversarial, args.timeout,
-                                adapter=args.adapter, models=args.model)
+                                adapter=args.adapter,
+                                models=([args.url] if args.adapter == "http" and args.url
+                                        else args.model))
     except Exception as exc:
         print(f"::error::could not complete the evaluation: {exc}", file=sys.stderr)
         return EXIT_ERROR
@@ -174,7 +203,7 @@ def main(argv: list[str] | None = None) -> int:
     regressions = []
     if args.compare_to:
         try:
-            diff = client.get(f"/versions/{args.compare_to}/compare/{report['id']}").json()
+            diff = client.get(f"/api/versions/{args.compare_to}/compare/{report['id']}").json()
             regressions = diff.get("regressions", [])
         except Exception as exc:
             print(f"::warning::could not diff against {args.compare_to}: {exc}", file=sys.stderr)

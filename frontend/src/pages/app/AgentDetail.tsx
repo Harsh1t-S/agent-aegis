@@ -10,46 +10,25 @@ import { ErrorState, LoadingState } from '@/components/AsyncState';
 import { useResource } from '@/hooks/useResource';
 import { METRIC_COLORS } from '@/lib/palette';
 import { api, ApiError } from '@/lib/api';
-import { runOptionsFor } from '@/lib/workspace-settings';
 import { useToast } from '@/components/Toaster';
-import { agentStatusLabel, agentStatusTone, formatDate } from '@/lib/format';
+import { agentStatusLabel, agentStatusTone, evaluationPath, formatDate, hasAgentScore } from '@/lib/format';
 import { Play, ArrowRight, Clock, Loader2, Pencil, Trash2 } from 'lucide-react';
+import { useWorkspace } from '@/contexts/WorkspaceContext';
 
 export default function AgentDetail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const workspace = useWorkspace();
   const toast = useToast();
   const { data: agent, error, loading, reload } = useResource(
     () => api.agent(id as string),
     [id],
     { enabled: Boolean(id) },
   );
-  const [starting, setStarting] = useState(false);
   const [startError, setStartError] = useState<string | undefined>();
   const [confirmingDelete, setConfirmingDelete] = useState(false);
   const [deleting, setDeleting] = useState(false);
-
-  const runEvaluation = async () => {
-    if (!agent) return;
-    setStarting(true);
-    setStartError(undefined);
-    try {
-      // Version labels advance with the run count so a second evaluation is
-      // comparable against the first instead of overwriting it.
-      const label = `v${agent.versions.length + 1}`;
-      // Suite size, adversarial coverage and which agent answers all come from
-      // Settings. A run button that ignored them made the settings screen a lie.
-      const created = await api.evaluate(agent.id, runOptionsFor(label));
-      toast.success(`Generated ${created.total} scenarios — evaluation running`);
-      navigate(`/app/evaluations/${created.evaluationId}/running`);
-    } catch (err) {
-      const message =
-        err instanceof ApiError ? err.message : 'Could not start the evaluation.';
-      setStartError(message);
-      toast.error('Evaluation not started', message);
-      setStarting(false);
-    }
-  };
+  const canMutate = workspace.current?.role !== 'viewer';
 
   const remove = async () => {
     if (!agent) return;
@@ -95,7 +74,7 @@ export default function AgentDetail() {
   }
 
   const latestVersion = agent.versions[agent.versions.length - 1];
-  const hasRun = agent.status !== 'never-run' && Boolean(latestVersion);
+  const hasRun = hasAgentScore(agent) && Boolean(latestVersion);
 
   return (
     <div className="min-h-screen bg-ink-950">
@@ -121,7 +100,7 @@ export default function AgentDetail() {
             <h1 className="massive mt-2 text-[clamp(2rem,5vw,3.5rem)] text-bone-50">{agent.name}</h1>
             <p className="mt-2 max-w-lg text-sm text-bone-400">{agent.description}</p>
           </div>
-          <div className="flex flex-col items-start gap-2">
+          {canMutate && <div className="flex flex-col items-start gap-2">
             <div className="flex flex-wrap items-center gap-2">
             <Link
               to={`/app/agents/${agent.id}/edit`}
@@ -129,25 +108,15 @@ export default function AgentDetail() {
             >
               <Pencil className="h-3.5 w-3.5" /> EDIT
             </Link>
-            <button
-              type="button"
-              onClick={runEvaluation}
-              disabled={starting}
-              className="group flex items-center gap-2 border border-signal-500/40 bg-signal-500/10 px-6 py-3 font-mono text-xs uppercase tracking-wider text-signal-400 transition-colors enabled:hover:bg-signal-500/20 disabled:cursor-not-allowed disabled:opacity-50"
+            <Link
+              to={`/app/agents/${agent.id}/review`}
+              className="group flex min-h-11 items-center gap-2 border border-signal-500/40 bg-signal-500/10 px-6 py-3 font-mono text-xs uppercase tracking-wider text-signal-400 transition-colors hover:bg-signal-500/20"
             >
-              {starting ? (
-                <>
-                  <Loader2 className="h-4 w-4 animate-spin" /> STARTING…
-                </>
-              ) : (
-                <>
-                  <Play className="h-4 w-4" /> RUN EVALUATION
-                </>
-              )}
-            </button>
+              <Play className="h-4 w-4" /> REVIEW & RUN
+            </Link>
             </div>
             {startError && <span className="font-mono text-[11px] text-fault-400">{startError}</span>}
-          </div>
+          </div>}
         </div>
 
         <div className="mt-12 grid min-w-0 gap-6 lg:grid-cols-3">
@@ -166,9 +135,9 @@ export default function AgentDetail() {
               ) : (
                 <div className="text-center">
                   <div className="massive text-6xl text-bone-600">—</div>
-                  <SystemLabel className="mt-4 block text-bone-500">NOT YET EVALUATED</SystemLabel>
+                  <SystemLabel className="mt-4 block text-bone-500">{agentStatusLabel[agent.status]}</SystemLabel>
                   <p className="mt-3 max-w-[16rem] text-sm text-bone-400">
-                    No score is shown because no scenario has been run against this agent.
+                    {latestVersion ? 'Open the latest evaluation to follow progress or inspect its execution error.' : 'Run an evaluation to see this agent’s reliability score.'}
                   </p>
                 </div>
               )}
@@ -184,7 +153,7 @@ export default function AgentDetail() {
                     <MetricLine label="TASK SUCCESS" value={latestVersion.metrics.taskSuccess} color={METRIC_COLORS.taskSuccess} />
                     <MetricLine label="TOOL ACCURACY" value={latestVersion.metrics.toolAccuracy} color={METRIC_COLORS.toolAccuracy} delay={0.1} />
                     <MetricLine label="SAFETY" value={latestVersion.metrics.safety} color={METRIC_COLORS.safety} delay={0.15} />
-                    <MetricLine label="CONSISTENCY" value={latestVersion.metrics.consistency} color={METRIC_COLORS.consistency} delay={0.2} />
+                    <MetricLine label="LOOP RESISTANCE" value={latestVersion.metrics.consistency} color={METRIC_COLORS.consistency} delay={0.2} />
                     <MetricLine label="GROUNDEDNESS" value={latestVersion.metrics.groundedness} color={METRIC_COLORS.groundedness} delay={0.25} />
                   </div>
 
@@ -274,17 +243,17 @@ export default function AgentDetail() {
           </div>
         </ScrollReveal>
 
-        {hasRun && (
+        {latestVersion && (
           <ScrollReveal className="mt-6">
             <Link
-              to={`/app/evaluations/${latestVersion.id}`}
+              to={evaluationPath(latestVersion)}
               className="group flex items-center justify-between gap-4 border border-signal-500/30 bg-signal-500/5 p-6 transition-colors hover:bg-signal-500/10"
             >
               <div>
                 <SystemLabel className="text-signal-400">LATEST EVALUATION</SystemLabel>
                 <div className="mt-1 text-sm text-bone-200">
-                  {latestVersion.version} — {formatDate(latestVersion.createdAt)} — reliability{' '}
-                  {latestVersion.reliability.toFixed(1)}/100
+                  {latestVersion.version} — {formatDate(latestVersion.createdAt)} —{' '}
+                  {hasRun ? `reliability ${latestVersion.reliability.toFixed(1)}/100` : agentStatusLabel[agent.status]}
                 </div>
               </div>
               <ArrowRight className="h-5 w-5 shrink-0 text-signal-400 transition-transform group-hover:translate-x-1" />
@@ -292,7 +261,7 @@ export default function AgentDetail() {
           </ScrollReveal>
         )}
 
-        <ScrollReveal className="mt-10 border-t border-bone-600/20 pt-6">
+        {canMutate && <ScrollReveal className="mt-10 border-t border-bone-600/20 pt-6">
           <div className="flex flex-wrap items-center justify-between gap-4">
             <div>
               <SystemLabel className="text-bone-600">DELETE AGENT</SystemLabel>
@@ -331,7 +300,7 @@ export default function AgentDetail() {
               </button>
             )}
           </div>
-        </ScrollReveal>
+        </ScrollReveal>}
       </div>
     </div>
   );

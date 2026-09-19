@@ -12,7 +12,7 @@ import time
 
 from playwright.sync_api import sync_playwright
 
-BASE = "https://aegis-dashboard-harsh1t.vercel.app"
+BASE = "https://agent-aegis.vercel.app"
 sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 results: list[tuple[str, bool, str]] = []
 console_errors: list[str] = []

@@ -20,7 +20,7 @@ export interface Resource<T> {
 export function useResource<T>(
   fetcher: () => Promise<T>,
   deps: unknown[],
-  options: { pollMs?: number; enabled?: boolean } = {},
+  options: { pollMs?: number; enabled?: boolean; pollWhile?: (data: T) => boolean } = {},
 ): Resource<T> {
   const { pollMs, enabled = true } = options;
   const [data, setData] = useState<T | undefined>(undefined);
@@ -33,43 +33,51 @@ export function useResource<T>(
   // re-creates on every render.
   const fetcherRef = useRef(fetcher);
   fetcherRef.current = fetcher;
-  const loadedRef = useRef(false);
+  const pollWhileRef = useRef(options.pollWhile);
+  pollWhileRef.current = options.pollWhile;
 
   useEffect(() => {
+    setData(undefined);
+    setError(undefined);
+    setLoading(enabled);
+    setRefreshing(false);
     if (!enabled) {
-      setLoading(false);
       return;
     }
 
     let cancelled = false;
-    loadedRef.current = false;
+    let loaded = false;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const fetchCurrent = fetcherRef.current;
 
     const run = async () => {
-      if (loadedRef.current) setRefreshing(true);
+      let continuePolling = true;
+      if (loaded) setRefreshing(true);
       try {
-        const result = await fetcherRef.current();
+        const result = await fetchCurrent();
         if (cancelled) return;
         setData(result);
         setError(undefined);
+        continuePolling = pollWhileRef.current?.(result) ?? true;
       } catch (err) {
         if (cancelled) return;
         setError(err instanceof ApiError ? err.message : 'Something went wrong.');
       } finally {
         if (!cancelled) {
-          loadedRef.current = true;
+          loaded = true;
           setLoading(false);
           setRefreshing(false);
+          // Wait for each response before polling again. This prevents a slow
+          // network from building an ever-growing stack of stale reads.
+          if (pollMs && continuePolling) timer = setTimeout(run, pollMs);
         }
       }
     };
 
     void run();
-    if (!pollMs) return () => { cancelled = true; };
-
-    const timer = setInterval(run, pollMs);
     return () => {
       cancelled = true;
-      clearInterval(timer);
+      clearTimeout(timer);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [...deps, pollMs, enabled, nonce]);

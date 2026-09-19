@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { AppNavigation } from '@/components/AppNavigation';
@@ -9,18 +9,26 @@ import { SystemLabel } from '@/components/SystemLabel';
 import { ErrorState, LoadingState } from '@/components/AsyncState';
 import { useResource } from '@/hooks/useResource';
 import { api } from '@/lib/api';
+import { Loader2, Square } from 'lucide-react';
+import { useWorkspace } from '@/contexts/WorkspaceContext';
 
 export default function EvaluationRunning() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const workspace = useWorkspace();
+  const [canceling, setCanceling] = useState(false);
+  const [cancelError, setCancelError] = useState<string | null>(null);
 
   const { data, error, loading, reload } = useResource(
     () => api.progress(id as string),
     [id],
-    { enabled: Boolean(id), pollMs: 1500 },
+    { enabled: Boolean(id), pollMs: 1500,
+      pollWhile: (run) => run.canContinue !== false && run.status === 'running' },
   );
 
-  const done = data?.status === 'completed';
+  const done = data?.status === 'completed' || data?.status === 'failed' || data?.status === 'canceled';
+  const failed = data?.status === 'failed';
+  const canceled = data?.status === 'canceled';
 
   useEffect(() => {
     if (!done) return;
@@ -68,15 +76,18 @@ export default function EvaluationRunning() {
           </Link>
           <span>/</span>
           <span className="text-signal-400">
-            {done ? 'EVALUATION COMPLETE' : 'EVALUATION IN PROGRESS'}
+            {failed ? 'EVALUATION ENDED WITH ERRORS' : canceled ? 'EVALUATION CANCELED' : done ? 'EVALUATION COMPLETE' : 'EVALUATION IN PROGRESS'}
           </span>
         </div>
 
         <MassiveHeading
-          lines={done ? ['EVALUATION', 'COMPLETE.'] : ['EVALUATION', 'IN PROGRESS.']}
+          lines={failed ? ['EVALUATION', 'EXECUTION ERROR.'] : canceled ? ['EVALUATION', 'CANCELED.'] : done ? ['EVALUATION', 'COMPLETE.'] : ['EVALUATION', 'IN PROGRESS.']}
           className="mt-2 text-[clamp(2rem,6vw,4rem)] text-bone-50"
         />
 
+        {!done && data.canContinue === false && <p className="mt-6 border border-warn-500/40 p-4 text-sm text-warn-400">
+          The evaluation worker is not available. Your queued scenarios are safe; an administrator should restart the worker and this page will update automatically.
+        </p>}
         <div className="mt-12 grid min-w-0 gap-6 lg:grid-cols-2">
           <div className="min-w-0 border border-bone-600/20 bg-ink-900/60 p-5 sm:p-8">
             <div className="flex items-center gap-3">
@@ -106,6 +117,26 @@ export default function EvaluationRunning() {
                 VIEW REPORT →
               </Link>
             )}
+            {!done && workspace.current?.role !== 'viewer' && (
+              <button type="button" disabled={canceling}
+                onClick={async () => {
+                  setCanceling(true);
+                  setCancelError(null);
+                  try {
+                    await api.cancelEvaluation(id as string);
+                    await reload();
+                  } catch (cause) {
+                    setCancelError(cause instanceof Error ? cause.message : 'The evaluation could not be canceled.');
+                  } finally {
+                    setCanceling(false);
+                  }
+                }}
+                className="mt-8 flex min-h-11 items-center gap-2 border border-bone-600/30 px-4 font-mono text-[11px] uppercase tracking-wider text-bone-400 hover:border-fault-500/50 hover:text-fault-400 disabled:opacity-50">
+                {canceling ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Square className="h-3.5 w-3.5" />}
+                CANCEL EVALUATION
+              </button>
+            )}
+            {cancelError && <p role="alert" className="mt-3 text-xs text-fault-400">{cancelError}</p>}
           </div>
 
           <div className="min-w-0 border border-bone-600/20 bg-ink-900/60 p-5 sm:p-6">

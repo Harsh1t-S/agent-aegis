@@ -4,7 +4,7 @@ The judging pass found the deployed demo was one build stale: fixes were in the
 code and the visible data still showed the behaviour they fixed. A fix nobody can
 see is worth nothing, so this exists to be re-run after every deploy.
 
-    python demo/seed_shopease.py --base https://aegis-api-harsh1t.vercel.app --purge
+    python demo/seed_shopease.py --base https://agent-aegis-api.vercel.app --purge
 
 It creates one realistic agent and walks it through three acts on the same scenario
 suite — a weak prompt, a hardened one, and a plausible regression that trades the
@@ -112,8 +112,6 @@ TOOLS = [
 ]
 
 # Spread across two providers so a full ladder cannot die on one free-tier limit.
-MODELS = ["groq:openai/gpt-oss-20b", "google:gemini-flash-lite-latest",
-          "groq:openai/gpt-oss-120b"]
 
 
 def wait_for(client: httpx.Client, evaluation_id: str, timeout: float = 300.0) -> dict:
@@ -130,10 +128,7 @@ def evaluate(client: httpx.Client, agent_id: str, label: str, per_category: int,
              adapter: str = "llm") -> dict:
     body: dict = {"versionLabel": label, "perCategory": per_category, "seed": 42,
                   "adapter": adapter}
-    # Only the llm adapter takes a model pool; sending one with the behavioural
-    # stand-in implies a model is answering when none is.
-    if adapter == "llm":
-        body["models"] = MODELS
+    # Let the evaluator select its configured model, just like the dashboard.
     started = client.post(f"/api/agents/{agent_id}/evaluate", json=body).json()
     if "evaluationId" not in started:
         print(f"  {label:<14} could not start: {started}", file=sys.stderr)
@@ -192,7 +187,7 @@ def guardrail(client: httpx.Client, evaluation_id: str, label: str) -> None:
 
 def main() -> int:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--base", default="https://aegis-api-harsh1t.vercel.app")
+    parser.add_argument("--base", default="https://agent-aegis-api.vercel.app")
     parser.add_argument("--per-category", type=int, default=6)
     parser.add_argument("--purge", action="store_true",
                         help="delete EVERY existing agent first")

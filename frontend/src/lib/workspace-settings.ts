@@ -1,61 +1,81 @@
 /**
  * Workspace settings.
  *
- * The backend has no settings endpoint, so these live in the browser. They are
- * not decoration: `scenariosPerRun` and `adversarial` are read by every evaluation
- * the console starts and shape the suite that gets generated.
- *
- * Only settings that something actually reads live here. Alert email, regression
- * alerts and auto-re-run were removed rather than kept as controls that toggle
- * nothing: this deployment has no mailer, no notification channel and no post-run
- * hook, so each one promised behaviour that never happened.
+ * The workspace provider hydrates this cache from the server. Synchronous run
+ * buttons can then build their request without a second network round-trip.
  */
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { api } from '@/lib/api';
+import type { WorkspaceSettings } from '@/types';
 
-export interface WorkspaceSettings {
-  /** Suite size for every run started from the console. */
-  scenariosPerRun: number;
-  /** Gates adversarial scenario generation — prompt injection, jailbreaks. */
-  adversarial: boolean;
-  /**
-   * Which agent actually answers the scenarios. `behavioral` is the deterministic
-   * stand-in that makes the demo reproducible; `llm` puts a real model under test.
-   */
-  adapter: 'behavioral' | 'llm';
-}
+export type { WorkspaceSettings };
 
 export const DEFAULT_SETTINGS: WorkspaceSettings = {
   scenariosPerRun: 12,
   adversarial: true,
-  // A real model by default. The behavioural stand-in ignores the system prompt
-  // entirely, so someone who writes their own agent and runs it would get a score
-  // that does not move when they change the prompt — which reads as broken, and is
-  // the opposite of what this product is demonstrating.
-  adapter: 'llm',
+  // Keep a new workspace free until the user deliberately chooses a model run.
+  adapter: 'behavioral',
+  notifications: { emailEnabled: false, email: '' },
 };
 
 const KEY = 'aegis.settings.v2';
+let memorySettings: WorkspaceSettings | undefined;
+
+function normalizeSettings(value: unknown): WorkspaceSettings {
+  const input = value && typeof value === 'object' ? value as Partial<WorkspaceSettings> : {};
+  return {
+    scenariosPerRun: typeof input.scenariosPerRun === 'number' && Number.isFinite(input.scenariosPerRun)
+      ? Math.max(4, Math.min(40, Math.round(input.scenariosPerRun))) : DEFAULT_SETTINGS.scenariosPerRun,
+    adversarial: typeof input.adversarial === 'boolean' ? input.adversarial : DEFAULT_SETTINGS.adversarial,
+    adapter: input.adapter === 'behavioral' || input.adapter === 'llm' || input.adapter === 'http'
+      ? input.adapter : DEFAULT_SETTINGS.adapter,
+    ...(typeof input.monthlySpendCapUsd === 'number' && Number.isFinite(input.monthlySpendCapUsd)
+      ? { monthlySpendCapUsd: Math.max(0, input.monthlySpendCapUsd) }
+      : {}),
+    notifications: {
+      emailEnabled: Boolean(input.notifications?.emailEnabled),
+      email: typeof input.notifications?.email === 'string' ? input.notifications.email : '',
+    },
+  };
+}
+
+export function setWorkspaceSettings(value: unknown) {
+  memorySettings = normalizeSettings(value);
+  try {
+    localStorage.setItem(KEY, JSON.stringify(memorySettings));
+  } catch {
+    // The in-memory copy is enough for this tab.
+  }
+}
 
 export function loadSettings(): WorkspaceSettings {
-  if (typeof localStorage === 'undefined') return DEFAULT_SETTINGS;
+  if (memorySettings) return memorySettings;
   try {
     const raw = localStorage.getItem(KEY);
-    return raw
-      ? { ...DEFAULT_SETTINGS, ...(JSON.parse(raw) as Partial<WorkspaceSettings>) }
-      : DEFAULT_SETTINGS;
+    return normalizeSettings(raw ? JSON.parse(raw) : undefined);
   } catch {
     return DEFAULT_SETTINGS;
   }
 }
 
-export function saveSettings(next: WorkspaceSettings) {
-  if (typeof localStorage === 'undefined') return;
-  localStorage.setItem(KEY, JSON.stringify(next));
+export function saveSettings(next: WorkspaceSettings): boolean {
+  const normalized = normalizeSettings(next);
+  memorySettings = normalized;
+  try {
+    localStorage.setItem(KEY, JSON.stringify(normalized));
+    return true;
+  } catch {
+    // Every run button reads loadSettings(), so changes still apply in this tab
+    // when storage is blocked or full. The settings screen reports persistence.
+    memorySettings = normalized;
+    return false;
+  }
 }
 
 /** The suite generates one scenario per category per `perCategory`, over four categories. */
 export function perCategoryFor(scenariosPerRun: number): number {
-  return Math.max(1, Math.min(10, Math.round(scenariosPerRun / 4)));
+  const count = Number.isFinite(scenariosPerRun) ? scenariosPerRun : DEFAULT_SETTINGS.scenariosPerRun;
+  return Math.max(1, Math.min(10, Math.round(count / 4)));
 }
 
 /** The options every "run evaluation" button sends, from one place. */
@@ -74,22 +94,52 @@ export function runOptionsFor(versionLabel: string) {
 export function useWorkspaceSettings() {
   // Read after mount so the first paint matches whatever the markup shipped with.
   const [settings, setSettings] = useState<WorkspaceSettings>(DEFAULT_SETTINGS);
-  useEffect(() => setSettings(loadSettings()), []);
-
-  const update = useCallback((patch: Partial<WorkspaceSettings>) => {
-    setSettings((prev) => {
-      const next = { ...prev, ...patch };
-      // Saved on change rather than behind a Save button: a settings screen whose
-      // values silently do not apply is worse than no settings screen.
-      saveSettings(next);
-      return next;
-    });
+  const current = useRef(settings);
+  const [storageAvailable, setStorageAvailable] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
+  const saveRevision = useRef(0);
+  useEffect(() => {
+    const refresh = () => {
+      current.current = loadSettings();
+      setSettings(current.current);
+    };
+    refresh();
+    const onStorage = (event: StorageEvent) => {
+      if (event.key === KEY || event.key === null) {
+        memorySettings = undefined;
+        refresh();
+        setStorageAvailable(true);
+      }
+    };
+    window.addEventListener('storage', onStorage);
+    return () => window.removeEventListener('storage', onStorage);
   }, []);
 
-  const reset = useCallback(() => {
-    saveSettings(DEFAULT_SETTINGS);
-    setSettings(DEFAULT_SETTINGS);
+  const apply = useCallback((next: WorkspaceSettings) => {
+    current.current = normalizeSettings(next);
+    const persisted = saveSettings(current.current);
+    setStorageAvailable(persisted);
+    setSettings(current.current);
+    const revision = ++saveRevision.current;
+    setSaving(true);
+    setSaveError(null);
+    void api.updateWorkspaceSettings(current.current).then(
+      () => {
+        if (saveRevision.current === revision) setSaving(false);
+      },
+      (cause: unknown) => {
+        if (saveRevision.current !== revision) return;
+        setSaving(false);
+        setSaveError(cause instanceof Error ? cause.message : 'Workspace settings could not be saved.');
+      },
+    );
+    return persisted;
   }, []);
 
-  return { settings, update, reset };
+  const update = useCallback((patch: Partial<WorkspaceSettings>) =>
+    apply({ ...current.current, ...patch }), [apply]);
+  const reset = useCallback(() => apply(DEFAULT_SETTINGS), [apply]);
+
+  return { settings, update, reset, storageAvailable, saving, saveError };
 }

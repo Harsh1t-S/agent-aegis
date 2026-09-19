@@ -8,10 +8,12 @@ import { EmptyState, ErrorState, LoadingState } from '@/components/AsyncState';
 import { useResource } from '@/hooks/useResource';
 import { METRIC_COLORS } from '@/lib/palette';
 import { api } from '@/lib/api';
-import { deltaTone, formatDate, signed } from '@/lib/format';
+import { deltaTone, evaluationPath, evaluationVerdict, formatDate, hasAgentScore, signed } from '@/lib/format';
 import { Plus, ArrowRight, TrendingUp, AlertTriangle, Activity, Bot } from 'lucide-react';
+import { useWorkspace } from '@/contexts/WorkspaceContext';
 
 export default function AppHome() {
+  const workspace = useWorkspace();
   const agents = useResource(() => api.agents(), []);
   const dashboard = useResource(() => api.dashboard(), []);
   const evaluations = useResource(() => api.evaluations(), []);
@@ -28,6 +30,7 @@ export default function AppHome() {
   // latest run across every agent — the one the hero panel is describing.
   const latest = evaluations.data?.[0];
   const summary = dashboard.data;
+  const canCreate = workspace.current?.role !== 'viewer';
 
   /*
    * Two populations, labelled as two populations.
@@ -45,7 +48,7 @@ export default function AppHome() {
           label: 'AGENTS TESTED',
           value: String(summary.agentsTested),
           color: 'text-signal-400',
-          note: `${summary.evaluations ?? 0} evaluations`,
+          note: `${summary.evaluations ?? 0} recent evaluations`,
         },
         {
           icon: Activity,
@@ -57,9 +60,11 @@ export default function AppHome() {
         {
           icon: TrendingUp,
           label: 'AVG RELIABILITY',
-          value: summary.averageReliability.toFixed(1),
+          value: summary.evaluations ? summary.averageReliability.toFixed(1) : '—',
           color: 'text-flux-400',
-          note: 'mean across evaluations',
+          note: summary.windowTruncated
+            ? `mean across latest ${summary.windowLimit ?? 100}`
+            : 'mean across recent evaluations',
         },
         {
           icon: AlertTriangle,
@@ -83,13 +88,13 @@ export default function AppHome() {
             <h1 className="massive text-[clamp(2rem,6vw,4.5rem)] text-bone-50">YOUR AGENTS.</h1>
             <h1 className="massive text-[clamp(2rem,6vw,4.5rem)] text-signal-400">UNDER PRESSURE.</h1>
           </div>
-          <Link
+          {canCreate && <Link
             to="/app/agents/new"
             className="group flex h-fit items-center gap-2 border border-signal-500/40 bg-signal-500/10 px-6 py-3 font-mono text-xs uppercase tracking-wider text-signal-400 transition-colors hover:bg-signal-500/20"
           >
             <Plus className="h-4 w-4" />
             INITIALIZE NEW AGENT
-          </Link>
+          </Link>}
         </div>
 
         {loading && <LoadingState label="LOADING WORKSPACE" />}
@@ -122,21 +127,27 @@ export default function AppHome() {
                       </div>
 
                       <div className="mt-8 flex min-w-0 flex-1 flex-col items-center justify-center">
+                      {latest.status === 'completed' ? <>
                       <ReliabilityScore score={latest.score} size="xl" />
 
                       <div className="mt-8 grid w-full min-w-0 max-w-md gap-4">
                         <MetricLine label="TASK SUCCESS" value={latest.metrics.taskSuccess} color={METRIC_COLORS.taskSuccess} />
                         <MetricLine label="TOOL ACCURACY" value={latest.metrics.toolAccuracy} color={METRIC_COLORS.toolAccuracy} />
                         <MetricLine label="SAFETY" value={latest.metrics.safety} color={METRIC_COLORS.safety} />
-                        <MetricLine label="CONSISTENCY" value={latest.metrics.consistency} color={METRIC_COLORS.consistency} delay={0.1} />
+                        <MetricLine label="LOOP RESISTANCE" value={latest.metrics.consistency} color={METRIC_COLORS.consistency} delay={0.1} />
                         <MetricLine label="GROUNDEDNESS" value={latest.metrics.groundedness} color={METRIC_COLORS.groundedness} delay={0.15} />
                       </div>
+                      </> : <div className="text-center">
+                        <div className="massive text-6xl text-bone-600">—</div>
+                        <p className="mt-4 font-mono text-sm text-warn-400">{evaluationVerdict(latest)}</p>
+                        <p className="mt-2 text-sm text-bone-400">Open the evaluation to follow its progress or inspect the error.</p>
+                      </div>}
 
                       <Link
-                        to={`/app/evaluations/${latest.id}`}
+                        to={evaluationPath(latest)}
                         className="mt-8 flex min-h-11 items-center gap-2 font-mono text-[11px] uppercase tracking-wider text-signal-400 hover:text-signal-300"
                       >
-                        OPEN FULL REPORT <ArrowRight className="h-3 w-3" />
+                        OPEN EVALUATION <ArrowRight className="h-3 w-3" />
                       </Link>
                       </div>
                     </>
@@ -199,7 +210,7 @@ export default function AppHome() {
                   <ScrollReveal delay={0.32}>
                     <div className="border border-bone-600/20 bg-ink-850/40 p-5">
                       <SystemLabel>VERDICT</SystemLabel>
-                      <div className="mt-2 font-mono text-lg text-bone-50">{summary.verdict}</div>
+                      <div className="mt-2 font-mono text-lg text-bone-50">{summary.evaluations ? summary.verdict : 'No scored evaluations'}</div>
                       <div className={`mt-1 font-mono text-xs ${deltaTone(summary.reliabilityDelta)}`}>
                         {signed(summary.reliabilityDelta)} since the previous evaluation
                       </div>
@@ -237,7 +248,7 @@ export default function AppHome() {
                         </div>
                         <div className="shrink-0 text-right">
                           <div className="font-mono text-xl font-bold text-bone-50 sm:text-2xl">
-                            {agent.status === 'never-run' ? '—' : agent.reliability.toFixed(1)}
+                            {hasAgentScore(agent) ? agent.reliability.toFixed(1) : '—'}
                           </div>
                           <div className="font-mono text-[10px] text-bone-500">{agent.latestVersion}</div>
                         </div>

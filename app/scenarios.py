@@ -9,6 +9,8 @@ for doing the required check.
 from __future__ import annotations
 
 import random
+import hashlib
+import json
 from dataclasses import asdict, dataclass, field
 
 from .introspect import SANDBOX_RECORD_ID, SANDBOX_TOTAL, AgentProfile, ToolProfile
@@ -34,10 +36,30 @@ class ScenarioSpec:
 
     @property
     def fingerprint(self) -> str:
-        import hashlib
+        return self.fingerprint_for()
 
-        raw = f"{self.category}|{self.subtype}|{self.name}"
-        return hashlib.sha256(raw.encode("utf-8")).hexdigest()[:24]
+    def fingerprint_for(self, environment: dict | None = None) -> str:
+        """Identity for the complete executable test contract.
+
+        The old identity used only category, subtype and name. A rewritten
+        prompt or oracle therefore looked like the same test in a release diff.
+        """
+        environment = environment or {}
+        contract = {
+            "scenario": self.to_dict(),
+            "environment": {
+                "tool_definitions": environment.get("tool_definitions") or {},
+                "initial_state": environment.get("initial_state") or {},
+                "injected_content": environment.get("injected_content") or {},
+            },
+        }
+        raw = json.dumps(contract, sort_keys=True, separators=(",", ":"), default=str)
+        return hashlib.sha256(raw.encode("utf-8")).hexdigest()
+
+
+def suite_fingerprint(fingerprints: list[str]) -> str:
+    raw = json.dumps(sorted(fingerprints), separators=(",", ":"))
+    return hashlib.sha256(raw.encode("utf-8")).hexdigest()
 
 
 def _effect_untouched(tool_names: list[str]) -> dict:

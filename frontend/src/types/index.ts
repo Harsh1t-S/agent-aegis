@@ -19,6 +19,12 @@ export type FailureCategory =
 export type Severity = 'critical' | 'high' | 'medium' | 'low';
 
 export type TestStatus = 'passed' | 'failed' | 'warning';
+export type ReviewDecision =
+  | 'confirmed_issue'
+  | 'false_positive'
+  | 'accepted_risk'
+  | 'confirmed_correct'
+  | 'missed_issue';
 
 export type ScenarioCategory = 'realistic' | 'edge' | 'ambiguous' | 'adversarial';
 
@@ -37,7 +43,7 @@ export interface TraceEvent {
   label: string;
   detail?: string;
   timestamp: string;
-  kind: 'start' | 'tool-call' | 'tool-response' | 'response';
+  kind: 'start' | 'tool-call' | 'tool-response' | 'response' | 'reasoning' | 'failure';
   failed: boolean;
 }
 
@@ -54,8 +60,19 @@ export interface TestScenario {
   expectedBehavior: string;
   agentResponse: string;
   explanation?: string | null;
+  executionError?: boolean;
   recommendation?: string | null;
+  review?: { decision: ReviewDecision; note: string; updatedAt: string };
   trace: TraceEvent[];
+}
+
+export interface TestRunDetail {
+  canContinue?: boolean;
+  evaluationId: string;
+  agentName: string;
+  version: string;
+  status: 'pending' | 'running' | 'complete' | 'error';
+  test: TestScenario | null;
 }
 
 export interface ReliabilityDimensions {
@@ -85,6 +102,8 @@ export interface CategoryBreakdownItem {
 export interface AgentVersion {
   id: string;
   version: string;
+  status?: EvaluationStatus;
+  errors?: number;
   createdAt: string;
   reliability: number;
   passRate: number;
@@ -93,7 +112,7 @@ export interface AgentVersion {
   metrics: ReliabilityDimensions;
 }
 
-export type AgentStatus = 'never-run' | 'reliable' | 'needs-attention' | 'critical';
+export type AgentStatus = 'never-run' | 'reliable' | 'needs-attention' | 'critical' | 'running' | 'error';
 
 export interface Agent {
   id: string;
@@ -101,6 +120,7 @@ export interface Agent {
   description: string;
   domain: string;
   systemPrompt: string;
+  connection: { mode: 'simulation' | 'connected'; url?: string; authenticated?: boolean };
   tools: Tool[];
   latestVersion: string;
   reliability: number;
@@ -110,7 +130,7 @@ export interface Agent {
   versions: AgentVersion[];
 }
 
-export type EvaluationStatus = 'completed' | 'running' | 'queued';
+export type EvaluationStatus = 'completed' | 'running' | 'queued' | 'failed' | 'canceled';
 
 export interface Evaluation {
   id: string;
@@ -123,6 +143,7 @@ export interface Evaluation {
   passed: number;
   failed: number;
   warnings: number;
+  errors?: number;
   status: EvaluationStatus;
   date: string;
   metrics: ReliabilityDimensions;
@@ -133,12 +154,14 @@ export interface Evaluation {
 }
 
 export interface EvaluationProgressPayload {
+  canContinue?: boolean;
   evaluationId: string;
   agentName: string;
   version: string;
   total: number;
   completed: number;
-  status: 'running' | 'completed';
+  status: 'running' | 'completed' | 'failed' | 'canceled';
+  errors?: number;
   events: string[];
 }
 
@@ -155,6 +178,8 @@ export interface DashboardSummary {
   scoredScenarios: number;
   criticalFindings: number;
   evaluations: number;
+  windowLimit?: number;
+  windowTruncated?: boolean;
 
   /* Everything that ever executed. Rendering these two groups as one row of tiles
      is how "54 reliability / 49 critical failures" came to read as one set of
@@ -205,16 +230,137 @@ export interface EvaluationProvenance {
 }
 
 export interface VersionDiff {
-  older: { id: string; label: string; score: number };
-  newer: { id: string; label: string; score: number };
-  score_delta: number;
+  older: { id: string; label: string; score: number; suite_score?: number };
+  newer: { id: string; label: string; score: number; suite_score?: number };
+  score_delta: number | null;
   verdict: string;
   shared_scenarios: number;
+  comparable?: boolean;
+  coverage_changed?: boolean;
+  added_scenarios?: { scenario_id: string; scenario: string }[];
+  removed_scenarios?: { scenario_id: string; scenario: string }[];
   regressions: ScenarioDelta[];
   softened: ScenarioDelta[];
   improvements: ScenarioDelta[];
   fixes?: ScenarioDelta[];
   metric_deltas: Record<string, number>;
+}
+
+export interface WorkspaceSettings {
+  scenariosPerRun: number;
+  adversarial: boolean;
+  adapter: 'behavioral' | 'llm' | 'http';
+  monthlySpendCapUsd?: number;
+  notifications?: { emailEnabled: boolean; email: string };
+}
+
+export interface Workspace {
+  id: string;
+  organizationId: string;
+  name: string;
+  slug: string;
+  role: 'owner' | 'admin' | 'member' | 'viewer';
+  settings: WorkspaceSettings;
+  retentionDays: number;
+  createdAt: string;
+}
+
+export interface UsageSummary {
+  plan: {
+    key: string;
+    name: string;
+    monthly_scenario_credits: number;
+    concurrency: number;
+    retention_days: number;
+    members: number;
+    workspaces: number;
+    ci_gate: boolean;
+    monthly_model_spend_cap_usd: number;
+    private_projects: boolean;
+  };
+  subscriptionStatus: string;
+  periodStart: string;
+  periodEnd: string;
+  used: number;
+  reserved: number;
+  remaining: number;
+  included: number;
+  estimatedCostUsd: number;
+  reservedCostUsd: number;
+  spendCapUsd: number;
+  spendRemainingUsd: number;
+}
+
+export interface Bootstrap {
+  user: { id: string; email: string; displayName: string };
+  currentWorkspaceId: string;
+  workspaces: Workspace[];
+  usage: UsageSummary;
+  role: Workspace['role'];
+}
+
+export interface WorkspaceDetail extends Workspace {
+  usage: UsageSummary;
+  notificationsAvailable?: boolean;
+}
+
+export interface WorkspaceMember {
+  id: string;
+  email: string;
+  displayName: string;
+  role: Workspace['role'];
+  joinedAt: string;
+}
+
+export interface WorkspaceInvitation {
+  id: string;
+  email: string;
+  role: 'admin' | 'member' | 'viewer';
+  expiresAt: string;
+  createdAt: string;
+}
+
+export interface BillingSummary extends UsageSummary {
+  provider: string;
+  customerConfigured: boolean;
+  subscriptionId: string | null;
+  cancelAtPeriodEnd: boolean;
+  checkoutAvailable: boolean;
+  plans: Array<UsageSummary['plan'] & { available: boolean }>;
+}
+
+export interface WorkspaceApiKey {
+  id: string;
+  name: string;
+  prefix: string;
+  scopes: string[];
+  createdAt?: string;
+  lastUsedAt?: string | null;
+  expiresAt?: string | null;
+  revoked?: boolean;
+}
+
+export interface ReportShare {
+  id: string;
+  evaluationId: string;
+  createdAt: string;
+  expiresAt: string;
+  revokedAt: string | null;
+  lastAccessedAt: string | null;
+  active: boolean;
+}
+
+export interface AuditPage {
+  items: Array<{
+    id: string;
+    action: string;
+    actorUserId: string | null;
+    targetType: string;
+    targetId: string;
+    detail: Record<string, unknown>;
+    createdAt: string;
+  }>;
+  nextCursor: string | null;
 }
 
 export interface ScenarioDelta {
@@ -271,6 +417,8 @@ export interface GuardrailTool {
 }
 
 export interface GuardrailReport {
+  canContinue?: boolean;
+  pending?: number;
   ran?: boolean;
   guardrailVersion?: string;
   /** False when a rung did not run; the resistance score is withheld until true. */
