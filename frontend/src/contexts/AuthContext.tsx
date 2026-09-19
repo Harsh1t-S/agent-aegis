@@ -141,6 +141,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       try {
         await signIn(email, password);
       } catch (cause) {
+        if (cause instanceof Error) throw cause;
+        // Non-Error SDK rejections cannot carry an Error.cause in ES2020.
+        // eslint-disable-next-line preserve-caught-error
         throw new Error(messageFrom(cause));
       }
     },

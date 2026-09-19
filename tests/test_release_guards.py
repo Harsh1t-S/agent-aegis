@@ -192,6 +192,19 @@ def test_empty_fallback_setting_disables_fallbacks(providers, monkeypatch):
     assert LLMAgentAdapter.default_pool() == [LLMAgentAdapter.DEFAULT_MODEL]
 
 
+def test_hugging_face_space_does_not_add_paid_fallbacks(monkeypatch):
+    monkeypatch.setenv("LLM_MODEL", "Qwen/Qwen2.5-0.5B-Instruct")
+    monkeypatch.setenv("LLM_BASE_URL", "https://example.hf.space/v1")
+    monkeypatch.setenv(
+        "LLM_FALLBACK_MODELS",
+        "groq:paid-model,google:another-paid-model",
+    )
+
+    assert LLMAgentAdapter.default_pool() == [
+        "Qwen/Qwen2.5-0.5B-Instruct"
+    ]
+
+
 def test_ci_waits_for_all_guardrail_probes(monkeypatch):
     from app.ci import guardrail_resistance
 
