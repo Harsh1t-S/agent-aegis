@@ -199,7 +199,11 @@ class LLMAgentAdapter(AgentAdapter):
     def default_pool(cls) -> list[str]:
         primary = os.getenv("LLM_MODEL", "").strip() or cls.DEFAULT_MODEL
         fallbacks = os.getenv("LLM_FALLBACK_MODELS")
-        backups = (cls.DEFAULT_FALLBACKS if fallbacks is None else
+        base_url = os.getenv("LLM_BASE_URL", cls.DEFAULT_BASE).rstrip("/")
+        hosted_locally = (base_url.endswith(".hf.space/v1") or
+                          base_url.endswith(".hf.space"))
+        defaults = [] if hosted_locally else cls.DEFAULT_FALLBACKS
+        backups = (defaults if fallbacks is None else
                    [entry.strip() for entry in fallbacks.split(",") if entry.strip()])
         return list(dict.fromkeys([primary, *backups]))
 
