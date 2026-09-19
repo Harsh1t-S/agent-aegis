@@ -76,7 +76,7 @@ async def protect_mutations(request: Request, call_next):
     path = request.url.path
     public = path.startswith("/api/shared-reports/") or path in {
         "/", "/health", "/taxonomy", "/docs", "/docs/oauth2-redirect",
-        "/redoc", "/openapi.json", "/api/public/config", "/api/webhooks/stripe",
+        "/redoc", "/openapi.json", "/api/public/config", "/api/webhooks/razorpay",
     }
     if request.method != "OPTIONS" and path.startswith("/api/") and not public:
         try:

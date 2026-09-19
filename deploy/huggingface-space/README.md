@@ -13,13 +13,13 @@ suggested_hardware: zero-a10g
 
 # Aegis evaluator model
 
-An authenticated OpenAI-compatible endpoint for low-volume Aegis pilot
-evaluations. It serves `Qwen/Qwen3.5-0.8B` on Hugging Face ZeroGPU.
+An authenticated Gradio queue endpoint for low-volume Aegis pilot
+evaluations. It serves `Qwen/Qwen2.5-0.5B-Instruct` on Hugging Face ZeroGPU.
 
-Set the Space secret `AEGIS_SPACE_TOKEN`, then call:
+Set the Space secret `AEGIS_SPACE_TOKEN`. Aegis calls the native ZeroGPU queue at:
 
 ```text
-POST /v1/chat/completions
+POST /gradio_api/call/chat
 Authorization: Bearer <AEGIS_SPACE_TOKEN>
 ```
 

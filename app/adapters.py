@@ -308,6 +308,48 @@ class LLMAgentAdapter(AgentAdapter):
                 delay = 2 ** attempt
         return max(0.0, min(delay, 20.0))
 
+    @staticmethod
+    async def _hf_space_completion(client: httpx.AsyncClient, base_url: str,
+                                   key: str, payload: dict) -> dict:
+        """Call a native Gradio queue so ZeroGPU can allocate hardware."""
+        root = base_url.removesuffix("/v1").rstrip("/")
+        headers = {"Authorization": f"Bearer {key}"}
+        queued = await client.post(
+            f"{root}/gradio_api/call/chat",
+            json={"data": [
+                payload["messages"], payload.get("tools") or [],
+                payload.get("max_tokens") or payload.get("max_completion_tokens") or 256,
+                payload.get("temperature") or 0,
+            ]},
+            headers=headers,
+            timeout=30,
+        )
+        queued.raise_for_status()
+        event_id = queued.json().get("event_id")
+        if not event_id:
+            raise ValueError("Hugging Face Space did not return a queue event")
+        completed = await client.get(
+            f"{root}/gradio_api/call/chat/{event_id}", headers=headers, timeout=120)
+        completed.raise_for_status()
+        event = None
+        result = None
+        for line in completed.text.splitlines():
+            if line.startswith("event:"):
+                event = line.partition(":")[2].strip()
+            elif line.startswith("data:"):
+                data = json.loads(line.partition(":")[2].strip())
+                if event == "error":
+                    raise ValueError(f"Hugging Face model failed: {data}")
+                if event == "complete":
+                    result = data
+        if isinstance(result, list) and result:
+            result = result[0]
+        if isinstance(result, str):
+            result = json.loads(result)
+        if not isinstance(result, dict):
+            raise ValueError("Hugging Face Space returned no usable completion")
+        return result
+
     async def next_action(self, messages, tools):
         if self.pending_actions:
             return self.pending_actions.popleft()
@@ -332,6 +374,7 @@ class LLMAgentAdapter(AgentAdapter):
         request_timeout = float(os.getenv("LLM_REQUEST_TIMEOUT_SECONDS", "15"))
         async with httpx.AsyncClient(timeout=request_timeout) as client:
             response = None
+            body = None
             unavailable: set[str] = set()
             candidate_index = 0
             for attempt in range(self.MAX_RETRIES):
@@ -345,6 +388,11 @@ class LLMAgentAdapter(AgentAdapter):
                     request_payload.update(temperature=self.temperature,
                                            max_tokens=self.max_output_tokens)
                 try:
+                    if ".hf.space" in base_url:
+                        body = await self._hf_space_completion(
+                            client, base_url, key, request_payload)
+                        self.served_by.append(candidate)
+                        break
                     response = await client.post(
                         f"{base_url}/chat/completions", json=request_payload,
                         headers={"Authorization": f"Bearer {key}"})
@@ -372,9 +420,10 @@ class LLMAgentAdapter(AgentAdapter):
                 response.raise_for_status()
                 self.served_by.append(candidate)
                 break
-            if response is None:
+            if response is None and body is None:
                 raise RuntimeError("LLM request did not execute")
-            body = response.json()
+            if body is None:
+                body = response.json()
             usage = body.get("usage") or {}
             self.usage["input_tokens"] += int(
                 usage.get("prompt_tokens") or usage.get("input_tokens") or 0)

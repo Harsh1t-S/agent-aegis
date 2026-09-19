@@ -661,11 +661,12 @@ def test_expired_worker_lease_is_recovered_without_stale_trace(client):
         db.close()
 
 
-def test_stripe_webhook_is_signed_and_idempotent(client, monkeypatch):
+def test_razorpay_webhook_is_signed_and_idempotent(client, monkeypatch):
     organization_id = str(uuid4())
     workspace_id = str(uuid4())
-    event_id = f"evt_{uuid4().hex}"
-    secret = "whsec_test_secret"
+    event_id = f"event_{uuid4().hex}"
+    secret = "razorpay_test_webhook_secret"
+    subscription_id = f"sub_{uuid4().hex}"
     db = SessionLocal()
     try:
         db.add(Organization(
@@ -674,7 +675,7 @@ def test_stripe_webhook_is_signed_and_idempotent(client, monkeypatch):
             slug=f"webhook-{organization_id}",
             created_by="test-user",
         ))
-        db.add(Subscription(organization_id=organization_id))
+        db.add(Subscription(organization_id=organization_id, provider="razorpay"))
         db.add(Workspace(
             id=workspace_id,
             organization_id=organization_id,
@@ -686,51 +687,45 @@ def test_stripe_webhook_is_signed_and_idempotent(client, monkeypatch):
     finally:
         db.close()
 
-    monkeypatch.setenv("STRIPE_WEBHOOK_SECRET", secret)
+    monkeypatch.setenv("RAZORPAY_WEBHOOK_SECRET", secret)
     event_created = int(time.time())
-    customer_id = f"cus_{uuid4().hex}"
     event = {
-        "id": event_id,
-        "created": event_created,
-        "type": "customer.subscription.updated",
-        "data": {"object": {
-            "id": f"sub_{uuid4().hex}",
-            "customer": customer_id,
+        "event": "subscription.activated",
+        "created_at": event_created,
+        "payload": {"subscription": {"entity": {
+            "id": subscription_id,
+            "plan_id": "plan_starter",
             "status": "active",
-            "metadata": {"organization_id": organization_id, "plan": "starter"},
-            "current_period_start": int(time.time()),
-            "current_period_end": int(time.time()) + 30 * 86400,
-            "cancel_at_period_end": False,
-        }},
+            "notes": {"organization_id": organization_id, "plan": "starter"},
+            "current_start": int(time.time()),
+            "current_end": int(time.time()) + 30 * 86400,
+        }}},
     }
     payload = json.dumps(event, separators=(",", ":")).encode()
-    timestamp = int(time.time())
-    signature = hmac.new(
-        secret.encode(), f"{timestamp}.".encode() + payload, hashlib.sha256,
-    ).hexdigest()
+    signature = hmac.new(secret.encode(), payload, hashlib.sha256).hexdigest()
     headers = {
-        "stripe-signature": f"t={timestamp},v1={signature}",
+        "x-razorpay-signature": signature,
+        "x-razorpay-event-id": event_id,
         "content-type": "application/json",
     }
-    first = client.post("/api/webhooks/stripe", content=payload, headers=headers)
-    second = client.post("/api/webhooks/stripe", content=payload, headers=headers)
+    first = client.post("/api/webhooks/razorpay", content=payload, headers=headers)
+    second = client.post("/api/webhooks/razorpay", content=payload, headers=headers)
     assert first.json() == {"received": True}
     assert second.json() == {"received": True, "duplicate": True}
 
     older = {
-        "id": f"evt_{uuid4().hex}",
-        "created": event_created - 60,
-        "type": "invoice.payment_failed",
-        "data": {"object": {"customer": customer_id}},
+        "event": "subscription.pending",
+        "created_at": event_created - 60,
+        "payload": {"subscription": {"entity": event["payload"]["subscription"]["entity"]}},
     }
     older_payload = json.dumps(older, separators=(",", ":")).encode()
-    older_signature = hmac.new(
-        secret.encode(), f"{timestamp}.".encode() + older_payload, hashlib.sha256,
-    ).hexdigest()
+    older_signature = hmac.new(secret.encode(), older_payload, hashlib.sha256).hexdigest()
+    older_id = f"event_{uuid4().hex}"
     stale = client.post(
-        "/api/webhooks/stripe",
+        "/api/webhooks/razorpay",
         content=older_payload,
-        headers={**headers, "stripe-signature": f"t={timestamp},v1={older_signature}"},
+        headers={**headers, "x-razorpay-signature": older_signature,
+                 "x-razorpay-event-id": older_id},
     )
     assert stale.json() == {"received": True, "ignored": "stale_event"}
 
@@ -742,76 +737,77 @@ def test_stripe_webhook_is_signed_and_idempotent(client, monkeypatch):
     finally:
         db.close()
 
+    payment_failed_id = f"event_{uuid4().hex}"
     payment_failed = {
-        "id": f"evt_{uuid4().hex}",
-        "created": event_created + 20,
-        "type": "invoice.payment_failed",
-        "data": {"object": {"customer": customer_id}},
+        "event": "subscription.pending",
+        "created_at": event_created + 20,
+        "payload": {"subscription": {"entity": {
+            **event["payload"]["subscription"]["entity"], "status": "pending"}}},
     }
     failed_payload = json.dumps(payment_failed, separators=(",", ":")).encode()
-    failed_signature = hmac.new(
-        secret.encode(), f"{timestamp}.".encode() + failed_payload, hashlib.sha256,
-    ).hexdigest()
+    failed_signature = hmac.new(secret.encode(), failed_payload, hashlib.sha256).hexdigest()
     assert client.post(
-        "/api/webhooks/stripe",
+        "/api/webhooks/razorpay",
         content=failed_payload,
-        headers={**headers, "stripe-signature": f"t={timestamp},v1={failed_signature}"},
+        headers={**headers, "x-razorpay-signature": failed_signature,
+                 "x-razorpay-event-id": payment_failed_id},
     ).json() == {"received": True}
     with SessionLocal() as db:
         assert db.get(Subscription, organization_id).status == "past_due"
 
+    invoice_paid_id = f"event_{uuid4().hex}"
     invoice_paid = {
-        "id": f"evt_{uuid4().hex}",
-        "created": event_created + 40,
-        "type": "invoice.paid",
-        "data": {"object": {"customer": customer_id}},
+        "event": "subscription.charged",
+        "created_at": event_created + 40,
+        "payload": {"subscription": {"entity": {
+            **event["payload"]["subscription"]["entity"], "status": "active"}}},
     }
     paid_payload = json.dumps(invoice_paid, separators=(",", ":")).encode()
-    paid_signature = hmac.new(
-        secret.encode(), f"{timestamp}.".encode() + paid_payload, hashlib.sha256,
-    ).hexdigest()
+    paid_signature = hmac.new(secret.encode(), paid_payload, hashlib.sha256).hexdigest()
     assert client.post(
-        "/api/webhooks/stripe",
+        "/api/webhooks/razorpay",
         content=paid_payload,
-        headers={**headers, "stripe-signature": f"t={timestamp},v1={paid_signature}"},
+        headers={**headers, "x-razorpay-signature": paid_signature,
+                 "x-razorpay-event-id": invoice_paid_id},
     ).json() == {"received": True}
     with SessionLocal() as db:
         assert db.get(Subscription, organization_id).status == "active"
 
+    team_event_id = f"event_{uuid4().hex}"
     team_event = {
-        "id": f"evt_{uuid4().hex}",
-        "created": event_created + 60,
-        "type": "customer.subscription.updated",
-        "data": {"object": {
-            **event["data"]["object"],
+        "event": "subscription.updated",
+        "created_at": event_created + 60,
+        "payload": {"subscription": {"entity": {
+            **event["payload"]["subscription"]["entity"],
             "status": "active",
-            "metadata": {"organization_id": organization_id, "plan": "team"},
-        }},
+            "notes": {"organization_id": organization_id, "plan": "team"},
+        }}},
     }
     team_payload = json.dumps(team_event, separators=(",", ":")).encode()
-    team_signature = hmac.new(
-        secret.encode(), f"{timestamp}.".encode() + team_payload, hashlib.sha256,
-    ).hexdigest()
+    team_signature = hmac.new(secret.encode(), team_payload, hashlib.sha256).hexdigest()
     assert client.post(
-        "/api/webhooks/stripe",
+        "/api/webhooks/razorpay",
         content=team_payload,
-        headers={**headers, "stripe-signature": f"t={timestamp},v1={team_signature}"},
+        headers={**headers, "x-razorpay-signature": team_signature,
+                 "x-razorpay-event-id": team_event_id},
     ).json() == {"received": True}
 
+    deleted_event_id = f"event_{uuid4().hex}"
     deleted_event = {
-        "id": f"evt_{uuid4().hex}",
-        "created": event_created + 120,
-        "type": "customer.subscription.deleted",
-        "data": {"object": team_event["data"]["object"]},
+        "event": "subscription.cancelled",
+        "created_at": event_created + 120,
+        "payload": {"subscription": {"entity": {
+            **team_event["payload"]["subscription"]["entity"],
+            "status": "cancelled",
+        }}},
     }
     deleted_payload = json.dumps(deleted_event, separators=(",", ":")).encode()
-    deleted_signature = hmac.new(
-        secret.encode(), f"{timestamp}.".encode() + deleted_payload, hashlib.sha256,
-    ).hexdigest()
+    deleted_signature = hmac.new(secret.encode(), deleted_payload, hashlib.sha256).hexdigest()
     assert client.post(
-        "/api/webhooks/stripe",
+        "/api/webhooks/razorpay",
         content=deleted_payload,
-        headers={**headers, "stripe-signature": f"t={timestamp},v1={deleted_signature}"},
+        headers={**headers, "x-razorpay-signature": deleted_signature,
+                 "x-razorpay-event-id": deleted_event_id},
     ).json() == {"received": True}
 
     db = SessionLocal()
@@ -821,28 +817,28 @@ def test_stripe_webhook_is_signed_and_idempotent(client, monkeypatch):
         assert db.get(Workspace, workspace_id).retention_days == 14
         assert db.query(BillingWebhookEvent).filter(
             BillingWebhookEvent.id.in_([
-                event_id, older["id"], payment_failed["id"], invoice_paid["id"],
-                team_event["id"], deleted_event["id"],
+                event_id, older_id, payment_failed_id, invoice_paid_id,
+                team_event_id, deleted_event_id,
             ])).count() == 6
     finally:
         db.query(BillingWebhookEvent).filter(BillingWebhookEvent.id.in_([
-            event_id, older["id"], payment_failed["id"], invoice_paid["id"],
-            team_event["id"], deleted_event["id"],
+            event_id, older_id, payment_failed_id, invoice_paid_id,
+            team_event_id, deleted_event_id,
         ])).delete(synchronize_session=False)
         db.query(Organization).filter_by(id=organization_id).delete()
         db.commit()
         db.close()
 
 
-def test_stripe_webhook_rejects_an_invalid_signature(client, monkeypatch):
-    monkeypatch.setenv("STRIPE_WEBHOOK_SECRET", "whsec_correct")
+def test_razorpay_webhook_rejects_an_invalid_signature(client, monkeypatch):
+    monkeypatch.setenv("RAZORPAY_WEBHOOK_SECRET", "correct")
     response = client.post(
-        "/api/webhooks/stripe",
+        "/api/webhooks/razorpay",
         content=b"{}",
-        headers={"stripe-signature": f"t={int(time.time())},v1=wrong"},
+        headers={"x-razorpay-signature": "wrong"},
     )
     assert response.status_code == 400
-    assert response.json()["detail"] == "Invalid Stripe signature"
+    assert response.json()["detail"] == "Invalid Razorpay signature"
 
 
 def test_completion_email_is_private_and_idempotent(client, monkeypatch):

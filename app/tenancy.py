@@ -107,7 +107,7 @@ def ensure_personal_workspace(db: Session, principal: Principal) -> Workspace:
     db.add(workspace)
     db.add(Subscription(
         organization_id=organization.id,
-        provider="local" if principal.user_id == LOCAL_USER_ID else "stripe",
+        provider="local" if principal.user_id == LOCAL_USER_ID else "razorpay",
         plan="development" if principal.user_id == LOCAL_USER_ID else "trial",
         status="active" if principal.user_id == LOCAL_USER_ID else "trialing",
     ))

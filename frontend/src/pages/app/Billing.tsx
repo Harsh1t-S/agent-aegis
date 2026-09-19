@@ -104,7 +104,7 @@ export default function Billing() {
               </div>
               {!data.checkoutAvailable && (
                 <p className="mt-5 border border-warn-500/30 p-4 text-sm text-warn-400">
-                  Checkout remains disabled until Stripe price IDs and webhook signing are configured.
+                  Checkout remains disabled until Razorpay plans and webhook signing are configured.
                 </p>
               )}
             </>

@@ -118,13 +118,14 @@ def _all_workspaces(db: Session, principal: Principal) -> list[tuple[Workspace, 
 @router.get("/public/config")
 def public_config():
     prices_ready = bool(
-        os.getenv("STRIPE_SECRET_KEY")
-        and os.getenv("STRIPE_STARTER_PRICE_ID")
-        and os.getenv("STRIPE_TEAM_PRICE_ID")
+        os.getenv("RAZORPAY_KEY_ID")
+        and os.getenv("RAZORPAY_KEY_SECRET")
+        and os.getenv("RAZORPAY_STARTER_PLAN_ID")
+        and os.getenv("RAZORPAY_TEAM_PLAN_ID")
     )
     return {
         "authRequired": not auth_disabled(),
-        "billingProvider": "stripe" if os.getenv("STRIPE_SECRET_KEY") else None,
+        "billingProvider": "razorpay" if os.getenv("RAZORPAY_KEY_ID") else None,
         "checkoutAvailable": prices_ready,
         "plans": [
             plan_for("starter").payload(),
