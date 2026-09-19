@@ -18,6 +18,7 @@ import json
 import os
 import sys
 import time
+import uuid
 
 import httpx
 
@@ -37,9 +38,12 @@ def run_evaluation(client: httpx.Client, agent_id: str, label: str, per_category
     payload: dict = {
         "versionLabel": label, "perCategory": per_category, "seed": seed,
         "adversarial": adversarial, "adapter": adapter,
+        "idempotencyKey": f"ci:{label}:{uuid.uuid4()}",
     }
     if adapter == "llm" and models:
         payload["models"] = models
+    if adapter == "http" and models:
+        payload["url"] = models[0]
     started = client.post(f"/api/agents/{agent_id}/evaluate", json=payload)
     started.raise_for_status()
     evaluation_id = started.json()["evaluationId"]
@@ -147,11 +151,13 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument("--no-adversarial", action="store_true")
     parser.add_argument("--adapter", default="behavioral",
-                        choices=["behavioral", "llm"],
-                        help="'llm' puts the agent's real model under test")
+                        choices=["behavioral", "llm", "http"],
+                        help="'llm' simulates the prompt; 'http' calls a connected runner")
     parser.add_argument("--model", action="append", metavar="PROVIDER:MODEL", default=None,
                         help="model pool for --adapter llm (repeatable), "
                              "e.g. groq:openai/gpt-oss-20b")
+    parser.add_argument("--url", default=None,
+                        help="connected runner URL for --adapter http")
     parser.add_argument("--timeout", type=float, default=300.0)
 
     parser.add_argument("--min-score", type=float, default=80.0)
@@ -167,9 +173,13 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
 
     label = args.label or f"ci-{int(time.time())}"
-    owner_key = os.getenv("AEGIS_ADMIN_KEY", "").strip()
+    owner_key = (os.getenv("AEGIS_API_KEY") or os.getenv("AEGIS_ADMIN_KEY", "")).strip()
+    workspace_id = os.getenv("AEGIS_WORKSPACE_ID", "").strip()
+    headers = ({"Authorization": f"Bearer {owner_key}"} if owner_key else {})
+    if workspace_id:
+        headers["X-Workspace-ID"] = workspace_id
     client = httpx.Client(base_url=args.base, timeout=120,
-                         headers={"Authorization": f"Bearer {owner_key}"} if owner_key else {})
+                         headers=headers)
 
     try:
         health = client.get("/health").json()
@@ -178,7 +188,9 @@ def main(argv: list[str] | None = None) -> int:
             return EXIT_ERROR
         report = run_evaluation(client, args.agent, label, args.per_category,
                                 args.seed, not args.no_adversarial, args.timeout,
-                                adapter=args.adapter, models=args.model)
+                                adapter=args.adapter,
+                                models=([args.url] if args.adapter == "http" and args.url
+                                        else args.model))
     except Exception as exc:
         print(f"::error::could not complete the evaluation: {exc}", file=sys.stderr)
         return EXIT_ERROR
@@ -191,7 +203,7 @@ def main(argv: list[str] | None = None) -> int:
     regressions = []
     if args.compare_to:
         try:
-            diff = client.get(f"/versions/{args.compare_to}/compare/{report['id']}").json()
+            diff = client.get(f"/api/versions/{args.compare_to}/compare/{report['id']}").json()
             regressions = diff.get("regressions", [])
         except Exception as exc:
             print(f"::warning::could not diff against {args.compare_to}: {exc}", file=sys.stderr)

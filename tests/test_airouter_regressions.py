@@ -225,7 +225,7 @@ def test_guardrail_queues_all_probes_before_draining(client, monkeypatch):
         assert db.query(Run).filter_by(agent_version_id=evaluation_id, status="pending").count() == response.json()["queued"]
     assert len(calls) == 1
     report = client.get(f"/api/evaluations/{evaluation_id}/guardrail").json()
-    assert len(calls) == 2
+    assert len(calls) == 1  # report reads never execute queued work
     assert report["pending"] == response.json()["queued"]
     progress = client.get(f"/api/evaluations/{evaluation_id}/progress").json()
     assert progress["status"] == "completed"
@@ -277,5 +277,7 @@ def test_server_model_override_is_used_for_new_evaluations(client, credentials, 
     started = client.post(f"/api/agents/{agent_id}/evaluate", json={"adapter": "llm"}).json()
     with SessionLocal() as db:
         config = db.get(AgentVersion, started["evaluationId"]).config_snapshot
-        assert config["models"] == ["airouter:custom-test-model", *LLMAgentAdapter.DEFAULT_FALLBACKS]
+        assert config["models"] == ["airouter:custom-test-model"]
+        assert config["target_model"] == "airouter:custom-test-model"
+        assert config["allow_fallbacks"] is False
         assert "api_key" not in config

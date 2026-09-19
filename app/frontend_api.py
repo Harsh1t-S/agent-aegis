@@ -11,29 +11,45 @@ snake_case, and any UI churn is contained to this file.
 """
 from __future__ import annotations
 
-import asyncio
 import json
-from datetime import datetime
+import secrets
+from datetime import datetime, timedelta
 from typing import Annotated, Literal
+from uuid import uuid4
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request, Response
-from pydantic import AfterValidator, BaseModel, Field, StringConstraints
+from pydantic import AfterValidator, BaseModel, Field, StringConstraints, model_validator
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from .classifier import TAXONOMY
-from .access import access_state, can_write
-from .database import get_db
-from .engine import SYNC_RUNS, dispatch, drain_pending, run_test
+from .access import access_state
+from .auth import token_hash
+from .database import get_db, set_session_context
+from .engine import SYNC_RUNS, dispatch, drain_pending, enqueue_run
 from .introspect import profile_agent
-from .models import (Agent, AgentVersion, ExecutionTrace, FailureAnnotation,
-                     MockEnvironment, Scenario, TestRun)
+from .models import (Agent, AgentVersion, EvaluationJob, ExecutionTrace,
+                     FailureAnnotation, FindingReview, MockEnvironment, ReportShare,
+                     Scenario, Subscription, TestRun, now)
+from .plans import plan_for
 from .provenance import (LEGACY_GUARDRAIL_GENERATORS, RUN_KIND_GUARDRAIL,
                          RUN_KIND_SUITE, evaluator_stamp, staleness)
-from .scenarios import GENERATOR_VERSION, environment_for, generate
+from .scenarios import (CATEGORIES, GENERATOR_VERSION, ScenarioSpec,
+                        environment_for, generate, suite_fingerprint)
 from .scoring import VERDICT_BANDS, WEIGHTS, ceiling_for, verdict
+from .tenancy import WorkspaceContext, audit, current_workspace
+from .usage import (attach_evaluation, estimate_reservation_cost, refund_run,
+                    reserve_credits)
 
-router = APIRouter(prefix="/api", tags=["frontend"])
+router = APIRouter(
+    prefix="/api",
+    tags=["frontend"],
+    # FastAPI caches get_db per request, so this context dependency and endpoint
+    # dependencies share one Session. Once selected, all ORM reads are scoped by
+    # database.py and new rows inherit the workspace automatically.
+    dependencies=[Depends(current_workspace)],
+)
+public_router = APIRouter(prefix="/api", tags=["shared reports"])
 
 
 @router.get("/access")
@@ -56,8 +72,9 @@ AgentName = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1
 
 
 class ToolIn(BaseModel):
-    name: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1)]
-    description: str = ""
+    name: Annotated[str, StringConstraints(
+        strip_whitespace=True, min_length=1, max_length=128)]
+    description: str = Field(default="", max_length=4000)
     risk: str | None = None
     # The importer parses `parameters` / `input_schema` off a real tool schema.
     # Dropping it here cost every generated scenario its argument shape, so a
@@ -74,37 +91,86 @@ def _unique_tools(tools: list[ToolIn]) -> list[ToolIn]:
     return tools
 
 
-ToolList = Annotated[list[ToolIn], AfterValidator(_unique_tools)]
+ToolList = Annotated[list[ToolIn], Field(max_length=64), AfterValidator(_unique_tools)]
 
 
 class AgentPatch(BaseModel):
     name: AgentName | None = None
-    description: str | None = None
-    systemPrompt: str | None = None
+    description: str | None = Field(default=None, max_length=4000)
+    systemPrompt: str | None = Field(default=None, max_length=50000)
     tools: ToolList | None = None
+    connection: "ConnectionIn | None" = None
+
+
+class ConnectionIn(BaseModel):
+    mode: Literal["simulation", "connected"] = "simulation"
+    url: str | None = Field(default=None, max_length=2048)
+    bearerToken: str | None = Field(default=None, max_length=4096)
 
 
 class AgentIn(BaseModel):
     name: AgentName
-    description: str = ""
-    systemPrompt: str = ""
+    description: str = Field(default="", max_length=4000)
+    systemPrompt: str = Field(default="", max_length=50000)
     tools: ToolList = Field(default_factory=list)
+    connection: ConnectionIn = Field(default_factory=ConnectionIn)
+
+
+class SuitePreviewIn(BaseModel):
+    perCategory: int = Field(default=3, ge=1, le=10)
+    seed: int = 42
+    adversarial: bool = True
+
+
+class ScenarioContractIn(BaseModel):
+    name: str = Field(min_length=1, max_length=300)
+    category: Literal["realistic", "edge", "adversarial", "ambiguous"]
+    subtype: str = Field(min_length=1, max_length=100)
+    initialPrompt: str = Field(min_length=1, max_length=12000)
+    expectedBehavior: dict
+    difficulty: int = Field(default=1, ge=1, le=5)
+    injectedContent: dict = Field(default_factory=dict)
+
+    @model_validator(mode="after")
+    def validate_contract_size(self):
+        serialized = json.dumps({
+            "expectedBehavior": self.expectedBehavior,
+            "injectedContent": self.injectedContent,
+        }, default=str)
+        if len(serialized.encode()) > 64_000:
+            raise ValueError("Scenario expectations and injected content exceed 64 KB")
+        return self
+
+    def scenario_spec(self) -> ScenarioSpec:
+        return ScenarioSpec(
+            name=self.name.strip(),
+            category=self.category,
+            subtype=self.subtype.strip(),
+            initial_prompt=self.initialPrompt,
+            expected_behavior=self.expectedBehavior,
+            difficulty=self.difficulty,
+            injected_content=self.injectedContent,
+        )
 
 
 class EvaluateIn(BaseModel):
     versionLabel: str = Field(default="v1", min_length=1, max_length=80, pattern=r"\S")
     traits: list[str] = Field(default_factory=lambda: ["complies_with_destructive",
-                                                       "claims_success"])
+                                                       "claims_success"], max_length=20)
     perCategory: int = Field(default=3, ge=1, le=10)
     seed: int = 42
     adapter: Literal["behavioral", "llm", "http"] = "behavioral"
-    url: str | None = None
-    model: str | None = None
-    models: list[str] | None = None
+    url: str | None = Field(default=None, max_length=2048)
+    model: str | None = Field(default=None, max_length=300)
+    models: list[str] | None = Field(default=None, max_length=8)
+    allowFallbacks: bool = False
+    idempotencyKey: str | None = Field(default=None, min_length=8, max_length=120)
     # Settings exposes this as "inject prompt-injection and jailbreak variants".
     # It has to gate generation, not the traits of the agent under test — doing the
     # latter made turning it OFF raise the score, which is backwards.
     adversarial: bool = True
+    scenarios: list[ScenarioContractIn] | None = Field(
+        default=None, min_length=1, max_length=40)
 
 
 def case_when(condition):
@@ -314,6 +380,9 @@ def _version_evaluation(db: Session, version: AgentVersion, agent: Agent,
     pending = (_exclude_guardrail(db.query(TestRun))
                  .filter(TestRun.agent_version_id == version.id,
                          TestRun.status.in_(["pending", "running"])).count())
+    canceled = (_exclude_guardrail(db.query(TestRun))
+                  .filter(TestRun.agent_version_id == version.id,
+                          TestRun.status == "canceled").count())
 
     failures_flat, tests, breakdown = [], [], _empty_failures()
     severity_by_label: dict[str, list[str]] = {}
@@ -376,6 +445,8 @@ def _version_evaluation(db: Session, version: AgentVersion, agent: Agent,
         status = "running"
     elif errors:
         status = "failed"
+    elif canceled and not latest:
+        status = "canceled"
     elif not latest:
         status = "queued"
     else:
@@ -394,7 +465,7 @@ def _version_evaluation(db: Session, version: AgentVersion, agent: Agent,
         "version": version.version_label,
         "score": score,
         "previousScore": _previous_score(db, agent, version) if agent else 0.0,
-        "total": len(latest) + pending + len(errors),
+        "total": len(latest) + pending + len(errors) + canceled,
         "errors": len(errors),
         "passed": passed,
         "failed": failed,
@@ -478,10 +549,36 @@ def _version_notes(version: AgentVersion) -> str:
     return f"stand-in · {traits}" if traits else "stand-in"
 
 
+def _connection_config(connection: ConnectionIn, existing: dict | None = None) -> dict:
+    if connection.mode == "simulation":
+        return {"mode": "simulation"}
+    from .network_security import UnsafeEndpoint, validate_agent_endpoint
+
+    try:
+        endpoint = validate_agent_endpoint(connection.url or "")
+    except UnsafeEndpoint as exc:
+        raise HTTPException(422, str(exc)) from exc
+    config = {"mode": "connected", "url": endpoint}
+    token = (connection.bearerToken or "").strip()
+    if token:
+        from .secret_store import SecretConfigurationError, encrypt_secret
+
+        try:
+            config["bearer_token_encrypted"] = encrypt_secret(
+                token, context=f"agent-endpoint:{endpoint}")
+        except SecretConfigurationError as exc:
+            raise HTTPException(503, str(exc)) from exc
+    elif (existing or {}).get("url") == endpoint and (existing or {}).get(
+            "bearer_token_encrypted"):
+        config["bearer_token_encrypted"] = existing["bearer_token_encrypted"]
+    return config
+
+
 def _agent_payload(db: Session, agent: Agent) -> dict:
     profile = agent.profile or {}
     versions = (db.query(AgentVersion).filter_by(agent_id=agent.id)
-                  .order_by(AgentVersion.created_at).all())
+                  .order_by(AgentVersion.created_at.desc()).limit(50).all())
+    versions.reverse()
 
     version_rows, last_evaluated = [], None
     for version in versions:
@@ -553,6 +650,13 @@ def _agent_payload(db: Session, agent: Agent) -> dict:
         "description": agent.description or "",
         "domain": profile.get("domain", "general"),
         "systemPrompt": agent.system_prompt or "",
+        "connection": {
+            "mode": (agent.endpoint_config or {}).get("mode", "simulation"),
+            "authenticated": bool((agent.endpoint_config or {}).get(
+                "bearer_token_encrypted")),
+            **({"url": (agent.endpoint_config or {}).get("url")}
+               if (agent.endpoint_config or {}).get("url") else {}),
+        },
         # `parameters` comes off the stored schema rather than the profile, which
         # keeps only what it needs for risk analysis. Without it an export ->
         # re-import cycle silently rewrote the tool definition.
@@ -573,12 +677,19 @@ def _agent_payload(db: Session, agent: Agent) -> dict:
 
 # --------------------------------------------------------------------------- #
 @router.get("/agents")
-def list_agents(db: Session = Depends(get_db)):
-    return [_agent_payload(db, a) for a in db.query(Agent).order_by(Agent.created_at)]
+def list_agents(limit: int = 50, offset: int = 0, db: Session = Depends(get_db),
+                _context: WorkspaceContext = Depends(current_workspace)):
+    limit = min(max(limit, 1), 100)
+    offset = max(offset, 0)
+    rows = (db.query(Agent).order_by(Agent.created_at.desc())
+            .offset(offset).limit(limit).all())
+    rows.reverse()
+    return [_agent_payload(db, agent) for agent in rows]
 
 
 @router.get("/agents/{agent_id}")
-def read_agent(agent_id: str, db: Session = Depends(get_db)):
+def read_agent(agent_id: str, db: Session = Depends(get_db),
+               _context: WorkspaceContext = Depends(current_workspace)):
     agent = db.get(Agent, agent_id)
     if not agent:
         raise HTTPException(404, "Agent not found")
@@ -586,8 +697,11 @@ def read_agent(agent_id: str, db: Session = Depends(get_db)):
 
 
 @router.post("/agents", status_code=201)
-def create_agent(body: AgentIn, db: Session = Depends(get_db)):
+def create_agent(body: AgentIn, db: Session = Depends(get_db),
+                 context: WorkspaceContext = Depends(current_workspace)):
     """Accepts the UI's tool list and profiles the agent in one call."""
+    if context.role == "viewer":
+        raise HTTPException(403, "Viewers cannot create agents")
     schema = {t.name: {"description": t.description,
                        **({"danger_level": t.risk} if t.risk else {}),
                        **({"parameters": t.parameters} if t.parameters else {})}
@@ -598,9 +712,13 @@ def create_agent(body: AgentIn, db: Session = Depends(get_db)):
         raise HTTPException(409, f"An agent named '{body.name}' already exists.")
 
     agent = Agent(name=body.name, description=body.description,
-                  system_prompt=body.systemPrompt, tool_schema=schema)
+                  system_prompt=body.systemPrompt, tool_schema=schema,
+                  endpoint_config=_connection_config(body.connection))
     agent.profile = profile_agent(body.systemPrompt, schema).to_dict()
     db.add(agent)
+    db.flush()
+    audit(db, context, "agent.created", "agent", agent.id,
+          {"name": agent.name})
     try:
         db.commit()
     except IntegrityError:                      # lost a race with a concurrent create
@@ -611,7 +729,8 @@ def create_agent(body: AgentIn, db: Session = Depends(get_db)):
 
 
 @router.patch("/agents/{agent_id}")
-def update_agent(agent_id: str, body: AgentPatch, db: Session = Depends(get_db)):
+def update_agent(agent_id: str, body: AgentPatch, db: Session = Depends(get_db),
+                 context: WorkspaceContext = Depends(current_workspace)):
     """Edit the agent under test, and re-profile it.
 
     Without this an agent's prompt was fixed at creation, so every version shared
@@ -620,6 +739,8 @@ def update_agent(agent_id: str, body: AgentPatch, db: Session = Depends(get_db))
     versions keep the prompt they were run against, because each snapshots its own
     config, so history stays honest.
     """
+    if context.role == "viewer":
+        raise HTTPException(403, "Viewers cannot edit agents")
     agent = db.get(Agent, agent_id)
     if not agent:
         raise HTTPException(404, "Agent not found")
@@ -637,10 +758,15 @@ def update_agent(agent_id: str, body: AgentPatch, db: Session = Depends(get_db))
                                       **({"danger_level": t.risk} if t.risk else {}),
                                       **({"parameters": t.parameters} if t.parameters else {})}
                              for t in body.tools}
+    if body.connection is not None:
+        agent.endpoint_config = _connection_config(
+            body.connection, existing=agent.endpoint_config or {})
 
     # The profile is derived from prompt and schema, so it has to be rebuilt or the
     # next suite would be generated from the agent as it used to be.
     agent.profile = profile_agent(agent.system_prompt or "", agent.tool_schema or {}).to_dict()
+    audit(db, context, "agent.updated", "agent", agent.id,
+          {"fields": sorted(body.model_dump(exclude_none=True))})
     try:
         db.commit()
     except IntegrityError:
@@ -651,13 +777,16 @@ def update_agent(agent_id: str, body: AgentPatch, db: Session = Depends(get_db))
 
 
 @router.delete("/agents/{agent_id}", status_code=204)
-def delete_agent(agent_id: str, db: Session = Depends(get_db)):
+def delete_agent(agent_id: str, db: Session = Depends(get_db),
+                 context: WorkspaceContext = Depends(current_workspace)):
     """Remove an agent and everything recorded under it.
 
     There are no cascade rules on these tables, so the children are cleared
     explicitly, deepest first, or the rows outlive the agent and reappear in the
     dashboard aggregates.
     """
+    if context.role == "viewer":
+        raise HTTPException(403, "Viewers cannot delete agents")
     agent = db.get(Agent, agent_id)
     if not agent:
         raise HTTPException(404, "Agent not found")
@@ -670,6 +799,10 @@ def delete_agent(agent_id: str, db: Session = Depends(get_db)):
         environment_ids = sorted({e for (e,) in db.query(Scenario.mock_environment_id)
                                   .filter(Scenario.id.in_(scenario_ids))}) if scenario_ids else []
         if run_ids:
+            db.query(EvaluationJob).filter(
+                EvaluationJob.test_run_id.in_(run_ids)).delete(synchronize_session=False)
+            db.query(FindingReview).filter(
+                FindingReview.test_run_id.in_(run_ids)).delete(synchronize_session=False)
             db.query(FailureAnnotation).filter(
                 FailureAnnotation.test_run_id.in_(run_ids)).delete(synchronize_session=False)
             db.query(ExecutionTrace).filter(
@@ -693,15 +826,56 @@ def delete_agent(agent_id: str, db: Session = Depends(get_db)):
                 db.query(MockEnvironment).filter(
                     MockEnvironment.id.in_(removable)).delete(synchronize_session=False)
 
+    audit(db, context, "agent.deleted", "agent", agent.id,
+          {"name": agent.name})
     db.delete(agent)
     db.commit()
     return Response(status_code=204)
 
 
+@router.post("/agents/{agent_id}/suite-preview")
+def preview_suite(
+    agent_id: str,
+    body: SuitePreviewIn,
+    db: Session = Depends(get_db),
+):
+    """Generate a free, editable test contract before reserving any credits."""
+    agent = db.get(Agent, agent_id)
+    if not agent:
+        raise HTTPException(404, "Agent not found")
+    if not agent.tool_schema:
+        raise HTTPException(400, "Agent has no tools to test")
+    profile = profile_agent(agent.system_prompt, agent.tool_schema)
+    suite = generate(profile, per_category=body.perCategory, seed=body.seed)
+    if not body.adversarial:
+        suite = [spec for spec in suite if spec.category != "adversarial"]
+    environment = environment_for(profile, suite, f"{agent.name} sandbox")
+    return {
+        "agentId": agent.id,
+        "seed": body.seed,
+        "generatorVersion": GENERATOR_VERSION,
+        "estimatedCredits": len(suite),
+        "categories": list(CATEGORIES),
+        "scenarios": [{
+            "name": spec.name,
+            "category": spec.category,
+            "subtype": spec.subtype,
+            "initialPrompt": spec.initial_prompt,
+            "expectedBehavior": spec.expected_behavior,
+            "difficulty": spec.difficulty,
+            "injectedContent": spec.injected_content,
+            "fingerprint": spec.fingerprint_for(environment),
+        } for spec in suite],
+    }
+
+
 @router.post("/agents/{agent_id}/evaluate", status_code=202)
 def evaluate(agent_id: str, body: EvaluateIn, background: BackgroundTasks,
-             db: Session = Depends(get_db)):
+             db: Session = Depends(get_db),
+             context: WorkspaceContext = Depends(current_workspace)):
     """Generate a suite if needed, register a version, and queue the whole run."""
+    if context.role == "viewer":
+        raise HTTPException(403, "Viewers cannot start evaluations")
     agent = db.get(Agent, agent_id)
     if not agent:
         raise HTTPException(404, "Agent not found")
@@ -713,27 +887,59 @@ def evaluate(agent_id: str, body: EvaluateIn, background: BackgroundTasks,
     if body.adapter == "llm":
         from .adapters import LLMAgentAdapter
 
-        pool = body.models or ([body.model] if body.model else LLMAgentAdapter.default_pool())
+        requested = body.models or (
+            [body.model] if body.model else LLMAgentAdapter.default_pool())
+        pool = requested if body.allowFallbacks else requested[:1]
         try:
             LLMAgentAdapter(models=pool).validate_configuration()
         except ValueError as exc:
             raise HTTPException(503, str(exc)) from exc
         config = {"adapter": "llm", "models": pool,
+                  "target_model": pool[0],
+                  "allow_fallbacks": body.allowFallbacks,
                   "system_prompt": agent.system_prompt}
     elif body.adapter == "http":
-        if not body.url or not body.url.startswith(("http://", "https://")):
-            raise HTTPException(422, "The HTTP adapter requires an http(s) agent URL")
-        config = {"adapter": "http", "url": body.url}
+        from .network_security import UnsafeEndpoint, validate_agent_endpoint
+
+        try:
+            endpoint = validate_agent_endpoint(
+                body.url or (agent.endpoint_config or {}).get("url", ""))
+        except UnsafeEndpoint as exc:
+            raise HTTPException(422, str(exc)) from exc
+        config = {"adapter": "http", "url": endpoint}
     else:
         config = {"adapter": "behavioral", "traits": body.traits}
 
     profile = profile_agent(agent.system_prompt, agent.tool_schema)
     agent.profile = profile.to_dict()
-    suite = generate(profile, per_category=body.perCategory, seed=body.seed)
+    suite = ([scenario.scenario_spec() for scenario in body.scenarios]
+             if body.scenarios else
+             generate(profile, per_category=body.perCategory, seed=body.seed))
     if not body.adversarial:
         suite = [spec for spec in suite if spec.category != "adversarial"]
-    environment = MockEnvironment(**environment_for(profile, suite, f"{agent.name} sandbox"))
-    db.add(environment); db.commit(); db.refresh(environment)
+    if not suite:
+        raise HTTPException(422, "The reviewed suite must contain at least one scenario")
+    environment_contract = environment_for(
+        profile, suite, f"{agent.name} sandbox")
+    reservation = reserve_credits(
+        db,
+        context.workspace_id,
+        context.organization_id,
+        len(suite),
+        body.idempotencyKey or f"evaluation:{context.workspace_id}:{uuid4()}",
+        estimate_reservation_cost(body.adapter, len(suite)),
+    )
+    if reservation.evaluation_id:
+        existing = db.get(AgentVersion, reservation.evaluation_id)
+        if existing:
+            total = db.query(TestRun).filter_by(
+                agent_version_id=existing.id).count()
+            return {"evaluationId": existing.id, "agentId": existing.agent_id,
+                    "total": total, "version": existing.version_label}
+
+    environment = MockEnvironment(**environment_contract)
+    db.add(environment)
+    db.flush()
 
     scenarios = []
     for spec in suite:
@@ -743,9 +949,9 @@ def evaluate(agent_id: str, body: EvaluateIn, background: BackgroundTasks,
                             mock_environment_id=environment.id, difficulty=spec.difficulty,
                             generator_version=GENERATOR_VERSION,
                             injected_content=spec.injected_content,
-                            fingerprint=spec.fingerprint)
+                            fingerprint=spec.fingerprint_for(environment_contract))
         db.add(scenario); scenarios.append(scenario)
-    db.commit()
+    db.flush()
 
     # The prompt and tools *as of this version*, whatever adapter ran it.
     #
@@ -756,18 +962,28 @@ def evaluate(agent_id: str, body: EvaluateIn, background: BackgroundTasks,
     # after it, and reporting the result as the baseline's.
     config = {**config, "system_prompt_at_version": agent.system_prompt,
               "tool_schema_at_version": agent.tool_schema or {}}
-    version = AgentVersion(agent_id=agent.id, version_label=body.versionLabel,
-                           config_snapshot=config)
-    db.add(version); db.commit(); db.refresh(version)
+    config["dataset_source"] = "reviewed" if body.scenarios else "generated"
+    version = AgentVersion(
+        agent_id=agent.id,
+        version_label=body.versionLabel,
+        config_snapshot=config,
+        dataset_hash=suite_fingerprint([scenario.fingerprint for scenario in scenarios]),
+    )
+    db.add(version)
+    db.flush()
+    attach_evaluation(db, reservation, version.id)
 
     for scenario in scenarios:
-        db.refresh(scenario)
         run = TestRun(agent_version_id=version.id, scenario_id=scenario.id, seed=body.seed)
         db.add(run)
+        db.flush()
+        enqueue_run(db, run, reservation.id)
+    audit(db, context, "evaluation.queued", "agent_version", version.id,
+          {"agentId": agent.id, "scenarios": len(scenarios),
+           "adapter": body.adapter, "datasetHash": version.dataset_hash})
     db.commit()
 
     if SYNC_RUNS:
-        # Start draining now; the progress endpoint finishes whatever does not fit.
         drain_pending(db, version.id)
     else:
         for run in db.query(TestRun).filter_by(agent_version_id=version.id, status="pending"):
@@ -778,7 +994,8 @@ def evaluate(agent_id: str, body: EvaluateIn, background: BackgroundTasks,
 
 
 @router.get("/evaluations")
-def list_evaluations(db: Session = Depends(get_db)):
+def list_evaluations(limit: int = 50, offset: int = 0, db: Session = Depends(get_db),
+                     _context: WorkspaceContext = Depends(current_workspace)):
     """Summary rows for the evaluations table.
 
     Built from four grouped queries rather than one full evaluation per version.
@@ -788,10 +1005,16 @@ def list_evaluations(db: Session = Depends(get_db)):
     """
     from sqlalchemy import func
 
-    versions = db.query(AgentVersion).order_by(AgentVersion.created_at.desc()).all()
+    limit = min(max(limit, 1), 100)
+    offset = max(offset, 0)
+    versions = (db.query(AgentVersion)
+                .order_by(AgentVersion.created_at.desc())
+                .offset(offset).limit(limit).all())
     if not versions:
         return []
-    agents = {a.id: a for a in db.query(Agent)}
+    version_ids = [version.id for version in versions]
+    agent_ids = {version.agent_id for version in versions}
+    agents = {a.id: a for a in db.query(Agent).filter(Agent.id.in_(agent_ids))}
 
     # Latest completed run per scenario — the same rule the detail endpoint uses.
     # Aggregating over *every* completed run instead meant a re-run scenario was
@@ -800,7 +1023,9 @@ def list_evaluations(db: Session = Depends(get_db)):
     rows = _exclude_guardrail(
         db.query(TestRun.id, TestRun.agent_version_id, TestRun.scenario_id,
                  TestRun.completed_at, TestRun.outcome, TestRun.reliability_score,
-                 TestRun.metrics, TestRun.status)).filter(TestRun.status.in_(["complete", "error"])).all()
+                 TestRun.metrics, TestRun.status)).filter(
+                     TestRun.agent_version_id.in_(version_ids),
+                     TestRun.status.in_(["complete", "error"])).all()
     latest_run: dict[tuple[str, str], tuple] = {}
     for row in rows:
         key = (row.agent_version_id, row.scenario_id)
@@ -839,7 +1064,8 @@ def list_evaluations(db: Session = Depends(get_db)):
     pending = {
         row[0]: row[1] for row in
         _exclude_guardrail(db.query(TestRun.agent_version_id, func.count(TestRun.id)))
-          .filter(TestRun.status.in_(["pending", "running"]))
+          .filter(TestRun.agent_version_id.in_(version_ids),
+                  TestRun.status.in_(["pending", "running"]))
           .group_by(TestRun.agent_version_id)
     }
 
@@ -853,7 +1079,8 @@ def list_evaluations(db: Session = Depends(get_db)):
     for run_id, version_id, failure_type, severity in (
             db.query(TestRun.id, TestRun.agent_version_id, FailureAnnotation.failure_type,
                      FailureAnnotation.severity)
-              .join(FailureAnnotation, FailureAnnotation.test_run_id == TestRun.id)):
+              .join(FailureAnnotation, FailureAnnotation.test_run_id == TestRun.id)
+              .filter(TestRun.agent_version_id.in_(version_ids))):
         # Annotations from superseded runs must not be counted either, or the
         # failure breakdown outlives the run it described.
         if run_id not in kept_ids:
@@ -932,27 +1159,152 @@ def list_evaluations(db: Session = Depends(get_db)):
 
 
 @router.get("/evaluations/{evaluation_id}")
-def read_evaluation(evaluation_id: str, db: Session = Depends(get_db)):
+def read_evaluation(evaluation_id: str, db: Session = Depends(get_db),
+                    _context: WorkspaceContext = Depends(current_workspace)):
     version = db.get(AgentVersion, evaluation_id)
     if not version:
         raise HTTPException(404, "Evaluation not found")
     return _version_evaluation(db, version, db.get(Agent, version.agent_id), include_tests=True)
 
 
-@router.get("/evaluations/{evaluation_id}/progress")
-def evaluation_progress(evaluation_id: str, request: Request, db: Session = Depends(get_db)):
-    """Polled by the running-evaluation screen; also feeds its activity log."""
+class ReportShareIn(BaseModel):
+    expiresInDays: int = Field(default=7, ge=1, le=30)
+
+
+def _report_share_payload(share: ReportShare) -> dict:
+    return {
+        "id": share.id,
+        "evaluationId": share.evaluation_id,
+        "createdAt": _iso(share.created_at),
+        "expiresAt": _iso(share.expires_at),
+        "revokedAt": _iso(share.revoked_at) if share.revoked_at else None,
+        "lastAccessedAt": _iso(share.last_accessed_at) if share.last_accessed_at else None,
+        "active": share.revoked_at is None and share.expires_at > now(),
+    }
+
+
+@router.get("/evaluations/{evaluation_id}/shares")
+def list_report_shares(
+    evaluation_id: str,
+    db: Session = Depends(get_db),
+    context: WorkspaceContext = Depends(current_workspace),
+):
+    if context.role == "viewer":
+        raise HTTPException(403, "Viewers cannot manage report links")
+    if not db.get(AgentVersion, evaluation_id):
+        raise HTTPException(404, "Evaluation not found")
+    rows = (db.query(ReportShare)
+            .filter_by(evaluation_id=evaluation_id)
+            .order_by(ReportShare.created_at.desc())
+            .limit(50).all())
+    return [_report_share_payload(row) for row in rows]
+
+
+@router.post("/evaluations/{evaluation_id}/shares", status_code=201)
+def create_report_share(
+    evaluation_id: str,
+    body: ReportShareIn,
+    db: Session = Depends(get_db),
+    context: WorkspaceContext = Depends(current_workspace),
+):
+    if context.role == "viewer":
+        raise HTTPException(403, "Viewers cannot share reports")
     version = db.get(AgentVersion, evaluation_id)
     if not version:
         raise HTTPException(404, "Evaluation not found")
-    if SYNC_RUNS and can_write(request):
-        drain_pending(db, evaluation_id)
+    if _exclude_guardrail(db.query(TestRun)).filter(
+            TestRun.agent_version_id == evaluation_id,
+            TestRun.status.in_(["pending", "running"])).count():
+        raise HTTPException(409, "Wait for the evaluation to finish before sharing it")
 
+    raw = f"aegis_share_{secrets.token_urlsafe(32)}"
+    share = ReportShare(
+        workspace_id=context.workspace_id,
+        evaluation_id=evaluation_id,
+        token_hash=token_hash(raw),
+        created_by=context.user_id,
+        expires_at=now() + timedelta(days=body.expiresInDays),
+    )
+    db.add(share)
+    db.flush()
+    audit(db, context, "report_share.created", "report_share", share.id, {
+        "evaluationId": evaluation_id,
+        "expiresAt": _iso(share.expires_at),
+    })
+    db.commit()
+    return {
+        **_report_share_payload(share),
+        # The bearer token is returned once. Only its peppered hash is stored.
+        "path": f"/shared-report/{raw}",
+    }
+
+
+@router.delete("/report-shares/{share_id}", status_code=204)
+def revoke_report_share(
+    share_id: str,
+    db: Session = Depends(get_db),
+    context: WorkspaceContext = Depends(current_workspace),
+):
+    if context.role == "viewer":
+        raise HTTPException(403, "Viewers cannot manage report links")
+    share = db.get(ReportShare, share_id)
+    if not share:
+        raise HTTPException(404, "Report link not found")
+    if share.revoked_at is None:
+        share.revoked_at = now()
+        audit(db, context, "report_share.revoked", "report_share", share.id, {
+            "evaluationId": share.evaluation_id,
+        })
+        db.commit()
+    return Response(status_code=204)
+
+
+@public_router.get("/shared-reports/{token}")
+def read_shared_report(token: str, db: Session = Depends(get_db)):
+    # A share URL is a short-lived bearer credential. Worker context is confined
+    # to this request so forced RLS can resolve the token before a workspace is
+    # known. Invalid, expired and revoked links intentionally look identical.
+    if (not token.startswith("aegis_share_") or len(token) > 96
+            or any(character.isspace() for character in token)):
+        raise HTTPException(404, "This private report link is invalid or has expired")
+    set_session_context(db, worker=True)
+    share = (db.query(ReportShare)
+             .execution_options(include_all_workspaces=True)
+             .filter(ReportShare.token_hash == token_hash(token),
+                     ReportShare.revoked_at.is_(None),
+                     ReportShare.expires_at > now())
+             .first())
+    if not share:
+        raise HTTPException(404, "This private report link is invalid or has expired")
+    set_session_context(db, workspace_id=share.workspace_id)
+    version = db.get(AgentVersion, share.evaluation_id)
+    agent = db.get(Agent, version.agent_id) if version else None
+    if not version or not agent:
+        raise HTTPException(404, "This private report is no longer available")
+    share.last_accessed_at = now()
+    report = _version_evaluation(db, version, agent, include_tests=True)
+    db.commit()
+    return {
+        "share": {"expiresAt": _iso(share.expires_at)},
+        "evaluation": report,
+    }
+
+
+@router.get("/evaluations/{evaluation_id}/progress")
+def evaluation_progress(evaluation_id: str, request: Request, db: Session = Depends(get_db),
+                        context=Depends(current_workspace)):
+    """Read-only progress for the running-evaluation screen."""
+    version = db.get(AgentVersion, evaluation_id)
+    if not version:
+        raise HTTPException(404, "Evaluation not found")
     pending = _exclude_guardrail(db.query(TestRun)).filter(
         TestRun.agent_version_id == evaluation_id,
         TestRun.status.in_(["pending", "running"])).count()
     done = list(_latest_per_scenario(db, evaluation_id, include_errors=True).values())
     errors = sum(r.status == "error" for r in done)
+    canceled = _exclude_guardrail(db.query(TestRun)).filter(
+        TestRun.agent_version_id == evaluation_id,
+        TestRun.status == "canceled").count()
 
     events = []
     for run in sorted(done, key=lambda r: r.completed_at or datetime(1970, 1, 1))[-12:]:
@@ -968,19 +1320,22 @@ def evaluation_progress(evaluation_id: str, request: Request, db: Session = Depe
     agent = db.get(Agent, version.agent_id)
     return {
         "evaluationId": evaluation_id,
-        "canContinue": can_write(request),
+        "canContinue": context.role != "viewer",
         "agentName": agent.name if agent else "",
         "version": version.version_label,
-        "total": len(done) + pending,
-        "completed": len(done),
+        "total": len(done) + pending + canceled,
+        "completed": len(done) + canceled,
         "errors": errors,
-        "status": ("failed" if errors else "completed") if done and not pending else "running",
+        "status": ("canceled" if canceled and not pending else
+                   ("failed" if errors else "completed") if done and not pending else "running"),
         "events": events[-14:],
     }
 
 
 @router.get("/evaluations/{evaluation_id}/tests/{run_id}")
-def read_test_run(evaluation_id: str, run_id: str, request: Request, db: Session = Depends(get_db)):
+def read_test_run(evaluation_id: str, run_id: str, request: Request,
+                  db: Session = Depends(get_db),
+                  context=Depends(current_workspace)):
     """An incident URL addresses the saved run, even after a newer rerun exists."""
     run = db.get(TestRun, run_id)
     if run is None or run.agent_version_id != evaluation_id:
@@ -988,11 +1343,6 @@ def read_test_run(evaluation_id: str, run_id: str, request: Request, db: Session
     version = db.get(AgentVersion, evaluation_id)
     if version is None:
         raise HTTPException(404, "Evaluation not found")
-    # A rerun can still be queued when its POST returns. Reading the aggregate
-    # report did not advance serverless work, so the trace spinner never ended.
-    if SYNC_RUNS and run.status == "pending" and can_write(request):
-        asyncio.run(run_test(run.id))
-        db.refresh(run)
     agent = db.get(Agent, version.agent_id)
     test = None
     if run.status in {"complete", "error"}:
@@ -1000,9 +1350,57 @@ def read_test_run(evaluation_id: str, run_id: str, request: Request, db: Session
             ExecutionTrace.step_number).all()
         failures = db.query(FailureAnnotation).filter_by(test_run_id=run.id).all()
         test = _test_result(run, db.get(Scenario, run.scenario_id), traces, failures)
-    return {"evaluationId": evaluation_id, "canContinue": can_write(request),
+        review = db.query(FindingReview).filter_by(
+            test_run_id=run.id, reviewer_user_id=context.user_id).first()
+        if review:
+            test["review"] = {
+                "decision": review.decision,
+                "note": review.note,
+                "updatedAt": review.updated_at.isoformat() + "Z",
+            }
+    return {"evaluationId": evaluation_id, "canContinue": context.role != "viewer",
             "agentName": agent.name if agent else "",
             "version": version.version_label, "status": run.status, "test": test}
+
+
+@router.post("/evaluations/{evaluation_id}/cancel")
+def cancel_evaluation(
+    evaluation_id: str,
+    db: Session = Depends(get_db),
+    context: WorkspaceContext = Depends(current_workspace),
+):
+    if context.role == "viewer":
+        raise HTTPException(403, "Viewers cannot cancel evaluations")
+    version = db.get(AgentVersion, evaluation_id)
+    if not version:
+        raise HTTPException(404, "Evaluation not found")
+    jobs = (
+        db.query(EvaluationJob)
+        .join(TestRun, EvaluationJob.test_run_id == TestRun.id)
+        .filter(TestRun.agent_version_id == evaluation_id,
+                EvaluationJob.status.in_(["queued", "running"]))
+        .all()
+    )
+    canceled = requested = 0
+    for job in jobs:
+        run = db.get(TestRun, job.test_run_id)
+        if job.status == "queued":
+            job.status = "canceled"
+            job.completed_at = datetime.utcnow()
+            if run:
+                run.status = "canceled"
+                run.completed_at = datetime.utcnow()
+                refund_run(db, job.reservation_id, run.id, context.workspace_id,
+                           "Evaluation canceled before execution")
+            canceled += 1
+        else:
+            job.status = "cancel_requested"
+            requested += 1
+    audit(db, context, "evaluation.canceled", "agent_version", evaluation_id,
+          {"canceled": canceled, "runningCancellationRequested": requested})
+    db.commit()
+    return {"evaluationId": evaluation_id, "canceled": canceled,
+            "runningCancellationRequested": requested}
 
 
 def _injection_delivered(db: Session, run_id: str) -> bool:
@@ -1046,8 +1444,11 @@ def _profile_at_version(version: AgentVersion, agent: Agent | None):
 
 @router.post("/evaluations/{evaluation_id}/guardrail", status_code=202)
 def start_guardrail(evaluation_id: str, background: BackgroundTasks,
-                    db: Session = Depends(get_db)):
+                    db: Session = Depends(get_db),
+                    context: WorkspaceContext = Depends(current_workspace)):
     """Queue the destructive-action pressure ladder for this version."""
+    if context.role == "viewer":
+        raise HTTPException(403, "Viewers cannot start guardrail runs")
     from .guardrail import GUARDRAIL_VERSION, build_ladder
 
     version = db.get(AgentVersion, evaluation_id)
@@ -1059,9 +1460,22 @@ def start_guardrail(evaluation_id: str, background: BackgroundTasks,
         raise HTTPException(400, "This agent exposes no irreversible tools to probe")
 
     ladder = build_ladder(profile)
-    environment = MockEnvironment(**environment_for(profile, ladder,
-                                                    f"{agent.name} guardrail"))
-    db.add(environment); db.commit(); db.refresh(environment)
+    environment_contract = environment_for(
+        profile, ladder, f"{agent.name} guardrail")
+    reservation = reserve_credits(
+        db,
+        context.workspace_id,
+        context.organization_id,
+        len(ladder),
+        f"guardrail:{evaluation_id}:{uuid4()}",
+        estimate_reservation_cost(
+            (version.config_snapshot or {}).get("adapter", "behavioral"),
+            len(ladder),
+        ),
+    )
+    environment = MockEnvironment(**environment_contract)
+    db.add(environment)
+    db.flush()
     queued = []
     for spec in ladder:
         scenario = Scenario(name=spec.name, category=spec.category, subtype=spec.subtype,
@@ -1079,11 +1493,19 @@ def start_guardrail(evaluation_id: str, background: BackgroundTasks,
                             # destructive action because it was never asked to, and the
                             # ladder recorded "held". Every guardrail run started from
                             # the console went through this path.
-                            injected_content=spec.injected_content)
-        db.add(scenario); db.commit(); db.refresh(scenario)
+                            injected_content=spec.injected_content,
+                            fingerprint=spec.fingerprint_for(environment_contract))
+        db.add(scenario)
+        db.flush()
         run = TestRun(agent_version_id=version.id, scenario_id=scenario.id)
-        db.add(run); db.commit(); db.refresh(run)
+        db.add(run)
+        db.flush()
+        enqueue_run(db, run, reservation.id)
         queued.append(run.id)
+    attach_evaluation(db, reservation, evaluation_id)
+    audit(db, context, "guardrail.queued", "agent_version", evaluation_id,
+          {"scenarios": len(queued)})
+    db.commit()
     if SYNC_RUNS:
         drain_pending(db, evaluation_id)
     else:
@@ -1093,15 +1515,13 @@ def start_guardrail(evaluation_id: str, background: BackgroundTasks,
 
 
 @router.get("/evaluations/{evaluation_id}/guardrail")
-def guardrail(evaluation_id: str, request: Request, db: Session = Depends(get_db)):
+def guardrail(evaluation_id: str, request: Request, db: Session = Depends(get_db),
+              context=Depends(current_workspace)):
     from .guardrail import LADDER, SOURCE_AUTHORITY_RUNGS, analyse
 
     version = db.get(AgentVersion, evaluation_id)
     if not version:
         raise HTTPException(404, "Evaluation not found")
-
-    if SYNC_RUNS and can_write(request):
-        drain_pending(db, evaluation_id)
 
     # Every guardrail run, not only the completed ones. Counting completions alone
     # made a rung that errored or never started vanish from the numerator and the
@@ -1212,13 +1632,15 @@ def guardrail(evaluation_id: str, request: Request, db: Session = Depends(get_db
             unfinished.append({"tool": tool, "level": rung.level, "technique": rung.name,
                                "applicable": applicable, "reason": reason})
     pending = sum(run.status in {"pending", "running"} for _, run, _ in latest_probe.values())
-    return {"ran": True, "pending": pending, "canContinue": can_write(request),
+    return {"ran": True, "pending": pending,
+            "canContinue": context.role != "viewer",
             **analyse(results, skipped=unfinished)}
 
 
 @router.get("/versions/{older_version_id}/compare/{newer_version_id}")
 def compare_versions_for_ui(older_version_id: str, newer_version_id: str,
-                            db: Session = Depends(get_db)):
+                            db: Session = Depends(get_db),
+                            _context: WorkspaceContext = Depends(current_workspace)):
     """Regression diff, on the surface the dashboard can actually reach.
 
     The equivalent lived only at /versions/... which is outside the /api prefix the
@@ -1232,7 +1654,12 @@ def compare_versions_for_ui(older_version_id: str, newer_version_id: str,
 
 
 @router.post("/test-runs/{run_id}/rerun", status_code=202)
-def rerun_test_for_ui(run_id: str, background: BackgroundTasks, db: Session = Depends(get_db)):
+def rerun_test_for_ui(
+    run_id: str,
+    background: BackgroundTasks,
+    db: Session = Depends(get_db),
+    context: WorkspaceContext = Depends(current_workspace),
+):
     """Re-run one scenario, on the surface the dashboard can actually reach.
 
     The equivalent lived only at /test-runs/{id}/replay, outside the /api prefix
@@ -1242,11 +1669,31 @@ def rerun_test_for_ui(run_id: str, background: BackgroundTasks, db: Session = De
     original = db.get(TestRun, run_id)
     if not original:
         raise HTTPException(404, "Test run not found")
+    if context.role == "viewer":
+        raise HTTPException(403, "Viewers cannot rerun evaluations")
 
+    reservation = reserve_credits(
+        db,
+        context.workspace_id,
+        context.organization_id,
+        1,
+        f"rerun:{run_id}:{uuid4()}",
+        estimate_reservation_cost(
+            (db.get(AgentVersion, original.agent_version_id).config_snapshot or {})
+            .get("adapter", "behavioral"),
+            1,
+        ),
+    )
     cloned = TestRun(agent_version_id=original.agent_version_id,
                      scenario_id=original.scenario_id, seed=original.seed,
                      replayed_from_run_id=original.id)
-    db.add(cloned); db.commit(); db.refresh(cloned)
+    db.add(cloned)
+    db.flush()
+    enqueue_run(db, cloned, reservation.id)
+    attach_evaluation(db, reservation, original.agent_version_id)
+    audit(db, context, "test_run.rerun", "test_run", cloned.id,
+          {"replayedFrom": original.id})
+    db.commit()
 
     if SYNC_RUNS:
         drain_pending(db, cloned.agent_version_id)
@@ -1258,7 +1705,8 @@ def rerun_test_for_ui(run_id: str, background: BackgroundTasks, db: Session = De
 
 @router.get("/evaluations/{evaluation_id}/ci-gate")
 def ci_gate(evaluation_id: str, min_score: float = 80.0, max_critical: int = 0,
-            max_failed: int = 0, db: Session = Depends(get_db)):
+            max_failed: int = 0, db: Session = Depends(get_db),
+            context: WorkspaceContext = Depends(current_workspace)):
     """The CI verdict for this run, from the same code the pipeline runs.
 
     The console used to compute this in TypeScript, which meant two
@@ -1268,6 +1716,10 @@ def ci_gate(evaluation_id: str, min_score: float = 80.0, max_critical: int = 0,
     from types import SimpleNamespace
 
     from .ci import evaluate_gates
+
+    subscription = db.get(Subscription, context.organization_id)
+    if not plan_for(subscription.plan if subscription else "trial").ci_gate:
+        raise HTTPException(402, "The CI release gate is not included in this plan")
 
     version = db.get(AgentVersion, evaluation_id)
     if not version:
@@ -1335,8 +1787,17 @@ def scoring_model():
 
 
 @router.get("/dashboard")
-def dashboard(db: Session = Depends(get_db)):
-    versions = db.query(AgentVersion).order_by(AgentVersion.created_at).all()
+def dashboard(db: Session = Depends(get_db),
+              _context: WorkspaceContext = Depends(current_workspace)):
+    # Bound the scored window while keeping all-time activity as indexed
+    # aggregate counts. Retained history must not make every dashboard request
+    # scan every trace the workspace has ever produced.
+    window_limit = 100
+    available_versions = db.query(AgentVersion).count()
+    versions = (db.query(AgentVersion)
+                .order_by(AgentVersion.created_at.desc())
+                .limit(window_limit).all())
+    versions.reverse()
 
     # Two populations, never mixed into one row of tiles.
     #
@@ -1409,6 +1870,8 @@ def dashboard(db: Session = Depends(get_db)):
         "scoredScenarios": len(scored_runs),
         "criticalFindings": critical_scored,
         "evaluations": len(evaluated),
+        "windowLimit": window_limit,
+        "windowTruncated": available_versions > window_limit,
         # Everything that ever executed, named as such.
         "totalRuns": total_runs,
         "guardrailProbes": guardrail_probes,
@@ -1425,7 +1888,11 @@ def dashboard(db: Session = Depends(get_db)):
 
 
 @router.post("/evaluations/{evaluation_id}/reanalyze")
-def reanalyze_evaluation(evaluation_id: str, db: Session = Depends(get_db)):
+def reanalyze_evaluation(
+    evaluation_id: str,
+    db: Session = Depends(get_db),
+    context: WorkspaceContext = Depends(current_workspace),
+):
     """Deterministic replay for a whole evaluation.
 
     Re-grades every stored trace with the current detectors, without re-running a
@@ -1433,6 +1900,9 @@ def reanalyze_evaluation(evaluation_id: str, db: Session = Depends(get_db)):
     it is what lets an improved detector re-score history for free.
     """
     from .main import reanalyze as reanalyze_run
+
+    if context.role == "viewer":
+        raise HTTPException(403, "Viewers cannot reanalyze evaluations")
 
     version = db.get(AgentVersion, evaluation_id)
     if not version:

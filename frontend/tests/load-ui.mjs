@@ -15,6 +15,10 @@ const stubs = {
   '@/components/AppNavigation': dataUrl('export const AppNavigation = () => null;'),
   '@/components/ScrollReveal': dataUrl(`import {createElement} from ${JSON.stringify(react)}; export const ScrollReveal = ({children}) => createElement('div', null, children);`),
   '@/components/Toaster': dataUrl('export const useToast = () => globalThis.websiteTestToast;'),
+  '@/contexts/WorkspaceContext': dataUrl(`export const useWorkspace = () => ({
+    workspaces: [], current: {id: 'test-workspace', role: globalThis.websiteTestRole ?? 'owner'},
+    bootstrap: null, loading: false, error: null, select() {}, async refresh() {}, async create() {},
+  });`),
 };
 const modules = new Map();
 

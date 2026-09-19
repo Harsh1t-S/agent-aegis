@@ -68,9 +68,9 @@ def test_trace_permalink_survives_reruns_and_keeps_complete_evidence(client):
     assert client.get(f"/api/evaluations/wrong-version/tests/{original}").status_code == 404
 
 
-def test_pending_trace_read_resumes_serverless_work(client, monkeypatch):
-    # Reproduce a POST which returns before it reaches this run. A report-only
-    # poll cannot execute the remaining work on Vercel.
+def test_pending_trace_read_is_observational_only(client, monkeypatch):
+    # Reproduce a POST which returns before it reaches this run. The durable
+    # worker, rather than a report GET, is responsible for advancing it.
     monkeypatch.setattr("app.frontend_api.drain_pending", lambda *_args: 0)
     agent = create_agent(client).json()
     evaluation = client.post(f"/api/agents/{agent['id']}/evaluate", json={
@@ -80,8 +80,8 @@ def test_pending_trace_read_resumes_serverless_work(client, monkeypatch):
         run_id = db.query(RunRecord).filter_by(agent_version_id=evaluation).first().id
     response = client.get(f"/api/evaluations/{evaluation}/tests/{run_id}")
     assert response.status_code == 200
-    assert response.json()["status"] == "complete"
-    assert response.json()["test"]["id"] == run_id
+    assert response.json()["status"] == "pending"
+    assert response.json()["test"] is None
 
 
 def test_dashboard_includes_zero_scores_and_orders_dates_chronologically():

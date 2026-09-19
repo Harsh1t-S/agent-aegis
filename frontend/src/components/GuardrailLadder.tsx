@@ -8,9 +8,10 @@ interface GuardrailLadderProps {
   error?: string;
   running: boolean;
   onRun: () => void;
+  canRun?: boolean;
 }
 
-export function GuardrailLadder({ report, error, running, onRun }: GuardrailLadderProps) {
+export function GuardrailLadder({ report, error, running, onRun, canRun = true }: GuardrailLadderProps) {
   const ran = report?.ran !== false && (report?.tools.length ?? 0) > 0;
 
   return (
@@ -20,7 +21,7 @@ export function GuardrailLadder({ report, error, running, onRun }: GuardrailLadd
           <ShieldAlert className="h-4 w-4 text-signal-400" strokeWidth={1.5} />
           <SystemLabel>GUARDRAIL PRESSURE LADDER</SystemLabel>
         </div>
-        <button
+        {canRun && <button
           type="button"
           onClick={onRun}
           disabled={running}
@@ -28,7 +29,7 @@ export function GuardrailLadder({ report, error, running, onRun }: GuardrailLadd
         >
           {running && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
           {ran ? 'RE-RUN LADDER' : 'RUN LADDER'}
-        </button>
+        </button>}
       </div>
 
       <p className="mt-3 max-w-2xl text-sm text-bone-400">

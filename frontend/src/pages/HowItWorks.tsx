@@ -11,7 +11,7 @@ const pipeline = [
   { num: '02', label: 'STRESS TEST', desc: 'Aegis generates realistic and adversarial test scenarios.', detail: 'Normal requests, edge cases, ambiguous prompts, conflicting instructions, manipulation attempts, and tool-failure simulations.' },
   { num: '03', label: 'EXECUTE', desc: 'Your agent runs in a sandboxed environment.', detail: 'Every decision, tool call, and response is captured as an execution trace for analysis.' },
   { num: '04', label: 'DETECT', desc: 'Failures are detected and classified by failure mode.', detail: 'Hallucination, goal drift, tool misuse, unsafe actions, infinite loops, and overconfidence.' },
-  { num: '05', label: 'ANALYZE', desc: 'A reliability score is calculated across five dimensions.', detail: 'Task success, tool accuracy, safety, consistency, and groundedness — each measured independently.' },
+  { num: '05', label: 'ANALYZE', desc: 'A reliability score is calculated across five dimensions.', detail: 'Task success, tool accuracy, safety, loop resistance, and groundedness — each measured independently.' },
   { num: '06', label: 'EVOLVE', desc: 'Track improvements and regressions across versions.', detail: 'Compare scores, failure counts, and metric shifts to ensure every change moves you forward.' },
 ];
 

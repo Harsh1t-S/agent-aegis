@@ -1,37 +1,21 @@
 /**
  * Workspace settings.
  *
- * The backend has no settings endpoint, so these live in the browser. They are
- * not decoration: `scenariosPerRun` and `adversarial` are read by every evaluation
- * the console starts and shape the suite that gets generated.
- *
- * Only settings that something actually reads live here. Alert email, regression
- * alerts and auto-re-run were removed rather than kept as controls that toggle
- * nothing: this deployment has no mailer, no notification channel and no post-run
- * hook, so each one promised behaviour that never happened.
+ * The workspace provider hydrates this cache from the server. Synchronous run
+ * buttons can then build their request without a second network round-trip.
  */
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { api } from '@/lib/api';
+import type { WorkspaceSettings } from '@/types';
 
-export interface WorkspaceSettings {
-  /** Suite size for every run started from the console. */
-  scenariosPerRun: number;
-  /** Gates adversarial scenario generation — prompt injection, jailbreaks. */
-  adversarial: boolean;
-  /**
-   * Which agent actually answers the scenarios. `behavioral` is the deterministic
-   * stand-in that makes the demo reproducible; `llm` puts a real model under test.
-   */
-  adapter: 'behavioral' | 'llm';
-}
+export type { WorkspaceSettings };
 
 export const DEFAULT_SETTINGS: WorkspaceSettings = {
   scenariosPerRun: 12,
   adversarial: true,
-  // A real model by default. The behavioural stand-in ignores the system prompt
-  // entirely, so someone who writes their own agent and runs it would get a score
-  // that does not move when they change the prompt — which reads as broken, and is
-  // the opposite of what this product is demonstrating.
-  adapter: 'llm',
+  // Keep a new workspace free until the user deliberately chooses a model run.
+  adapter: 'behavioral',
+  notifications: { emailEnabled: false, email: '' },
 };
 
 const KEY = 'aegis.settings.v2';
@@ -43,8 +27,25 @@ function normalizeSettings(value: unknown): WorkspaceSettings {
     scenariosPerRun: typeof input.scenariosPerRun === 'number' && Number.isFinite(input.scenariosPerRun)
       ? Math.max(4, Math.min(40, Math.round(input.scenariosPerRun))) : DEFAULT_SETTINGS.scenariosPerRun,
     adversarial: typeof input.adversarial === 'boolean' ? input.adversarial : DEFAULT_SETTINGS.adversarial,
-    adapter: input.adapter === 'behavioral' || input.adapter === 'llm' ? input.adapter : DEFAULT_SETTINGS.adapter,
+    adapter: input.adapter === 'behavioral' || input.adapter === 'llm' || input.adapter === 'http'
+      ? input.adapter : DEFAULT_SETTINGS.adapter,
+    ...(typeof input.monthlySpendCapUsd === 'number' && Number.isFinite(input.monthlySpendCapUsd)
+      ? { monthlySpendCapUsd: Math.max(0, input.monthlySpendCapUsd) }
+      : {}),
+    notifications: {
+      emailEnabled: Boolean(input.notifications?.emailEnabled),
+      email: typeof input.notifications?.email === 'string' ? input.notifications.email : '',
+    },
   };
+}
+
+export function setWorkspaceSettings(value: unknown) {
+  memorySettings = normalizeSettings(value);
+  try {
+    localStorage.setItem(KEY, JSON.stringify(memorySettings));
+  } catch {
+    // The in-memory copy is enough for this tab.
+  }
 }
 
 export function loadSettings(): WorkspaceSettings {
@@ -59,9 +60,9 @@ export function loadSettings(): WorkspaceSettings {
 
 export function saveSettings(next: WorkspaceSettings): boolean {
   const normalized = normalizeSettings(next);
+  memorySettings = normalized;
   try {
     localStorage.setItem(KEY, JSON.stringify(normalized));
-    memorySettings = undefined;
     return true;
   } catch {
     // Every run button reads loadSettings(), so changes still apply in this tab
@@ -94,7 +95,10 @@ export function useWorkspaceSettings() {
   // Read after mount so the first paint matches whatever the markup shipped with.
   const [settings, setSettings] = useState<WorkspaceSettings>(DEFAULT_SETTINGS);
   const current = useRef(settings);
-  const [storageAvailable, setStorageAvailable] = useState(!memorySettings);
+  const [storageAvailable, setStorageAvailable] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
+  const saveRevision = useRef(0);
   useEffect(() => {
     const refresh = () => {
       current.current = loadSettings();
@@ -117,6 +121,19 @@ export function useWorkspaceSettings() {
     const persisted = saveSettings(current.current);
     setStorageAvailable(persisted);
     setSettings(current.current);
+    const revision = ++saveRevision.current;
+    setSaving(true);
+    setSaveError(null);
+    void api.updateWorkspaceSettings(current.current).then(
+      () => {
+        if (saveRevision.current === revision) setSaving(false);
+      },
+      (cause: unknown) => {
+        if (saveRevision.current !== revision) return;
+        setSaving(false);
+        setSaveError(cause instanceof Error ? cause.message : 'Workspace settings could not be saved.');
+      },
+    );
     return persisted;
   }, []);
 
@@ -124,5 +141,5 @@ export function useWorkspaceSettings() {
     apply({ ...current.current, ...patch }), [apply]);
   const reset = useCallback(() => apply(DEFAULT_SETTINGS), [apply]);
 
-  return { settings, update, reset, storageAvailable };
+  return { settings, update, reset, storageAvailable, saving, saveError };
 }

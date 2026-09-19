@@ -6,11 +6,14 @@ export interface AgentForm {
   domain: string;
   systemPrompt: string;
   tools: ToolDraft[];
+  connectionMode: 'simulation' | 'connected';
+  endpointUrl: string;
 }
 
 export const EMPTY_AGENT_FORM: AgentForm = {
   name: '', description: '', domain: '', systemPrompt: '',
   tools: [{ name: '', description: '', risk: 'low' }],
+  connectionMode: 'simulation', endpointUrl: '',
 };
 const DRAFT_KEY = 'aegis.agent-draft.v2';
 const DRAFT_TTL_MS = 7 * 24 * 60 * 60 * 1000;
@@ -34,6 +37,8 @@ export function loadAgentDraft(): AgentForm | undefined {
         draft.savedAt > Date.now() || Date.now() - draft.savedAt > DRAFT_TTL_MS ||
         !['name', 'description', 'domain', 'systemPrompt'].every(
           (key) => typeof draft[key] === 'string') ||
+        !['simulation', 'connected'].includes(String(draft.connectionMode ?? 'simulation')) ||
+        (draft.endpointUrl !== undefined && typeof draft.endpointUrl !== 'string') ||
         !Array.isArray(draft.tools) || !draft.tools.every((tool: unknown) => {
           if (!tool || typeof tool !== 'object') return false;
           const row = tool as Record<string, unknown>;
@@ -46,7 +51,8 @@ export function loadAgentDraft(): AgentForm | undefined {
       return;
     }
     return { name: draft.name, description: draft.description, domain: draft.domain,
-      systemPrompt: draft.systemPrompt, tools: draft.tools };
+      systemPrompt: draft.systemPrompt, tools: draft.tools,
+      connectionMode: draft.connectionMode ?? 'simulation', endpointUrl: draft.endpointUrl ?? '' };
   } catch {
     return;
   }

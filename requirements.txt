@@ -5,3 +5,4 @@ psycopg[binary]>=3.2,<4.0
 httpx>=0.27,<1.0
 pydantic>=2.8,<3.0
 pytest>=8.0,<9.0
+PyJWT[crypto]>=2.10,<3.0

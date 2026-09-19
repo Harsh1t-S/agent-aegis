@@ -3,7 +3,7 @@ import { motion } from 'framer-motion';
 interface EvaluationProgressProps {
   complete: number;
   total: number;
-  status: 'running' | 'completed' | 'failed';
+  status: 'running' | 'completed' | 'failed' | 'canceled';
 }
 
 export function EvaluationProgress({ complete, total, status }: EvaluationProgressProps) {

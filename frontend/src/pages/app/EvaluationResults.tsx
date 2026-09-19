@@ -16,12 +16,16 @@ import { METRIC_COLORS } from '@/lib/palette';
 import { api, ApiError } from '@/lib/api';
 import { deltaTone, evaluationPath, formatDate, isEvaluationActive, signed, verdictFrom } from '@/lib/format';
 import type { TestStatus } from '@/types';
-import { ArrowRight } from 'lucide-react';
+import { ArrowRight, Download } from 'lucide-react';
+import { useWorkspace } from '@/contexts/WorkspaceContext';
+import { ReportSharing } from '@/components/ReportSharing';
 
 type Filter = 'all' | TestStatus;
 
 export default function EvaluationResults() {
   const { id } = useParams<{ id: string }>();
+  const workspace = useWorkspace();
+  const canMutate = workspace.current?.role !== 'viewer';
   const toast = useToast();
   const { data: evaluation, error, loading, reload } = useResource(
     () => api.evaluation(id as string),
@@ -81,6 +85,21 @@ export default function EvaluationResults() {
     } finally {
       setLadderStarting(false);
     }
+  };
+
+  const exportReport = () => {
+    if (!evaluation) return;
+    const payload = {
+      exportedAt: new Date().toISOString(),
+      notice: 'Private workspace export. Share only with intended recipients.',
+      evaluation,
+    };
+    const url = URL.createObjectURL(new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' }));
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `aegis-${evaluation.agentName.toLowerCase().replace(/[^a-z0-9]+/g, '-')}-${evaluation.version}.json`;
+    link.click();
+    URL.revokeObjectURL(url);
   };
 
   // A ladder that never reports is still a stuck spinner; give up after five
@@ -227,14 +246,22 @@ export default function EvaluationResults() {
               </div>
             </div>
           </div>
-          <Link
-            to={`/app/compare?agent=${evaluation.agentId}`}
-            className="group flex h-fit min-h-11 items-center gap-2 border border-signal-500/40 bg-signal-500/10 px-6 py-3 font-mono text-xs uppercase tracking-wider text-signal-400 transition-colors hover:bg-signal-500/20"
-          >
-            COMPARE VERSIONS{' '}
-            <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-1" />
-          </Link>
+          <div className="flex flex-wrap gap-3">
+            <button type="button" onClick={exportReport}
+              className="flex h-fit min-h-11 items-center gap-2 border border-bone-600/30 px-5 py-3 font-mono text-xs uppercase tracking-wider text-bone-300 hover:border-bone-400">
+              <Download className="h-4 w-4" /> EXPORT JSON
+            </button>
+            <Link
+              to={`/app/compare?agent=${evaluation.agentId}`}
+              className="group flex h-fit min-h-11 items-center gap-2 border border-signal-500/40 bg-signal-500/10 px-6 py-3 font-mono text-xs uppercase tracking-wider text-signal-400 transition-colors hover:bg-signal-500/20"
+            >
+              COMPARE VERSIONS{' '}
+              <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-1" />
+            </Link>
+          </div>
         </div>
+
+        {canMutate && <ReportSharing evaluationId={evaluation.id} />}
 
         {evaluation.evaluator && (
           <ScrollReveal className="mt-8">
@@ -242,6 +269,7 @@ export default function EvaluationResults() {
               evaluationId={evaluation.id}
               provenance={evaluation.evaluator}
               onReanalyzed={reload}
+              canReanalyze={canMutate}
             />
           </ScrollReveal>
         )}
@@ -268,7 +296,7 @@ export default function EvaluationResults() {
                 <MetricLine label="TASK SUCCESS" value={evaluation.metrics.taskSuccess} color={METRIC_COLORS.taskSuccess} />
                 <MetricLine label="TOOL ACCURACY" value={evaluation.metrics.toolAccuracy} color={METRIC_COLORS.toolAccuracy} delay={0.1} />
                 <MetricLine label="SAFETY" value={evaluation.metrics.safety} color={METRIC_COLORS.safety} delay={0.15} />
-                <MetricLine label="CONSISTENCY" value={evaluation.metrics.consistency} color={METRIC_COLORS.consistency} delay={0.2} />
+                <MetricLine label="LOOP RESISTANCE" value={evaluation.metrics.consistency} color={METRIC_COLORS.consistency} delay={0.2} />
                 <MetricLine label="GROUNDEDNESS" value={evaluation.metrics.groundedness} color={METRIC_COLORS.groundedness} delay={0.25} />
               </div>
               {scoring.data && (
@@ -338,6 +366,7 @@ export default function EvaluationResults() {
             error={guardrail.error}
             running={ladderRunning || ladderStarting || guardrail.loading}
             onRun={runLadder}
+            canRun={canMutate}
           />
         </ScrollReveal>
 

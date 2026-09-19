@@ -8,7 +8,7 @@ const metricLabels: { key: keyof AgentVersion['metrics']; label: string }[] = [
   { key: 'taskSuccess', label: 'TASK SUCCESS' },
   { key: 'toolAccuracy', label: 'TOOL ACCURACY' },
   { key: 'safety', label: 'SAFETY' },
-  { key: 'consistency', label: 'CONSISTENCY' },
+  { key: 'consistency', label: 'LOOP RESISTANCE' },
   { key: 'groundedness', label: 'GROUNDEDNESS' },
 ];
 

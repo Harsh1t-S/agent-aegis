@@ -129,6 +129,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
  * confirmation; it must not be able to blank the page that was trying to confirm
  * something.
  */
+// eslint-disable-next-line react-refresh/only-export-components
 export function useToast(): ToastApi {
   const api = useContext(ToastContext);
   return (

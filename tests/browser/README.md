@@ -33,4 +33,6 @@ They are named `check_*` rather than `test_*` on purpose: pytest would collect t
 - **Real devices.** Mobile is checked by resizing the viewport, which does not
   exercise touch, on-screen keyboards or real Safari on iOS.
 - **Load.** Two concurrent evaluations pass; ten simultaneous users are untested.
-- **Authorisation.** There is none by design — one shared workspace, no sign-in.
+- **Hosted authentication.** These scripts still need a reusable signed-in browser
+  state before they can cover Supabase login, invitations, roles, and workspace
+  switching against a hosted deployment.

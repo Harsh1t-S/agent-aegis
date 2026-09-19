@@ -131,13 +131,31 @@ def compare_report(older, newer, old_rows: list[dict], new_rows: list[dict]) -> 
         elif now > was:
             improvements.append(entry)
 
-    old_totals, new_totals = aggregate(old_rows), aggregate(new_rows)
+    # Score movement is only meaningful on the exact paired contract. Coverage
+    # changes are reported separately instead of being smuggled into the delta.
+    paired_old = [old_by[item] for item in shared]
+    paired_new = [new_by[item] for item in shared]
+    old_totals = aggregate(paired_old)
+    new_totals = aggregate(paired_new)
+    old_suite = aggregate(old_rows)
+    new_suite = aggregate(new_rows)
+    added = sorted(new_by.keys() - old_by.keys())
+    removed = sorted(old_by.keys() - new_by.keys())
     return {
-        "older": {"id": older.id, "label": older.version_label, "score": old_totals["score"]},
-        "newer": {"id": newer.id, "label": newer.version_label, "score": new_totals["score"]},
-        "score_delta": round(new_totals["score"] - old_totals["score"], 1),
-        "verdict": verdict(new_totals["score"]),
+        "older": {"id": older.id, "label": older.version_label,
+                  "score": old_totals["score"], "suite_score": old_suite["score"]},
+        "newer": {"id": newer.id, "label": newer.version_label,
+                  "score": new_totals["score"], "suite_score": new_suite["score"]},
+        "score_delta": (round(new_totals["score"] - old_totals["score"], 1)
+                        if shared else None),
+        "verdict": verdict(new_totals["score"]) if shared else "Not comparable",
         "shared_scenarios": len(shared),
+        "comparable": bool(shared),
+        "coverage_changed": bool(added or removed),
+        "added_scenarios": [{"scenario_id": item,
+                             "scenario": new_by[item]["scenario"]} for item in added],
+        "removed_scenarios": [{"scenario_id": item,
+                               "scenario": old_by[item]["scenario"]} for item in removed],
         "regressions": regressions,       # became an outright failure
         "softened": softened,             # still not failing, but picked up findings
         "improvements": improvements,

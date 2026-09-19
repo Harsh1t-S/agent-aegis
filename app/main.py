@@ -7,8 +7,10 @@ from sqlalchemy.orm import Session
 
 from .classifier import TAXONOMY, classify
 from .access import access_state
-from .database import Base, engine, ensure_columns, get_db
+from .auth import authenticate_request, auth_disabled, require_api_key_scope
+from .database import get_db, initialize_database
 from .detectors import DETECTOR_VERSION, detect_all
+from .frontend_api import public_router as public_report_router
 from .frontend_api import router as frontend_router
 from .engine import SYNC_RUNS, dispatch, drain_pending, run_test
 from .guardrail import analyse as guardrail_analyse
@@ -37,10 +39,7 @@ async def lifespan(app: FastAPI):
     can say precisely what is wrong.
     """
     try:
-        Base.metadata.create_all(bind=engine)
-        # create_all never alters an existing table, so a deployment that predates
-        # a new column would 500 on every query mentioning it.
-        DB_READY["migrated"] = ensure_columns()
+        DB_READY["migrated"] = initialize_database()
         DB_READY["ok"] = True
     except Exception as exc:  # noqa: BLE001 - surfaced through /health
         DB_READY["error"] = f"{type(exc).__name__}: {exc}"[:400]
@@ -51,25 +50,66 @@ app = FastAPI(title="Aegis — Agent Evaluation & Reliability API", version="1.0
               lifespan=lifespan)
 
 
+def _secure_response(response, *, path: str):
+    """Apply the same browser protections to successful and early responses."""
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    response.headers["X-Frame-Options"] = "DENY"
+    response.headers["Referrer-Policy"] = "no-referrer"
+    response.headers["Permissions-Policy"] = (
+        "camera=(), microphone=(), geolocation=(), payment=()")
+    if path.startswith("/api/"):
+        response.headers["Cache-Control"] = "no-store"
+
+    import os
+
+    if os.getenv("VERCEL") or os.getenv("AWS_LAMBDA_FUNCTION_NAME") \
+            or os.getenv("SERVERLESS") == "1":
+        response.headers["Strict-Transport-Security"] = (
+            "max-age=63072000; includeSubDomains; preload")
+    return response
+
+
 @app.middleware("http")
 async def protect_mutations(request: Request, call_next):
-    # Cover both the dashboard API and legacy routes. CORS is not authorization.
-    public_read = request.url.path.startswith("/api/") or request.url.path in {
-        "/", "/health", "/taxonomy", "/docs", "/docs/oauth2-redirect", "/redoc", "/openapi.json"}
-    # Legacy agent/version endpoints expose raw configuration, which can contain
-    # HTTP credentials. Public readers use the curated dashboard report shapes.
-    if request.method != "OPTIONS" and (request.method not in {"GET", "HEAD"} or not public_read):
+    # Customer data is private for every method. Only health/docs, curated public
+    # configuration, and the signature-verified billing webhook are anonymous.
+    path = request.url.path
+    public = path.startswith("/api/shared-reports/") or path in {
+        "/", "/health", "/taxonomy", "/docs", "/docs/oauth2-redirect",
+        "/redoc", "/openapi.json", "/api/public/config", "/api/webhooks/stripe",
+    }
+    if request.method != "OPTIONS" and path.startswith("/api/") and not public:
+        try:
+            request.state.principal = authenticate_request(request)
+            require_api_key_scope(request, request.state.principal)
+        except HTTPException as exc:
+            return _secure_response(JSONResponse(
+                {"detail": exc.detail},
+                status_code=exc.status_code,
+                headers={"Cache-Control": "no-store"},
+            ), path=path)
+    elif request.method != "OPTIONS" and not public:
+        # The old snake_case API is retained for administrators and CI migration,
+        # but browser users never receive access to its unscoped record shapes.
+        # It has no workspace ownership model, so it must never exist on a hosted
+        # multi-tenant deployment even when an obsolete shared key is present.
+        import os
+
+        if os.getenv("VERCEL") or os.getenv("AWS_LAMBDA_FUNCTION_NAME") \
+                or os.getenv("SERVERLESS") == "1":
+            return _secure_response(JSONResponse(
+                {"detail": "Not found."}, status_code=404,
+                headers={"Cache-Control": "no-store"},
+            ), path=path)
         access = access_state(request)
         if not access["authorized"]:
-            detail = ("Owner access is not configured. Set AEGIS_ADMIN_KEY on the backend."
-                      if not access["configured"] else
-                      "Owner access required. Unlock actions in Settings with your owner access key.")
-            return JSONResponse({"detail": detail}, status_code=503 if not access["configured"] else 401,
-                                headers={"Cache-Control": "no-store"})
+            return _secure_response(JSONResponse(
+                {"detail": "Administrative API access required."},
+                status_code=401 if access["configured"] else 404,
+                headers={"Cache-Control": "no-store"},
+            ), path=path)
     response = await call_next(request)
-    if request.url.path.startswith("/api/"):
-        response.headers["Cache-Control"] = "no-store"
-    return response
+    return _secure_response(response, path=path)
 
 # In production the dashboard reaches the API through a same-origin /api rewrite,
 # so CORS only matters for local development and preview deploys. Locked down to
@@ -80,7 +120,7 @@ app.add_middleware(
                         r"|https://[\w-]+\.vercel\.app"),
     # PATCH is how the console edits an agent between versions; leaving it out
     # made "save changes" fail from any cross-origin caller.
-    allow_methods=["GET", "POST", "PATCH", "DELETE", "OPTIONS"],
+    allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
     allow_headers=["*"],
 )
 
@@ -118,6 +158,12 @@ def _rows_for_version(db: Session, version_id: str) -> tuple[list[dict], dict[st
 # --------------------------------------------------------------------------- #
 # health & metadata
 # --------------------------------------------------------------------------- #
+from .billing_api import router as billing_router
+from .saas_api import router as saas_router
+
+app.include_router(saas_router)
+app.include_router(billing_router)
+app.include_router(public_report_router)
 app.include_router(frontend_router)
 
 @app.get("/", include_in_schema=False)
@@ -142,6 +188,10 @@ def health():
 
     body = {"evaluator": evaluator_stamp(), "generator": GENERATOR_VERSION,
             "migrated": DB_READY.get("migrated") or [],
+            "auth": {"required": not auth_disabled()},
+            "execution": {"mode": "durable-worker" if os.getenv(
+                "AEGIS_DURABLE_QUEUE", "1" if os.getenv("VERCEL") else "0") == "1"
+                else "in-process"},
             # Names and provenance only, never values. Answers "can the committed
             # fallback file be deleted without taking production down?" without
             # anyone having to redeploy to find out.
@@ -151,17 +201,21 @@ def health():
     configured = LLMAgentAdapter()._configured_order({})
     body["llm"] = {"models": LLMAgentAdapter.default_pool(), "configured": bool(configured)}
     if ephemeral:
-        return {**body, "status": "degraded", "database": "ephemeral",
-                "detail": "DATABASE_URL is not set, so this instance is writing to a "
-                          "temporary SQLite file that does not survive the invocation.",
-                "fix": "Set DATABASE_URL in the Vercel project's environment variables."}
+        return JSONResponse({
+            **body, "status": "degraded", "database": "ephemeral",
+            "detail": "DATABASE_URL is not set, so this instance is writing to a "
+                      "temporary SQLite file that does not survive the invocation.",
+            "fix": "Set DATABASE_URL in the Vercel project's environment variables.",
+        }, status_code=503)
     if DB_READY["ok"]:
         return {**body, "status": "ok", "database": "connected"}
-    return {**body,
-            "status": "degraded",
-            "database": "unavailable",
-            "detail": DB_READY["error"],
-            "fix": "Set DATABASE_URL in the deployment environment, then redeploy."}
+    return JSONResponse({
+        **body,
+        "status": "degraded",
+        "database": "unavailable",
+        "detail": DB_READY["error"],
+        "fix": "Set DATABASE_URL in the deployment environment, then redeploy.",
+    }, status_code=503)
 
 
 @app.get("/taxonomy")

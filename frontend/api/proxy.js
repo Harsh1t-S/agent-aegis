@@ -36,6 +36,7 @@ export default async function handler(req, res) {
   }
   const headers = { Accept: 'application/json' };
   if (req.headers.authorization) headers.Authorization = req.headers.authorization;
+  if (req.headers['x-workspace-id']) headers['X-Workspace-ID'] = req.headers['x-workspace-id'];
   if (req.headers['content-type']) headers['Content-Type'] = req.headers['content-type'];
   let body;
   if (!['GET', 'HEAD'].includes(req.method) && req.body !== undefined) {

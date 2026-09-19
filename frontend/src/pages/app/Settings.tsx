@@ -1,5 +1,5 @@
+import { useEffect, useState } from 'react';
 import { AppNavigation } from '@/components/AppNavigation';
-import { OwnerAccess } from '@/components/OwnerAccess';
 import { SystemLabel } from '@/components/SystemLabel';
 import { MassiveHeading } from '@/components/MassiveHeading';
 import { AsyncBoundary } from '@/components/AsyncState';
@@ -12,20 +12,28 @@ import {
   useWorkspaceSettings,
 } from '@/lib/workspace-settings';
 import { RotateCcw } from 'lucide-react';
+import { useWorkspace } from '@/contexts/WorkspaceContext';
 
-/**
- * Every control here changes what the app does.
- *
- * "Regression alerts" and "auto re-run on failure" used to sit alongside these and
- * changed nothing at all — there is no mailer and no post-run hook behind them —
- * so they are absent rather than present as switches nobody reads. A settings
- * screen full of inert toggles is the fastest way to make a working product look
- * like a mock.
- */
 export default function Settings() {
-  const { settings, update, reset, storageAvailable } = useWorkspaceSettings();
+  const { settings, update, reset, storageAvailable, saving, saveError } = useWorkspaceSettings();
+  const workspace = useWorkspace();
   const scoring = useResource(() => api.scoring(), []);
+  const workspaceInfo = useResource(() => api.workspace(), [workspace.current?.id]);
   const toast = useToast();
+  const [deleteConfirmation, setDeleteConfirmation] = useState('');
+  const [deleting, setDeleting] = useState(false);
+  const [notificationEmail, setNotificationEmail] = useState('');
+  const [spendCap, setSpendCap] = useState('');
+  const canManageWorkspace = workspace.current?.role === 'owner' || workspace.current?.role === 'admin';
+
+  useEffect(() => {
+    setNotificationEmail(settings.notifications?.email ?? '');
+  }, [settings.notifications?.email]);
+
+  useEffect(() => {
+    const value = settings.monthlySpendCapUsd ?? workspaceInfo.data?.usage.spendCapUsd;
+    if (value !== undefined) setSpendCap(String(value));
+  }, [settings.monthlySpendCapUsd, workspaceInfo.data?.usage.spendCapUsd]);
 
   const perCategory = perCategoryFor(settings.scenariosPerRun);
   const actual = perCategory * (settings.adversarial ? 4 : 3);
@@ -41,18 +49,21 @@ export default function Settings() {
           className="mt-2 text-[clamp(2rem,6vw,4rem)] text-bone-50"
         />
         <p className="mt-4 max-w-2xl text-sm leading-relaxed text-bone-400">
-          These apply to every evaluation started from the console. There are no
-          accounts, so they are stored in this browser and do not follow you to another
-          device.
+          These defaults are saved to the active workspace and follow your team across
+          devices. Each connected agent can still choose its own runner endpoint.
         </p>
 
         {!storageAvailable && (
           <p role="status" className="mt-4 border border-warn-500/40 p-4 text-sm text-warn-400">
-            Browser storage is unavailable. These settings apply in this tab until you reload.
+            The local cache is unavailable. Changes still save to the workspace, but this tab may take longer to restore them after a reload.
           </p>
         )}
-
-        <OwnerAccess />
+        {saveError && <p role="alert" className="mt-4 border border-fault-500/40 p-4 text-sm text-fault-400">{saveError}</p>}
+        {!canManageWorkspace && (
+          <p className="mt-4 border border-bone-600/25 p-4 text-sm text-bone-400">
+            These settings are read-only for your role. Ask a workspace administrator to change them.
+          </p>
+        )}
         <div className="mt-10 grid min-w-0 gap-6 lg:grid-cols-2">
           <section className="min-w-0 border border-bone-600/20 bg-ink-900/60 p-5 sm:p-6">
             <SystemLabel>SUITE SIZE</SystemLabel>
@@ -64,6 +75,7 @@ export default function Settings() {
               type="number"
               min={4}
               max={40}
+              disabled={!canManageWorkspace}
               value={settings.scenariosPerRun}
               onChange={(e) => {
                 const raw = Number(e.target.value);
@@ -89,6 +101,7 @@ export default function Settings() {
               type="button"
               role="switch"
               aria-checked={settings.adversarial}
+              disabled={!canManageWorkspace}
               onClick={() => update({ adversarial: !settings.adversarial })}
               className="mt-4 flex w-full items-center justify-between gap-4 border border-bone-600/25 bg-ink-950/40 p-4 text-left transition-colors hover:border-signal-500/40"
             >
@@ -138,7 +151,7 @@ export default function Settings() {
                     key: 'llm' as const,
                     title: 'Real model',
                     detail:
-                      'Runs scenarios against the model configured on the evaluator server. New evaluations use AIRouter Luna Fast by default.',
+                      'Runs the prompt and tools against the evaluator server model. This can be a self-hosted OpenAI-compatible model; the exact model is pinned in every report.',
                   },
                 ]
               ).map((option) => (
@@ -146,6 +159,7 @@ export default function Settings() {
                   key={option.key}
                   type="button"
                   aria-pressed={settings.adapter === option.key}
+                  disabled={!canManageWorkspace}
                   onClick={() => update({ adapter: option.key })}
                   className={`min-w-0 border p-4 text-left transition-colors ${
                     settings.adapter === option.key
@@ -166,6 +180,32 @@ export default function Settings() {
                 </button>
               ))}
             </div>
+          </section>
+
+          <section className="min-w-0 border border-bone-600/20 bg-ink-900/60 p-5 sm:p-6">
+            <SystemLabel>MODEL SPEND CEILING</SystemLabel>
+            <p className="mt-2 text-xs leading-relaxed text-bone-400">
+              Aegis reserves a conservative provider-cost estimate before starting a model-backed run. Free behavioral and connected-agent runs reserve $0.
+            </p>
+            <label htmlFor="spend-cap" className="mt-4 block text-sm text-bone-300">Monthly cap in USD</label>
+            <input id="spend-cap" type="number" min={0} step="0.01"
+              max={workspaceInfo.data?.usage.plan.monthly_model_spend_cap_usd}
+              value={spendCap} disabled={!canManageWorkspace}
+              onChange={(event) => setSpendCap(event.target.value)}
+              onBlur={() => {
+                const parsed = Number(spendCap);
+                if (!Number.isFinite(parsed)) return;
+                const planMaximum = workspaceInfo.data?.usage.plan.monthly_model_spend_cap_usd ?? parsed;
+                const capped = Math.max(0, Math.min(parsed, planMaximum));
+                setSpendCap(String(capped));
+                update({ monthlySpendCapUsd: capped });
+              }}
+              className="mt-2 w-full border border-bone-300/35 bg-ink-950/60 px-4 py-3 font-mono text-base text-bone-50 disabled:opacity-50" />
+            {workspaceInfo.data && (
+              <p className="mt-3 font-mono text-[10px] leading-relaxed text-bone-500">
+                ${workspaceInfo.data.usage.estimatedCostUsd.toFixed(4)} settled · ${workspaceInfo.data.usage.reservedCostUsd.toFixed(4)} reserved · plan maximum ${workspaceInfo.data.usage.plan.monthly_model_spend_cap_usd.toFixed(2)}
+              </p>
+            )}
           </section>
 
           <section className="min-w-0 border border-bone-600/20 bg-ink-900/60 p-5 sm:p-6">
@@ -246,11 +286,12 @@ export default function Settings() {
         <div className="mt-8 flex flex-wrap items-center gap-3 border-t border-bone-600/20 pt-6">
           <button
             type="button"
+            disabled={!canManageWorkspace}
             onClick={() => {
               const persisted = reset();
               toast.success(
                 'Settings reset',
-                `Back to ${DEFAULT_SETTINGS.scenariosPerRun} scenarios, adversarial on, real model adapter.${persisted ? '' : ' Applied in this tab only.'}`,
+                `Back to ${DEFAULT_SETTINGS.scenariosPerRun} scenarios, adversarial coverage on, and the free behavioral stand-in.${persisted ? '' : ' The workspace save is still being attempted.'}`,
               );
             }}
             className="flex min-h-11 items-center gap-2 border border-bone-600/35 px-4 font-mono text-[11px] uppercase tracking-wider text-bone-300 transition-colors hover:border-bone-400 hover:text-bone-100"
@@ -258,10 +299,72 @@ export default function Settings() {
             <RotateCcw className="h-3.5 w-3.5" /> RESET TO DEFAULTS
           </button>
           <p className="font-mono text-[10px] text-bone-600">
-            Changes apply immediately — there is no save button, because a setting that has
-            to be saved separately is a setting that silently does not apply.
+            {saving ? 'Saving workspace defaults…' : 'Workspace defaults are saved.'}
           </p>
         </div>
+
+        {workspace.current?.role === 'owner' && (
+          <>
+          <section className="mt-12 max-w-2xl border border-fault-500/30 bg-fault-500/5 p-6">
+            <SystemLabel className="text-fault-400">DANGER ZONE</SystemLabel>
+            <h2 className="mt-3 font-mono text-sm uppercase tracking-wider text-bone-100">Delete this workspace</h2>
+            <p className="mt-2 text-sm leading-relaxed text-bone-400">
+              This permanently removes its agents, scenarios, traces, API keys and audit history. If it is the final workspace, the organization is removed too. An active subscription must be canceled first.
+            </p>
+            <label htmlFor="delete-workspace" className="mt-5 block text-xs text-bone-400">
+              Type <strong className="text-bone-100">{workspace.current.name}</strong> to confirm
+            </label>
+            <div className="mt-2 flex flex-col gap-3 sm:flex-row">
+              <input id="delete-workspace" value={deleteConfirmation}
+                onChange={(event) => setDeleteConfirmation(event.target.value)}
+                className="min-h-11 flex-1 border border-fault-500/30 bg-ink-950 px-4 text-sm text-bone-100 outline-none focus:border-fault-400" />
+              <button type="button" disabled={deleting || deleteConfirmation !== workspace.current.name}
+                onClick={async () => {
+                  setDeleting(true);
+                  try {
+                    await api.deleteWorkspace(deleteConfirmation);
+                    window.location.assign('/app');
+                  } catch (cause) {
+                    toast.error('Workspace not deleted', cause instanceof Error ? cause.message : 'Try again.');
+                    setDeleting(false);
+                  }
+                }}
+                className="min-h-11 border border-fault-500/50 px-5 font-mono text-[11px] uppercase tracking-wider text-fault-400 disabled:opacity-40">
+                {deleting ? 'DELETING…' : 'DELETE WORKSPACE'}
+              </button>
+            </div>
+          </section>
+
+          <section className="mt-6 max-w-2xl border border-bone-600/20 bg-ink-900/60 p-5 sm:p-6">
+            <SystemLabel>RUN NOTIFICATIONS</SystemLabel>
+            <p className="mt-2 text-xs leading-relaxed text-bone-400">
+              Send one email after all scenarios finish. Emails contain status and counts only; prompts and traces remain in the private report.
+            </p>
+            <label htmlFor="notification-email" className="mt-4 block text-xs text-bone-300">Destination email</label>
+            <input id="notification-email" type="email"
+              value={notificationEmail}
+              onChange={(event) => setNotificationEmail(event.target.value)}
+              onBlur={(event) => update({ notifications: {
+                emailEnabled: settings.notifications?.emailEnabled ?? false,
+                email: event.target.value.trim(),
+              } })}
+              className="mt-2 w-full border border-bone-600/35 bg-ink-950/60 px-4 py-3 text-sm text-bone-100 outline-none focus:border-signal-400" />
+            <button type="button" role="switch"
+              aria-checked={settings.notifications?.emailEnabled ?? false}
+              disabled={!workspaceInfo.data?.notificationsAvailable}
+              onClick={() => update({ notifications: {
+                emailEnabled: !(settings.notifications?.emailEnabled ?? false),
+                email: notificationEmail.trim(),
+              } })}
+              className="mt-4 min-h-11 w-full border border-bone-600/30 px-4 text-left font-mono text-[11px] uppercase tracking-wider text-bone-300 disabled:opacity-40">
+              {settings.notifications?.emailEnabled ? 'EMAIL NOTIFICATIONS ON' : 'EMAIL NOTIFICATIONS OFF'}
+            </button>
+            {workspaceInfo.data && !workspaceInfo.data.notificationsAvailable && (
+              <p className="mt-3 text-xs text-warn-400">Email delivery is unavailable until an administrator configures Resend.</p>
+            )}
+          </section>
+          </>
+        )}
       </div>
     </div>
   );

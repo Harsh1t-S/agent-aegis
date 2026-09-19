@@ -20,9 +20,9 @@ async function moduleUrl(relative, replacements = []) {
 }
 
 // Resolve the same aliases and environment substitution that Vite resolves.
-const ownerUrl = await moduleUrl('../src/lib/owner-access.ts');
+const sessionUrl = await moduleUrl('../src/lib/session.ts');
 const apiUrl = await moduleUrl('../src/lib/api.ts', [
-  ['import.meta.env', '({})'], ["'@/lib/owner-access'", JSON.stringify(ownerUrl)],
+  ['import.meta.env', '({})'], ["'@/lib/session'", JSON.stringify(sessionUrl)],
 ]);
 const hookUrl = await moduleUrl('../src/hooks/useResource.ts', [
   ["'@/lib/api'", JSON.stringify(apiUrl)], ["'react'", JSON.stringify(reactUrl)],
@@ -30,6 +30,7 @@ const hookUrl = await moduleUrl('../src/hooks/useResource.ts', [
 const { useResource } = await import(hookUrl);
 const { parseToolSchema, toolsToJson } = await import(await moduleUrl('../src/lib/tool-schema.ts'));
 const { api } = await import(apiUrl);
+const { configureTokenProvider, setActiveWorkspace } = await import(sessionUrl);
 const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
 test('a completed or errored trace stops polling without clearing the result', async () => {
@@ -77,6 +78,26 @@ test('validation errors retain field names and actionable messages', async () =>
   try {
     await assert.rejects(api.evaluate('test'), /perCategory: Input should be greater/);
   } finally {
+    globalThis.fetch = original;
+  }
+});
+
+test('API requests carry the active user session and workspace', async () => {
+  const original = globalThis.fetch;
+  let request;
+  configureTokenProvider(async () => 'signed-user-token');
+  setActiveWorkspace('workspace-42');
+  globalThis.fetch = async (_url, init) => {
+    request = init;
+    return Response.json([]);
+  };
+  try {
+    await api.agents();
+    assert.equal(request.headers.Authorization, 'Bearer signed-user-token');
+    assert.equal(request.headers['X-Workspace-ID'], 'workspace-42');
+  } finally {
+    configureTokenProvider(async () => null);
+    setActiveWorkspace(null);
     globalThis.fetch = original;
   }
 });
