@@ -14,7 +14,7 @@ Browser on Vercel
   ├─ Supabase Auth session
   └─ FastAPI on Vercel
        ├─ Postgres/Supabase: private tenant data, jobs, usage, audit, billing
-       ├─ Stripe: Checkout, portal, signed webhooks
+       ├─ Razorpay: hosted subscription checkout and signed webhooks
        └─ durable evaluation_jobs queue
                  │
                  ▼
@@ -100,7 +100,7 @@ APP_URL=https://your-product.example
 AEGIS_DURABLE_QUEUE=1
 ```
 
-Set `VITE_SUPABASE_URL` and `VITE_SUPABASE_PUBLISHABLE_KEY` on the frontend. Never put a service-role key, database password, model key or Stripe secret in a `VITE_` variable.
+Set `VITE_SUPABASE_URL` and `VITE_SUPABASE_PUBLISHABLE_KEY` on the frontend. Never put a service-role key, database password, model key or Razorpay secret in a `VITE_` variable.
 
 ## Billing
 
@@ -108,16 +108,17 @@ Plans are server-owned entitlements: scenario credits, concurrency, retention, m
 
 Set `LLM_RESERVED_COST_PER_SCENARIO_USD=0` for self-hosted inference. For an external provider, configure the known conservative per-scenario amount or token rates. When all pricing variables are omitted, Aegis reserves $0.25 per scenario so an unpriced provider cannot bypass the cap.
 
-Configure Stripe:
+Configure Razorpay:
 
 ```dotenv
-STRIPE_SECRET_KEY=sk_...
-STRIPE_WEBHOOK_SECRET=whsec_...
-STRIPE_STARTER_PRICE_ID=price_...
-STRIPE_TEAM_PRICE_ID=price_...
+RAZORPAY_KEY_ID=rzp_test_...
+RAZORPAY_KEY_SECRET=...
+RAZORPAY_WEBHOOK_SECRET=...
+RAZORPAY_STARTER_PLAN_ID=plan_...
+RAZORPAY_TEAM_PLAN_ID=plan_...
 ```
 
-Point the Stripe webhook at `POST /api/webhooks/stripe`. The handler verifies the raw-body signature, stores the event before applying it, deduplicates by Stripe event ID, and updates plan status for checkout, subscription and invoice events. Checkout remains disabled in the UI until both prices and the secret key exist.
+Point the Razorpay webhook at `POST /api/webhooks/razorpay` and subscribe to subscription events. The handler verifies the raw-body signature, stores the event before applying it, deduplicates by `X-Razorpay-Event-Id`, and rejects stale subscription state. Checkout remains disabled until both plan IDs and the API credentials exist.
 
 ## Notifications
 
@@ -190,7 +191,7 @@ npm run lint
 npm run build
 ```
 
-The GitHub workflow runs these checks with reproducible installs. A production launch should additionally exercise Supabase Auth, Stripe test-mode renewals/failures/cancellations, the GPU worker, database backup restoration and a staging connected-agent journey.
+The GitHub workflow runs these checks with reproducible installs. A production launch should additionally exercise Supabase Auth, Razorpay test-mode renewals/failures/cancellations, the GPU worker, database backup restoration and a staging connected-agent journey.
 
 Deployment order, health signals, alert conditions, incident steps and a repeatable
 backup-restore drill are in [docs/operations.md](docs/operations.md). The worker can

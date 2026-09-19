@@ -95,7 +95,7 @@ create index if not exists ix_api_keys_prefix
 
 create table if not exists aegis.subscriptions (
   organization_id varchar primary key references aegis.organizations(id) on delete cascade,
-  provider varchar(30) not null default 'stripe',
+  provider varchar(30) not null default 'razorpay',
   provider_customer_id varchar(120) unique,
   provider_subscription_id varchar(120) unique,
   plan varchar(30) not null default 'trial',
@@ -111,7 +111,7 @@ alter table aegis.subscriptions
 
 create table if not exists aegis.billing_webhook_events (
   id varchar primary key,
-  provider varchar(30) not null default 'stripe',
+  provider varchar(30) not null default 'razorpay',
   event_type varchar(120) not null,
   payload jsonb not null default '{}'::jsonb,
   status varchar(20) not null default 'received',
@@ -366,6 +366,23 @@ update aegis.execution_traces t set workspace_id = r.workspace_id
 from aegis.test_runs r where t.test_run_id = r.id and t.workspace_id is null;
 update aegis.failure_annotations f set workspace_id = r.workspace_id
 from aegis.test_runs r where f.test_run_id = r.id and f.workspace_id is null;
+
+-- Some legacy fixtures were intentionally standalone (for example, an
+-- environment that was never attached to a scenario). Relationship-based
+-- backfills above cannot reach those rows, so quarantine every remainder in
+-- the demo workspace before enforcing tenant ownership.
+update aegis.agent_versions set workspace_id = '00000000-0000-0000-0000-000000000005'
+where workspace_id is null;
+update aegis.mock_environments set workspace_id = '00000000-0000-0000-0000-000000000005'
+where workspace_id is null;
+update aegis.scenarios set workspace_id = '00000000-0000-0000-0000-000000000005'
+where workspace_id is null;
+update aegis.test_runs set workspace_id = '00000000-0000-0000-0000-000000000005'
+where workspace_id is null;
+update aegis.execution_traces set workspace_id = '00000000-0000-0000-0000-000000000005'
+where workspace_id is null;
+update aegis.failure_annotations set workspace_id = '00000000-0000-0000-0000-000000000005'
+where workspace_id is null;
 
 alter table aegis.agents alter column workspace_id set not null;
 alter table aegis.agent_versions alter column workspace_id set not null;
