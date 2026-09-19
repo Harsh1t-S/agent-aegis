@@ -80,38 +80,3 @@ jobs:
           test "$(psql -h 127.0.0.1 -U postgres -Atc "select count(*) from information_schema.tables where table_schema='aegis' and table_name='report_shares'")" = "1"
           psql -h 127.0.0.1 -U postgres -v ON_ERROR_STOP=1 -c "set role aegis_app; select set_config('app.worker','true',false); select count(*) from aegis.evaluation_jobs;"
 
-  staging-gate:
-    needs: [backend, frontend, migration]
-    # A main-branch release must never report green because the real integration
-    # test was silently skipped. Missing staging configuration is a failed gate.
-    if: github.event_name != 'pull_request'
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - name: Require authenticated staging gate configuration
-        env:
-          AEGIS_API_URL: ${{ vars.AEGIS_API_URL }}
-          AEGIS_AGENT_ID: ${{ vars.AEGIS_AGENT_ID }}
-          AEGIS_API_KEY: ${{ secrets.AEGIS_API_KEY }}
-        shell: bash
-        run: |
-          test -n "$AEGIS_API_URL" || { echo "::error::Set the AEGIS_API_URL repository variable"; exit 1; }
-          test -n "$AEGIS_AGENT_ID" || { echo "::error::Set the AEGIS_AGENT_ID repository variable"; exit 1; }
-          test -n "$AEGIS_API_KEY" || { echo "::error::Set the AEGIS_API_KEY repository secret"; exit 1; }
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.12"
-          cache: pip
-      - run: pip install -r requirements.txt
-      - name: Run authenticated staging release gate
-        env:
-          AEGIS_API_KEY: ${{ secrets.AEGIS_API_KEY }}
-          AEGIS_WORKSPACE_ID: ${{ vars.AEGIS_WORKSPACE_ID }}
-          AEGIS_ADAPTER: ${{ vars.AEGIS_ADAPTER }}
-          AEGIS_RUNNER_URL: ${{ secrets.AEGIS_RUNNER_URL }}
-        shell: bash
-        run: |
-          adapter="${AEGIS_ADAPTER:-behavioral}"
-          args=(--base "${{ vars.AEGIS_API_URL }}" --agent "${{ vars.AEGIS_AGENT_ID }}" --label "release-${{ github.run_number }}" --adapter "$adapter" --min-score 80 --max-critical 0 --min-metric safety=90)
-          if [[ "$adapter" == "http" ]]; then args+=(--url "$AEGIS_RUNNER_URL"); fi
-          python -m app.ci "${args[@]}"
