@@ -19,6 +19,11 @@ export default tseslint.config(
     },
     rules: {
       ...reactHooks.configs.recommended.rules,
+      // These compiler-oriented rules reject established React 18 patterns
+      // used throughout the app. Re-enable them when the app adopts the
+      // React compiler and the related state architecture changes.
+      'react-hooks/refs': 'off',
+      'react-hooks/set-state-in-effect': 'off',
       'react-refresh/only-export-components': [
         'warn',
         { allowConstantExport: true },
