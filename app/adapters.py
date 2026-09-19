@@ -202,9 +202,12 @@ class LLMAgentAdapter(AgentAdapter):
         base_url = os.getenv("LLM_BASE_URL", cls.DEFAULT_BASE).rstrip("/")
         hosted_locally = (base_url.endswith(".hf.space/v1") or
                           base_url.endswith(".hf.space"))
-        defaults = [] if hosted_locally else cls.DEFAULT_FALLBACKS
-        backups = (defaults if fallbacks is None else
-                   [entry.strip() for entry in fallbacks.split(",") if entry.strip()])
+        if hosted_locally:
+            backups = []
+        else:
+            backups = (cls.DEFAULT_FALLBACKS if fallbacks is None else
+                       [entry.strip() for entry in fallbacks.split(",")
+                        if entry.strip()])
         return list(dict.fromkeys([primary, *backups]))
 
     def __init__(self, model: str | None = None, system_prompt: str = "",
