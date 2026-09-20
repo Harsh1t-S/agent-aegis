@@ -28,10 +28,38 @@ const hookUrl = await moduleUrl('../src/hooks/useResource.ts', [
   ["'@/lib/api'", JSON.stringify(apiUrl)], ["'react'", JSON.stringify(reactUrl)],
 ]);
 const { useResource } = await import(hookUrl);
+const { installDeploymentRecovery } = await import(await moduleUrl('../src/lib/deployment-recovery.ts'));
 const { parseToolSchema, toolsToJson } = await import(await moduleUrl('../src/lib/tool-schema.ts'));
 const { api } = await import(apiUrl);
 const { configureTokenProvider, setActiveWorkspace } = await import(sessionUrl);
 const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+test('a stale deployment reloads once instead of leaving a blank route', () => {
+  const listeners = new Map();
+  const values = new Map();
+  let reloads = 0;
+  let clock = 20_000;
+  const target = {
+    addEventListener: (name, listener) => listeners.set(name, listener),
+    location: { reload: () => { reloads += 1; } },
+    sessionStorage: {
+      getItem: (key) => values.get(key) ?? null,
+      setItem: (key, value) => values.set(key, value),
+    },
+  };
+  installDeploymentRecovery(target, () => clock);
+
+  let prevented = false;
+  listeners.get('vite:preloadError')({ preventDefault: () => { prevented = true; } });
+  assert.equal(prevented, true);
+  assert.equal(reloads, 1);
+
+  prevented = false;
+  clock += 1_000;
+  listeners.get('vite:preloadError')({ preventDefault: () => { prevented = true; } });
+  assert.equal(prevented, false, 'a persistent failure must not enter a reload loop');
+  assert.equal(reloads, 1);
+});
 
 async function workspaceContextUrl() {
   const apiStub = `data:text/javascript,${encodeURIComponent(`
