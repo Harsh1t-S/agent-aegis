@@ -87,6 +87,19 @@ def _subscription(db: Session, organization_id: str) -> Subscription:
     return row
 
 
+def _mark_checkout_pending(
+    subscription: Subscription, provider_id: str, status: str,
+) -> None:
+    subscription.provider = "razorpay"
+    subscription.provider_customer_id = None
+    subscription.provider_subscription_id = provider_id
+    subscription.plan = "trial"
+    subscription.status = status
+    subscription.current_period_start = None
+    subscription.current_period_end = None
+    subscription.cancel_at_period_end = False
+
+
 def _checkout_ready() -> bool:
     return bool(os.getenv("RAZORPAY_KEY_ID") and os.getenv("RAZORPAY_KEY_SECRET"))
 
@@ -138,6 +151,12 @@ def create_checkout(
             pending = _razorpay_request(
                 "GET", f"subscriptions/{subscription.provider_subscription_id}")
             if pending.get("plan_id") == plan_id:
+                _mark_checkout_pending(
+                    subscription,
+                    subscription.provider_subscription_id,
+                    pending.get("status", "created"),
+                )
+                db.commit()
                 return {
                     "mode": "subscription",
                     "subscriptionId": subscription.provider_subscription_id,
@@ -162,10 +181,8 @@ def create_checkout(
         subscription_id = response.get("id")
         if not subscription_id:
             raise HTTPException(502, "Razorpay did not return a subscription ID")
-        subscription.provider = "razorpay"
-        subscription.provider_subscription_id = subscription_id
-        subscription.plan = "trial"
-        subscription.status = response.get("status", "created")
+        _mark_checkout_pending(
+            subscription, subscription_id, response.get("status", "created"))
         audit(db, context, "billing.checkout.created", "organization",
               context.organization_id,
               {"plan": body.plan, "provider": "razorpay", "mode": "subscription"})
@@ -191,10 +208,8 @@ def create_checkout(
     order_id = response.get("id")
     if not order_id:
         raise HTTPException(502, "Razorpay did not return an order ID")
-    subscription.provider = "razorpay"
-    subscription.provider_subscription_id = response["id"]
-    subscription.plan = "trial"
-    subscription.status = response.get("status", "created")
+    _mark_checkout_pending(
+        subscription, response["id"], response.get("status", "created"))
     audit(db, context, "billing.checkout.created", "organization",
           context.organization_id, {"plan": body.plan, "provider": "razorpay", "mode": "one_time"})
     db.commit()

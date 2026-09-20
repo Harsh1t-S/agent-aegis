@@ -882,9 +882,9 @@ def test_recurring_checkout_verifies_subscription_identity(client, monkeypatch):
     subscription.provider_subscription_id = None
     subscription.plan = "trial"
     subscription.status = "trialing"
-    subscription.current_period_start = None
-    subscription.current_period_end = None
-    subscription.cancel_at_period_end = False
+    subscription.current_period_start = now() - timedelta(days=30)
+    subscription.current_period_end = now() - timedelta(minutes=1)
+    subscription.cancel_at_period_end = True
     db.commit()
     db.close()
 
@@ -898,6 +898,12 @@ def test_recurring_checkout_verifies_subscription_identity(client, monkeypatch):
             "name": "Aegis",
             "description": "Aegis Starter monthly plan",
         }
+        with SessionLocal() as pending_check:
+            pending = pending_check.get(Subscription, LOCAL_ORGANIZATION_ID)
+            assert pending.provider_customer_id is None
+            assert pending.current_period_start is None
+            assert pending.current_period_end is None
+            assert pending.cancel_at_period_end is False
 
         signature = hmac.new(
             key_secret.encode(),
