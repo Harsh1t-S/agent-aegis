@@ -83,6 +83,9 @@ export default function Billing() {
                 {data.plans.map((plan) => (
                   <section key={plan.key} className="border border-bone-600/20 bg-ink-900/50 p-6">
                     <SystemLabel>{plan.name}</SystemLabel>
+                    <p className="mt-3 font-mono text-xl text-signal-300">
+                      {plan.monthly_price_inr ? `₹${plan.monthly_price_inr.toLocaleString('en-IN')} / month` : 'Pilot access'}
+                    </p>
                     <p className="mt-3 font-mono text-2xl text-bone-50">{plan.monthly_scenario_credits.toLocaleString()} scenarios</p>
                     <p className="mt-3 text-sm text-bone-400">
                       {plan.concurrency} concurrent · {plan.members} members · {plan.retention_days}-day retention

@@ -10,6 +10,7 @@ const plans = [
   {
     key: 'starter' as const,
     name: 'STARTER',
+    price: '₹1,999 / month',
     credits: '500 scenarios / month',
     description: 'For one team proving a support agent before release.',
     features: ['Private workspace', '2 concurrent scenarios', '90-day trace history', 'CI release gate', '3 team members'],
@@ -17,6 +18,7 @@ const plans = [
   {
     key: 'team' as const,
     name: 'TEAM',
+    price: '₹9,999 / month',
     credits: '5,000 scenarios / month',
     description: 'For teams evaluating multiple agents and releases.',
     features: ['Up to 5 workspaces', '5 concurrent scenarios', 'One-year trace history', 'API keys and audit log', '20 team members'],
@@ -59,14 +61,15 @@ export default function Pricing() {
           <p className="font-mono text-xs uppercase tracking-[0.24em] text-signal-400">PLANS</p>
           <h1 className="massive mt-4 text-[clamp(3rem,8vw,6rem)] text-bone-50">PAY FOR EVIDENCE.</h1>
           <p className="mx-auto mt-5 max-w-2xl text-base leading-relaxed text-bone-400">
-            Start with a bounded design-partner pilot. Self-service plan prices appear once
-            they are configured from measured run costs and customer interviews.
+            Start with a bounded design-partner pilot. Every plan includes private evidence,
+            scoped usage, and a release gate you can explain to your team.
           </p>
         </div>
         <div className="mx-auto mt-14 grid max-w-5xl gap-5 md:grid-cols-2">
           {plans.map((plan) => (
             <section key={plan.key} className="border border-bone-600/25 bg-ink-900/70 p-7">
               <p className="font-mono text-xs tracking-[0.2em] text-signal-400">{plan.name}</p>
+              <p className="mt-3 font-mono text-2xl text-bone-50">{plan.price}</p>
               <h2 className="massive mt-4 text-3xl text-bone-50">{plan.credits}</h2>
               <p className="mt-3 min-h-12 text-sm leading-relaxed text-bone-400">{plan.description}</p>
               <ul className="mt-7 space-y-3">

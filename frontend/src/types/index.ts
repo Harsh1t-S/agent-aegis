@@ -276,6 +276,7 @@ export interface UsageSummary {
     workspaces: number;
     ci_gate: boolean;
     monthly_model_spend_cap_usd: number;
+    monthly_price_inr: number;
     private_projects: boolean;
   };
   subscriptionStatus: string;

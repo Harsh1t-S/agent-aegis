@@ -15,6 +15,7 @@ class Plan:
     workspaces: int
     ci_gate: bool
     monthly_model_spend_cap_usd: float
+    monthly_price_inr: int = 0
     private_projects: bool = True
 
     def payload(self) -> dict:
@@ -22,13 +23,13 @@ class Plan:
 
 
 PLANS = {
-    "trial": Plan("trial", "Pilot trial", 25, 1, 14, 1, 1, False, 2.0),
-    "starter": Plan("starter", "Starter", 500, 2, 90, 3, 1, True, 50.0),
-    "team": Plan("team", "Team", 5000, 5, 365, 20, 5, True, 500.0),
+    "trial": Plan("trial", "Pilot trial", 25, 1, 14, 1, 1, False, 2.0, 0),
+    "starter": Plan("starter", "Starter", 500, 2, 90, 3, 1, True, 50.0, 1999),
+    "team": Plan("team", "Team", 5000, 5, 365, 20, 5, True, 500.0, 9999),
     # Local development and automated tests should not need a fake payment.
     "development": Plan(
         "development", "Development", 1_000_000, 16, 3650, 100, 100,
-        True, 1_000_000.0,
+        True, 1_000_000.0, 0,
     ),
 }
 

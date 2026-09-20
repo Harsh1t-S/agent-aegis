@@ -102,6 +102,13 @@ AEGIS_DURABLE_QUEUE=1
 
 Set `VITE_SUPABASE_URL` and `VITE_SUPABASE_PUBLISHABLE_KEY` on the frontend. Never put a service-role key, database password, model key or Razorpay secret in a `VITE_` variable.
 
+Google sign-in is already wired into the login screen. Enable the Google provider in
+Supabase Authentication → Sign In / Providers with a Google OAuth web client. Add
+`https://ndaxgolerqifzvibxmsk.supabase.co/auth/v1/callback` as the Google authorized
+redirect URI, then keep `https://agent-aegis.vercel.app/auth/callback` in Supabase's
+allowed redirect URLs. The provider cannot be enabled without the client ID and secret
+from the Google Cloud project.
+
 ## Billing
 
 Plans are server-owned entitlements: scenario credits, concurrency, retention, members, workspaces, CI access and an estimated model-spend ceiling. Quota and a conservative provider-cost estimate are reserved atomically before scenarios are created and settled once per completed run. Failed or canceled runs refund their reserved unit. Workspace administrators can lower the plan spend ceiling to zero or another amount. Token counts and estimated provider cost remain visible in Billing alongside the simpler scenario-credit allowance.
