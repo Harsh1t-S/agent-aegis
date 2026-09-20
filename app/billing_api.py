@@ -1,4 +1,4 @@
-"""Razorpay subscription checkout and idempotent webhook handling."""
+"""Razorpay one-time checkout and idempotent webhook handling."""
 from __future__ import annotations
 
 import hashlib
@@ -33,11 +33,9 @@ def _credentials() -> tuple[str, str]:
     return key_id, key_secret
 
 
-def _plan_ids() -> dict[str, str]:
-    return {
-        "starter": os.getenv("RAZORPAY_STARTER_PLAN_ID", ""),
-        "team": os.getenv("RAZORPAY_TEAM_PLAN_ID", ""),
-    }
+def _plan_amounts() -> dict[str, int]:
+    return {key: plan.monthly_price_inr * 100 for key, plan in PLANS.items()
+            if key in {"starter", "team"}}
 
 
 def _razorpay_request(method: str, path: str, *, data: dict | None = None) -> dict:
@@ -70,9 +68,7 @@ def _subscription(db: Session, organization_id: str) -> Subscription:
 
 
 def _checkout_ready() -> bool:
-    plans = _plan_ids()
-    return bool(os.getenv("RAZORPAY_KEY_ID") and os.getenv("RAZORPAY_KEY_SECRET")
-                and plans["starter"] and plans["team"])
+    return bool(os.getenv("RAZORPAY_KEY_ID") and os.getenv("RAZORPAY_KEY_SECRET"))
 
 
 @router.get("/billing")
@@ -80,7 +76,7 @@ def billing_summary(db: Session = Depends(get_db),
                     context: WorkspaceContext = Depends(current_workspace)):
     subscription = _subscription(db, context.organization_id)
     summary = usage_summary(db, context.workspace_id, context.organization_id)
-    plans = _plan_ids()
+    plans = _plan_amounts()
     return {
         **summary,
         "provider": "razorpay",
@@ -102,27 +98,29 @@ def create_checkout(
     context: WorkspaceContext = Depends(current_workspace),
 ):
     require_role(context, "owner")
-    plan_id = _plan_ids().get(body.plan)
-    if body.plan not in {"starter", "team"} or not plan_id:
-        raise HTTPException(422, "That subscription plan is not available")
+    amount = _plan_amounts().get(body.plan)
+    if body.plan not in {"starter", "team"} or not amount:
+        raise HTTPException(422, "That payment plan is not available")
     subscription = _subscription(db, context.organization_id)
     if (subscription.provider_subscription_id
             and subscription.status not in {"canceled", "completed", "expired"}):
-        raise HTTPException(409, "This organization already has a subscription")
+        raise HTTPException(409, "This organization already has an active payment")
 
     organization = db.get(Organization, context.organization_id)
-    response = _razorpay_request("POST", "subscriptions", data={
-        "plan_id": plan_id,
-        "total_count": 120,
-        "quantity": 1,
-        "customer_notify": True,
+    response = _razorpay_request("POST", "payment_links", data={
+        "amount": amount,
+        "currency": "INR",
+        "accept_partial": False,
+        "description": f"Aegis {body.plan.title()} plan",
+        "customer": {"email": organization.billing_email or context.principal.email},
+        "notify": {"email": True},
+        "reminder_enable": True,
+        "callback_url": os.getenv("RAZORPAY_CALLBACK_URL", "https://agent-aegis.vercel.app/app/billing"),
+        "callback_method": "get",
         "notes": {
             "organization_id": context.organization_id,
             "plan": body.plan,
             "product": "aegis",
-        },
-        "notify_info": {
-            "notify_email": organization.billing_email or context.principal.email,
         },
     })
     checkout_url = response.get("short_url")
@@ -133,7 +131,7 @@ def create_checkout(
     subscription.plan = body.plan
     subscription.status = response.get("status", "created")
     audit(db, context, "billing.checkout.created", "organization",
-          context.organization_id, {"plan": body.plan, "provider": "razorpay"})
+          context.organization_id, {"plan": body.plan, "provider": "razorpay", "mode": "one_time"})
     db.commit()
     return {"url": checkout_url}
 
