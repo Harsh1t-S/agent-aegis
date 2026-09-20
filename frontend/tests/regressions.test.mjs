@@ -33,6 +33,48 @@ const { api } = await import(apiUrl);
 const { configureTokenProvider, setActiveWorkspace } = await import(sessionUrl);
 const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
+async function workspaceContextUrl() {
+  const apiStub = `data:text/javascript,${encodeURIComponent(`
+    export const api = {
+      bootstrap: async () => {
+        globalThis.workspaceBootstrapCalls += 1;
+        const id = 'workspace-' + globalThis.workspaceAuthUser.id;
+        return {currentWorkspaceId: id, workspaces: [{id, name: id, role: 'owner', settings: {}}]};
+      },
+      createWorkspace: async () => { throw new Error('unused'); },
+    };
+  `)}`;
+  const authStub = `data:text/javascript,${encodeURIComponent(`
+    export const useAuth = () => ({user: globalThis.workspaceAuthUser, loading: false});
+  `)}`;
+  const sessionStub = `data:text/javascript,${encodeURIComponent(`
+    export const setActiveWorkspace = () => {};
+  `)}`;
+  const settingsStub = `data:text/javascript,${encodeURIComponent(`
+    export const setWorkspaceSettings = () => {};
+  `)}`;
+  const source = await readFile(new URL('../src/contexts/WorkspaceContext.tsx', import.meta.url), 'utf8');
+  let { outputText } = ts.transpileModule(source, {
+    compilerOptions: {
+      module: ts.ModuleKind.ESNext,
+      target: ts.ScriptTarget.ES2022,
+      jsx: ts.JsxEmit.ReactJSX,
+    },
+  });
+  for (const [specifier, url] of [
+    ['react', reactUrl],
+    ['react/jsx-runtime', pathToFileURL(require.resolve('react/jsx-runtime')).href],
+    ['@/lib/api', apiStub],
+    ['@/lib/session', sessionStub],
+    ['@/lib/workspace-settings', settingsStub],
+    ['@/contexts/AuthContext', authStub],
+  ]) {
+    outputText = outputText.replaceAll(JSON.stringify(specifier), JSON.stringify(url));
+    outputText = outputText.replaceAll(`'${specifier}'`, JSON.stringify(url));
+  }
+  return `data:text/javascript;base64,${Buffer.from(outputText).toString('base64')}`;
+}
+
 test('a completed or errored trace stops polling without clearing the result', async () => {
   let calls = 0;
   let tree;
@@ -99,6 +141,39 @@ test('API requests carry the active user session and workspace', async () => {
     configureTokenProvider(async () => null);
     setActiveWorkspace(null);
     globalThis.fetch = original;
+  }
+});
+
+test('refreshing the same login does not reload the workspace', async () => {
+  const originalStorage = globalThis.localStorage;
+  globalThis.localStorage = { getItem: () => null, setItem: () => {} };
+  globalThis.workspaceBootstrapCalls = 0;
+  globalThis.workspaceAuthUser = { id: 'owner' };
+  const { WorkspaceProvider } = await import(await workspaceContextUrl());
+  let tree;
+  function Root({ revision }) {
+    return React.createElement(
+      WorkspaceProvider,
+      { revision },
+      React.createElement('span', null, 'workspace'),
+    );
+  }
+  try {
+    await act(async () => { tree = renderer.create(React.createElement(Root, { revision: 1 })); });
+    assert.equal(globalThis.workspaceBootstrapCalls, 1);
+
+    globalThis.workspaceAuthUser = { id: 'owner' };
+    await act(async () => { tree.update(React.createElement(Root, { revision: 2 })); });
+    assert.equal(globalThis.workspaceBootstrapCalls, 1);
+
+    globalThis.workspaceAuthUser = { id: 'another-user' };
+    await act(async () => { tree.update(React.createElement(Root, { revision: 3 })); });
+    assert.equal(globalThis.workspaceBootstrapCalls, 2);
+  } finally {
+    await act(async () => { tree?.unmount(); });
+    globalThis.localStorage = originalStorage;
+    delete globalThis.workspaceAuthUser;
+    delete globalThis.workspaceBootstrapCalls;
   }
 });
 
