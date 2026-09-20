@@ -46,7 +46,9 @@ export default function Pricing() {
     setError(null);
     try {
       const order = await api.checkout(plan);
-      await openRazorpayCheckout(order);
+      const payment = await openRazorpayCheckout(order);
+      await api.verifyPayment(plan, payment);
+      navigate('/app/billing');
     } catch (cause) {
       setError(cause instanceof ApiError ? cause.message : 'Checkout could not be opened.');
     } finally {

@@ -29,7 +29,15 @@ def _period(subscription: Subscription | None) -> tuple[datetime, datetime]:
 
 def usage_summary(db: Session, workspace_id: str, organization_id: str) -> dict:
     subscription = db.get(Subscription, organization_id)
-    plan = plan_for(subscription.plan if subscription else "trial")
+    current = now()
+    paid_plan_active = bool(
+        subscription
+        and subscription.plan != "trial"
+        and subscription.status == "active"
+        and (subscription.current_period_end is None
+             or subscription.current_period_end > current)
+    )
+    plan = plan_for(subscription.plan if paid_plan_active else "trial")
     period_start, period_end = _period(subscription)
     used = int(
         db.query(func.coalesce(func.sum(UsageEvent.units), 0))

@@ -323,6 +323,7 @@ export interface WorkspaceInvitation {
 
 export interface BillingSummary extends UsageSummary {
   provider: string;
+  billingMode: 'one_time' | 'subscription';
   customerConfigured: boolean;
   subscriptionId: string | null;
   cancelAtPeriodEnd: boolean;

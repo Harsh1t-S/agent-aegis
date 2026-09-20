@@ -24,7 +24,10 @@ export default function Billing() {
         window.location.assign(result.url);
       } else {
         const order = await api.checkout(action);
-        await openRazorpayCheckout(order);
+        const payment = await openRazorpayCheckout(order);
+        await api.verifyPayment(action, payment);
+        toast.success('Payment verified', `The ${action} plan is active for 30 days.`);
+        await billing.reload();
         setBusy(null);
       }
     } catch (cause) {
@@ -65,12 +68,17 @@ export default function Billing() {
                   <SystemLabel>CURRENT PLAN</SystemLabel>
                   <p className="massive mt-3 text-3xl text-signal-400">{data.plan.name}</p>
                   <p className="mt-2 font-mono text-xs uppercase text-bone-500">{data.subscriptionStatus}</p>
-                  {data.customerConfigured && canManage && (
+                  {data.customerConfigured && data.billingMode === 'subscription' && canManage && (
                     <button type="button" onClick={() => void redirect('portal')} disabled={busy !== null}
                       className="mt-5 flex min-h-10 items-center gap-2 font-mono text-[10px] uppercase tracking-wider text-signal-300">
                       {busy === 'portal' ? <Loader2 className="h-4 w-4 animate-spin" /> : <ExternalLink className="h-4 w-4" />}
                       MANAGE SUBSCRIPTION
                     </button>
+                  )}
+                  {data.customerConfigured && data.billingMode === 'one_time' && (
+                    <p className="mt-5 font-mono text-[10px] uppercase tracking-wider text-flux-300">
+                      ACCESS THROUGH {new Date(data.periodEnd).toLocaleDateString()}
+                    </p>
                   )}
                 </section>
                 <section className="border border-bone-600/20 bg-ink-900/60 p-6">
@@ -96,15 +104,17 @@ export default function Billing() {
                       {plan.concurrency} concurrent · {plan.members} members · {plan.retention_days}-day retention
                     </p>
                     {canManage && (
-                      <button type="button" disabled={busy !== null || (!data.customerConfigured
-                        && (!data.checkoutAvailable || !plan.available))}
+                      <button type="button" disabled={busy !== null || data.customerConfigured
+                        || !data.checkoutAvailable || !plan.available}
                         onClick={() => void redirect(data.customerConfigured
                           ? 'portal'
                           : plan.key as 'starter' | 'team')}
                         className="mt-6 min-h-11 w-full border border-signal-500/40 bg-signal-500/10 font-mono text-[11px] uppercase tracking-wider text-signal-300 disabled:opacity-40">
                         {busy === plan.key || (busy === 'portal' && data.customerConfigured)
                           ? 'OPENING…'
-                          : data.customerConfigured ? 'CHANGE IN PORTAL' : 'SELECT PLAN'}
+                          : data.customerConfigured
+                            ? plan.key === data.plan.key ? 'CURRENT PLAN' : 'PLAN ACTIVE'
+                            : 'SELECT PLAN'}
                       </button>
                     )}
                   </section>
