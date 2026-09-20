@@ -37,13 +37,14 @@ function savedWorkspace() {
 
 export function WorkspaceProvider({ children }: { children: ReactNode }) {
   const { user, loading: authLoading } = useAuth();
+  const userId = user?.id ?? null;
   const [bootstrap, setBootstrap] = useState<Bootstrap | null>(null);
   const [selected, setSelected] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
-    if (!user) {
+    if (!userId) {
       setBootstrap(null);
       setSelected(null);
       setActiveWorkspace(null);
@@ -67,7 +68,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
     } finally {
       setLoading(false);
     }
-  }, [user]);
+  }, [userId]);
 
   useEffect(() => {
     if (!authLoading) void load();

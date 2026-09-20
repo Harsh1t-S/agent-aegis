@@ -1,6 +1,7 @@
 import { BrowserRouter, Routes, Route, useLocation } from 'react-router-dom';
 import { AnimatePresence, MotionConfig, motion } from 'framer-motion';
 import { SiteNav } from '@/components/SiteNav';
+import { AppErrorBoundary } from '@/components/AppErrorBoundary';
 import { ToastProvider } from '@/components/Toaster';
 import { AuthProvider } from '@/contexts/AuthContext';
 import { WorkspaceProvider } from '@/contexts/WorkspaceContext';
@@ -70,18 +71,19 @@ function App() {
        away. Two reasons it matters here — the obvious accessibility one, and that
        every screen's content currently fades in, so anything that stops the
        animation loop leaves the page blank rather than unanimated. */
-    <BrowserRouter>
-      <MotionConfig reducedMotion="user">
-        <AuthProvider>
-          <WorkspaceProvider>
-            <ToastProvider>
-              <Layout>
-                <Suspense fallback={(
+    <AppErrorBoundary>
+      <BrowserRouter>
+        <MotionConfig reducedMotion="user">
+          <AuthProvider>
+            <WorkspaceProvider>
+              <ToastProvider>
+                <Layout>
+                  <Suspense fallback={(
                   <div className="flex min-h-[60vh] items-center justify-center bg-ink-950 font-mono text-xs uppercase tracking-[0.22em] text-bone-500">
                     Loading Aegis…
                   </div>
-                )}>
-                  <Routes>
+                  )}>
+                    <Routes>
                     <Route path="/" element={<LandingPage />} />
                     <Route path="/how-it-works" element={<HowItWorks />} />
                     <Route path="/about" element={<About />} />
@@ -107,14 +109,15 @@ function App() {
                     <Route path="/app/billing" element={<ProtectedRoute><Billing /></ProtectedRoute>} />
                     <Route path="/app/developer" element={<ProtectedRoute roles={['owner', 'admin']}><Developer /></ProtectedRoute>} />
                     <Route path="*" element={<NotFound />} />
-                  </Routes>
-                </Suspense>
-              </Layout>
-            </ToastProvider>
-          </WorkspaceProvider>
-        </AuthProvider>
-      </MotionConfig>
-    </BrowserRouter>
+                    </Routes>
+                  </Suspense>
+                </Layout>
+              </ToastProvider>
+            </WorkspaceProvider>
+          </AuthProvider>
+        </MotionConfig>
+      </BrowserRouter>
+    </AppErrorBoundary>
   );
 }
 

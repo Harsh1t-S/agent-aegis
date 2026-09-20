@@ -7,6 +7,12 @@
   "functions": { "api/proxy.js": { "maxDuration": 60 } },
   "headers": [
     {
+      "source": "/((?!api/|assets/).*)",
+      "headers": [
+        { "key": "Cache-Control", "value": "no-cache" }
+      ]
+    },
+    {
       "source": "/(.*)",
       "headers": [
         { "key": "Strict-Transport-Security", "value": "max-age=63072000; includeSubDomains; preload" },
