@@ -135,6 +135,7 @@ export const api = {
   publicConfig: () => request<{
     authRequired: boolean;
     billingProvider: string | null;
+    billingMode: 'one_time' | 'subscription';
     checkoutAvailable: boolean;
     plans: BillingSummary['plans'];
   }>('/public/config'),
@@ -184,19 +185,24 @@ export const api = {
     request<AuditPage>(`/audit${cursor ? `?before=${encodeURIComponent(cursor)}` : ''}`),
   billing: () => request<BillingSummary>('/billing'),
   checkout: (plan: 'starter' | 'team') =>
-    request<{ orderId: string; amount: number; currency: string; keyId: string; name: string; description: string }>('/billing/checkout', {
+    request<
+      | { mode: 'order'; orderId: string; amount: number; currency: string; keyId: string; name: string; description: string }
+      | { mode: 'subscription'; subscriptionId: string; keyId: string; name: string; description: string }
+    >('/billing/checkout', {
       method: 'POST',
       body: JSON.stringify({ plan }),
     }),
   verifyPayment: (plan: 'starter' | 'team', payment: {
-    razorpay_order_id: string;
+    razorpay_order_id?: string;
+    razorpay_subscription_id?: string;
     razorpay_payment_id: string;
     razorpay_signature: string;
   }) => request<{ verified: boolean; plan: string; status: string }>('/billing/verify', {
     method: 'POST',
     body: JSON.stringify({
       plan,
-      orderId: payment.razorpay_order_id,
+      ...(payment.razorpay_order_id ? { orderId: payment.razorpay_order_id } : {}),
+      ...(payment.razorpay_subscription_id ? { subscriptionId: payment.razorpay_subscription_id } : {}),
       paymentId: payment.razorpay_payment_id,
       signature: payment.razorpay_signature,
     }),

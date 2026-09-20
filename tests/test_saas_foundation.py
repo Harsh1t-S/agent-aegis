@@ -830,6 +830,117 @@ def test_razorpay_webhook_is_signed_and_idempotent(client, monkeypatch):
         db.close()
 
 
+def test_recurring_checkout_verifies_subscription_identity(client, monkeypatch):
+    key_id = "rzp_test_subscription_key"
+    key_secret = "subscription-signing-secret"
+    plan_id = "plan_test_starter"
+    subscription_id = "sub_test_recurring"
+    payment_id = "pay_test_recurring"
+    current_start = int(time.time())
+    monkeypatch.setenv("RAZORPAY_KEY_ID", key_id)
+    monkeypatch.setenv("RAZORPAY_KEY_SECRET", key_secret)
+    monkeypatch.setenv("RAZORPAY_STARTER_PLAN_ID", plan_id)
+    monkeypatch.setenv("RAZORPAY_TEAM_PLAN_ID", "plan_test_team")
+
+    def razorpay_request(method, path, *, data=None):
+        if (method, path) == ("POST", "subscriptions"):
+            assert data["plan_id"] == plan_id
+            assert data["notes"] == {
+                "organization_id": LOCAL_ORGANIZATION_ID,
+                "plan": "starter",
+                "product": "aegis",
+            }
+            return {"id": subscription_id, "status": "created"}
+        if (method, path) == ("GET", f"payments/{payment_id}"):
+            return {"amount": 199900, "currency": "INR", "status": "captured"}
+        if (method, path) == ("GET", f"subscriptions/{subscription_id}"):
+            return {
+                "id": subscription_id,
+                "plan_id": plan_id,
+                "customer_id": "cust_test_recurring",
+                "status": "active",
+                "current_start": current_start,
+                "current_end": current_start + 30 * 86400,
+                "notes": {
+                    "organization_id": LOCAL_ORGANIZATION_ID,
+                    "plan": "starter",
+                },
+            }
+        raise AssertionError(f"Unexpected Razorpay call: {method} {path}")
+
+    monkeypatch.setattr("app.billing_api._razorpay_request", razorpay_request)
+    db = SessionLocal()
+    subscription = db.get(Subscription, LOCAL_ORGANIZATION_ID)
+    workspace = db.get(Workspace, LOCAL_WORKSPACE_ID)
+    original_subscription = {
+        column.name: getattr(subscription, column.name)
+        for column in Subscription.__table__.columns
+    }
+    original_retention = workspace.retention_days
+    subscription.provider = "razorpay"
+    subscription.provider_customer_id = None
+    subscription.provider_subscription_id = None
+    subscription.plan = "trial"
+    subscription.status = "trialing"
+    subscription.current_period_start = None
+    subscription.current_period_end = None
+    subscription.cancel_at_period_end = False
+    db.commit()
+    db.close()
+
+    try:
+        checkout = client.post("/api/billing/checkout", json={"plan": "starter"})
+        assert checkout.status_code == 200
+        assert checkout.json() == {
+            "mode": "subscription",
+            "subscriptionId": subscription_id,
+            "keyId": key_id,
+            "name": "Aegis",
+            "description": "Aegis Starter monthly plan",
+        }
+
+        signature = hmac.new(
+            key_secret.encode(),
+            f"{payment_id}|{subscription_id}".encode(),
+            hashlib.sha256,
+        ).hexdigest()
+        verified = client.post("/api/billing/verify", json={
+            "plan": "starter",
+            "subscriptionId": subscription_id,
+            "paymentId": payment_id,
+            "signature": signature,
+        })
+        assert verified.status_code == 200
+        assert verified.json() == {
+            "verified": True,
+            "plan": "starter",
+            "status": "active",
+            "billingMode": "subscription",
+        }
+
+        with SessionLocal() as check:
+            row = check.get(Subscription, LOCAL_ORGANIZATION_ID)
+            assert row.provider_subscription_id == subscription_id
+            assert row.provider_customer_id == "cust_test_recurring"
+            assert (row.plan, row.status, row.cancel_at_period_end) == (
+                "starter", "active", False)
+            assert check.get(Workspace, LOCAL_WORKSPACE_ID).retention_days == 90
+    finally:
+        with SessionLocal() as cleanup:
+            row = cleanup.get(Subscription, LOCAL_ORGANIZATION_ID)
+            for name, value in original_subscription.items():
+                setattr(row, name, value)
+            cleanup.get(Workspace, LOCAL_WORKSPACE_ID).retention_days = original_retention
+            cleanup.query(AuditEvent).execution_options(
+                include_all_workspaces=True).filter(
+                AuditEvent.target_id == LOCAL_ORGANIZATION_ID,
+                AuditEvent.action.in_([
+                    "billing.checkout.created", "billing.payment.verified",
+                ]),
+            ).delete(synchronize_session=False)
+            cleanup.commit()
+
+
 def test_razorpay_webhook_rejects_an_invalid_signature(client, monkeypatch):
     monkeypatch.setenv("RAZORPAY_WEBHOOK_SECRET", "correct")
     response = client.post(

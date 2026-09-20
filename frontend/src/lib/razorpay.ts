@@ -1,4 +1,5 @@
 export interface RazorpayOrder {
+  mode: 'order';
   orderId: string;
   amount: number;
   currency: string;
@@ -6,6 +7,16 @@ export interface RazorpayOrder {
   name: string;
   description: string;
 }
+
+export interface RazorpaySubscription {
+  mode: 'subscription';
+  subscriptionId: string;
+  keyId: string;
+  name: string;
+  description: string;
+}
+
+export type RazorpayCheckoutRequest = RazorpayOrder | RazorpaySubscription;
 
 interface RazorpayCheckout {
   open: () => void;
@@ -42,23 +53,28 @@ export function loadRazorpay(): Promise<void> {
 }
 
 export interface RazorpayPayment {
-  razorpay_order_id: string;
+  razorpay_order_id?: string;
+  razorpay_subscription_id?: string;
   razorpay_payment_id: string;
   razorpay_signature: string;
 }
 
-export async function openRazorpayCheckout(order: RazorpayOrder): Promise<RazorpayPayment> {
+export async function openRazorpayCheckout(checkoutRequest: RazorpayCheckoutRequest): Promise<RazorpayPayment> {
   await loadRazorpay();
   const Razorpay = window.Razorpay;
   if (!Razorpay) throw new Error('Razorpay Checkout is unavailable.');
   return new Promise((resolve, reject) => {
     const checkout = new Razorpay({
-      key: order.keyId,
-      amount: order.amount,
-      currency: order.currency,
-      name: order.name,
-      description: order.description,
-      order_id: order.orderId,
+      key: checkoutRequest.keyId,
+      ...(checkoutRequest.mode === 'subscription'
+        ? { subscription_id: checkoutRequest.subscriptionId }
+        : {
+            amount: checkoutRequest.amount,
+            currency: checkoutRequest.currency,
+            order_id: checkoutRequest.orderId,
+          }),
+      name: checkoutRequest.name,
+      description: checkoutRequest.description,
       handler: (payment: RazorpayPayment) => resolve(payment),
       modal: { ondismiss: () => reject(new Error('Checkout was closed before payment.')) },
       theme: { color: '#55c7ef' },

@@ -124,6 +124,12 @@ def public_config():
     return {
         "authRequired": not auth_disabled(),
         "billingProvider": "razorpay" if os.getenv("RAZORPAY_KEY_ID") else None,
+        "billingMode": (
+            "subscription"
+            if os.getenv("RAZORPAY_STARTER_PLAN_ID")
+            and os.getenv("RAZORPAY_TEAM_PLAN_ID")
+            else "one_time"
+        ),
         "checkoutAvailable": prices_ready,
         "plans": [
             plan_for("starter").payload(),
