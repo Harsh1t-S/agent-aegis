@@ -120,8 +120,6 @@ def public_config():
     prices_ready = bool(
         os.getenv("RAZORPAY_KEY_ID")
         and os.getenv("RAZORPAY_KEY_SECRET")
-        and os.getenv("RAZORPAY_STARTER_PLAN_ID")
-        and os.getenv("RAZORPAY_TEAM_PLAN_ID")
     )
     return {
         "authRequired": not auth_disabled(),
