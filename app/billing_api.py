@@ -1,4 +1,4 @@
-"""Razorpay one-time checkout and idempotent webhook handling."""
+"""Razorpay one-time order checkout and idempotent webhook handling."""
 from __future__ import annotations
 
 import hashlib
@@ -107,25 +107,19 @@ def create_checkout(
         raise HTTPException(409, "This organization already has an active payment")
 
     organization = db.get(Organization, context.organization_id)
-    response = _razorpay_request("POST", "payment_links", data={
+    response = _razorpay_request("POST", "orders", data={
         "amount": amount,
         "currency": "INR",
-        "accept_partial": False,
-        "description": f"Aegis {body.plan.title()} plan",
-        "customer": {"email": organization.billing_email or context.principal.email},
-        "notify": {"email": True},
-        "reminder_enable": True,
-        "callback_url": os.getenv("RAZORPAY_CALLBACK_URL", "https://agent-aegis.vercel.app/app/billing"),
-        "callback_method": "get",
+        "receipt": f"aegis_{context.organization_id[:12]}_{int(datetime.now(timezone.utc).timestamp())}",
         "notes": {
             "organization_id": context.organization_id,
             "plan": body.plan,
             "product": "aegis",
         },
     })
-    checkout_url = response.get("short_url")
-    if not checkout_url:
-        raise HTTPException(502, "Razorpay did not return a checkout URL")
+    order_id = response.get("id")
+    if not order_id:
+        raise HTTPException(502, "Razorpay did not return an order ID")
     subscription.provider = "razorpay"
     subscription.provider_subscription_id = response["id"]
     subscription.plan = body.plan
@@ -133,7 +127,14 @@ def create_checkout(
     audit(db, context, "billing.checkout.created", "organization",
           context.organization_id, {"plan": body.plan, "provider": "razorpay", "mode": "one_time"})
     db.commit()
-    return {"url": checkout_url}
+    return {
+        "orderId": order_id,
+        "amount": response.get("amount", amount),
+        "currency": response.get("currency", "INR"),
+        "keyId": _credentials()[0],
+        "name": "Aegis",
+        "description": f"Aegis {body.plan.title()} plan",
+    }
 
 
 @router.post("/billing/portal")

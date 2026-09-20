@@ -184,7 +184,7 @@ export const api = {
     request<AuditPage>(`/audit${cursor ? `?before=${encodeURIComponent(cursor)}` : ''}`),
   billing: () => request<BillingSummary>('/billing'),
   checkout: (plan: 'starter' | 'team') =>
-    request<{ url: string }>('/billing/checkout', {
+    request<{ orderId: string; amount: number; currency: string; keyId: string; name: string; description: string }>('/billing/checkout', {
       method: 'POST',
       body: JSON.stringify({ plan }),
     }),
