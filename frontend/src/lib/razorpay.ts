@@ -9,6 +9,7 @@ export interface RazorpayOrder {
 
 interface RazorpayCheckout {
   open: () => void;
+  on: (event: 'payment.failed', handler: (response: { error?: { description?: string } }) => void) => void;
 }
 
 interface RazorpayConstructor {
@@ -40,16 +41,31 @@ export function loadRazorpay(): Promise<void> {
   });
 }
 
-export async function openRazorpayCheckout(order: RazorpayOrder): Promise<void> {
+export interface RazorpayPayment {
+  razorpay_order_id: string;
+  razorpay_payment_id: string;
+  razorpay_signature: string;
+}
+
+export async function openRazorpayCheckout(order: RazorpayOrder): Promise<RazorpayPayment> {
   await loadRazorpay();
-  if (!window.Razorpay) throw new Error('Razorpay Checkout is unavailable.');
-  new window.Razorpay({
-    key: order.keyId,
-    amount: order.amount,
-    currency: order.currency,
-    name: order.name,
-    description: order.description,
-    order_id: order.orderId,
-    theme: { color: '#55c7ef' },
-  }).open();
+  const Razorpay = window.Razorpay;
+  if (!Razorpay) throw new Error('Razorpay Checkout is unavailable.');
+  return new Promise((resolve, reject) => {
+    const checkout = new Razorpay({
+      key: order.keyId,
+      amount: order.amount,
+      currency: order.currency,
+      name: order.name,
+      description: order.description,
+      order_id: order.orderId,
+      handler: (payment: RazorpayPayment) => resolve(payment),
+      modal: { ondismiss: () => reject(new Error('Checkout was closed before payment.')) },
+      theme: { color: '#55c7ef' },
+    });
+    checkout.on('payment.failed', (response) => {
+      reject(new Error(response.error?.description ?? 'Razorpay payment failed.'));
+    });
+    checkout.open();
+  });
 }

@@ -5,7 +5,7 @@ import hashlib
 import hmac
 import json
 import os
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 import httpx
 from fastapi import APIRouter, Depends, HTTPException, Request
@@ -22,6 +22,13 @@ router = APIRouter(prefix="/api", tags=["billing"])
 
 
 class CheckoutIn(BaseModel):
+    plan: str
+
+
+class VerifyPaymentIn(BaseModel):
+    orderId: str
+    paymentId: str
+    signature: str
     plan: str
 
 
@@ -80,7 +87,8 @@ def billing_summary(db: Session = Depends(get_db),
     return {
         **summary,
         "provider": "razorpay",
-        "customerConfigured": bool(subscription.provider_subscription_id),
+        "billingMode": "one_time",
+        "customerConfigured": subscription.status == "active",
         "subscriptionId": subscription.provider_subscription_id,
         "cancelAtPeriodEnd": subscription.cancel_at_period_end,
         "checkoutAvailable": _checkout_ready(),
@@ -102,8 +110,10 @@ def create_checkout(
     if body.plan not in {"starter", "team"} or not amount:
         raise HTTPException(422, "That payment plan is not available")
     subscription = _subscription(db, context.organization_id)
-    if (subscription.provider_subscription_id
-            and subscription.status not in {"canceled", "completed", "expired"}):
+    current = datetime.now(timezone.utc).replace(tzinfo=None)
+    if (subscription.status == "active"
+            and (subscription.current_period_end is None
+                 or subscription.current_period_end > current)):
         raise HTTPException(409, "This organization already has an active payment")
 
     organization = db.get(Organization, context.organization_id)
@@ -122,7 +132,7 @@ def create_checkout(
         raise HTTPException(502, "Razorpay did not return an order ID")
     subscription.provider = "razorpay"
     subscription.provider_subscription_id = response["id"]
-    subscription.plan = body.plan
+    subscription.plan = "trial"
     subscription.status = response.get("status", "created")
     audit(db, context, "billing.checkout.created", "organization",
           context.organization_id, {"plan": body.plan, "provider": "razorpay", "mode": "one_time"})
@@ -135,6 +145,62 @@ def create_checkout(
         "name": "Aegis",
         "description": f"Aegis {body.plan.title()} plan",
     }
+
+
+@router.post("/billing/verify")
+def verify_payment(
+    body: VerifyPaymentIn,
+    db: Session = Depends(get_db),
+    context: WorkspaceContext = Depends(current_workspace),
+):
+    require_role(context, "owner")
+    amount = _plan_amounts().get(body.plan)
+    if body.plan not in {"starter", "team"} or not amount:
+        raise HTTPException(422, "That payment plan is not available")
+
+    subscription = _subscription(db, context.organization_id)
+    if subscription.provider_subscription_id != body.orderId:
+        raise HTTPException(400, "Payment order does not match this organization")
+
+    expected = hmac.new(
+        _credentials()[1].encode(),
+        f"{body.orderId}|{body.paymentId}".encode(),
+        hashlib.sha256,
+    ).hexdigest()
+    if not hmac.compare_digest(expected, body.signature):
+        raise HTTPException(400, "Invalid Razorpay payment signature")
+
+    order = _razorpay_request("GET", f"orders/{body.orderId}")
+    payment = _razorpay_request("GET", f"payments/{body.paymentId}")
+    notes = order.get("notes") or {}
+    if (notes.get("organization_id") != context.organization_id
+            or notes.get("plan") != body.plan
+            or order.get("amount") != amount
+            or order.get("currency") != "INR"):
+        raise HTTPException(400, "Razorpay order details do not match this purchase")
+    if (payment.get("order_id") != body.orderId
+            or payment.get("amount") != amount
+            or payment.get("currency") != "INR"
+            or payment.get("status") not in {"authorized", "captured"}):
+        raise HTTPException(400, "Razorpay payment is not authorized")
+
+    period_start = datetime.now(timezone.utc).replace(tzinfo=None)
+    subscription.provider = "razorpay"
+    subscription.provider_subscription_id = body.orderId
+    subscription.provider_customer_id = body.paymentId
+    subscription.plan = body.plan
+    subscription.status = "active"
+    subscription.current_period_start = period_start
+    subscription.current_period_end = period_start + timedelta(days=30)
+    subscription.cancel_at_period_end = True
+    db.query(Workspace).filter_by(organization_id=context.organization_id).update(
+        {"retention_days": plan_for(body.plan).retention_days},
+        synchronize_session=False,
+    )
+    audit(db, context, "billing.payment.verified", "organization",
+          context.organization_id, {"plan": body.plan, "provider": "razorpay"})
+    db.commit()
+    return {"verified": True, "plan": body.plan, "status": "active"}
 
 
 @router.post("/billing/portal")
@@ -186,9 +252,6 @@ def _plan_from_subscription(obj: dict) -> str:
     notes = obj.get("notes") or {}
     if notes.get("plan") in PLANS:
         return notes["plan"]
-    for plan, configured in _plan_ids().items():
-        if configured and configured == obj.get("plan_id"):
-            return plan
     return "trial"
 
 

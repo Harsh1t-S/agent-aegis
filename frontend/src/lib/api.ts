@@ -188,6 +188,19 @@ export const api = {
       method: 'POST',
       body: JSON.stringify({ plan }),
     }),
+  verifyPayment: (plan: 'starter' | 'team', payment: {
+    razorpay_order_id: string;
+    razorpay_payment_id: string;
+    razorpay_signature: string;
+  }) => request<{ verified: boolean; plan: string; status: string }>('/billing/verify', {
+    method: 'POST',
+    body: JSON.stringify({
+      plan,
+      orderId: payment.razorpay_order_id,
+      paymentId: payment.razorpay_payment_id,
+      signature: payment.razorpay_signature,
+    }),
+  }),
   billingPortal: () => request<{ url: string }>('/billing/portal', { method: 'POST' }),
   dashboard: () => request<DashboardSummary>('/dashboard'),
   scoring: () => request<ScoringContract>('/scoring'),
