@@ -4,6 +4,7 @@ import { Check } from 'lucide-react';
 import { SiteNav } from '@/components/SiteNav';
 import { useAuth } from '@/contexts/AuthContext';
 import { api, ApiError } from '@/lib/api';
+import { openRazorpayCheckout } from '@/lib/razorpay';
 import { useResource } from '@/hooks/useResource';
 
 const plans = [
@@ -44,8 +45,8 @@ export default function Pricing() {
     setBusy(plan);
     setError(null);
     try {
-      const { url } = await api.checkout(plan);
-      window.location.assign(url);
+      const order = await api.checkout(plan);
+      await openRazorpayCheckout(order);
     } catch (cause) {
       setError(cause instanceof ApiError ? cause.message : 'Checkout could not be opened.');
     } finally {

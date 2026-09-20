@@ -6,6 +6,7 @@ import { SystemLabel } from '@/components/SystemLabel';
 import { useToast } from '@/components/Toaster';
 import { useResource } from '@/hooks/useResource';
 import { api, ApiError } from '@/lib/api';
+import { openRazorpayCheckout } from '@/lib/razorpay';
 import { useWorkspace } from '@/contexts/WorkspaceContext';
 
 export default function Billing() {
@@ -18,10 +19,14 @@ export default function Billing() {
   const redirect = async (action: 'portal' | 'starter' | 'team') => {
     setBusy(action);
     try {
-      const result = action === 'portal'
-        ? await api.billingPortal()
-        : await api.checkout(action);
-      window.location.assign(result.url);
+      if (action === 'portal') {
+        const result = await api.billingPortal();
+        window.location.assign(result.url);
+      } else {
+        const order = await api.checkout(action);
+        await openRazorpayCheckout(order);
+        setBusy(null);
+      }
     } catch (cause) {
       toast.error('Billing could not open', cause instanceof ApiError ? cause.message : 'Try again.');
       setBusy(null);
