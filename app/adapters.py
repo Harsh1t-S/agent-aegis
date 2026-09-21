@@ -321,11 +321,17 @@ class LLMAgentAdapter(AgentAdapter):
         """Call a native Gradio queue so ZeroGPU can allocate hardware."""
         root = base_url.removesuffix("/v1").rstrip("/")
         headers = {"Authorization": f"Bearer {key}"}
+        # The hosted Space exposes a 1..512 Gradio input. Generic OpenAI
+        # defaults are commonly larger, and Gradio rejects an out-of-range
+        # value before the model function runs with only `data: null`.
+        requested_tokens = int(
+            payload.get("max_tokens") or payload.get("max_completion_tokens") or 256)
+        output_tokens = max(1, min(requested_tokens, 512))
         queued = await client.post(
             f"{root}/gradio_api/call/chat",
             json={"data": [
                 payload["messages"], payload.get("tools") or [],
-                payload.get("max_tokens") or payload.get("max_completion_tokens") or 256,
+                output_tokens,
                 payload.get("temperature") or 0,
             ]},
             headers=headers,
@@ -346,7 +352,9 @@ class LLMAgentAdapter(AgentAdapter):
             elif line.startswith("data:"):
                 data = json.loads(line.partition(":")[2].strip())
                 if event == "error":
-                    raise ValueError(f"Hugging Face model failed: {data}")
+                    detail = data if data is not None else (
+                        "the Space rejected the request; inspect its container logs")
+                    raise ValueError(f"Hugging Face model failed: {detail}")
                 if event == "complete":
                     result = data
         if isinstance(result, list) and result:
