@@ -1293,10 +1293,17 @@ def read_shared_report(token: str, db: Session = Depends(get_db)):
 @router.get("/evaluations/{evaluation_id}/progress")
 def evaluation_progress(evaluation_id: str, request: Request, db: Session = Depends(get_db),
                         context=Depends(current_workspace)):
-    """Read-only progress for the running-evaluation screen."""
+    """Report progress and advance queued work in synchronous serverless mode."""
     version = db.get(AgentVersion, evaluation_id)
     if not version:
         raise HTTPException(404, "Evaluation not found")
+    # Vercel has no resident worker process. The initial request runs only for
+    # RUN_BUDGET_SECONDS, so the dashboard's existing progress polling must
+    # drain another bounded batch or successful, slower model calls stall the
+    # evaluation permanently. Durable-worker deployments keep this read-only.
+    if SYNC_RUNS:
+        drain_pending(db, evaluation_id)
+        db.expire_all()
     pending = _exclude_guardrail(db.query(TestRun)).filter(
         TestRun.agent_version_id == evaluation_id,
         TestRun.status.in_(["pending", "running"])).count()

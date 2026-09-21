@@ -87,6 +87,7 @@ def test_hugging_face_space_uses_native_gradio_queue(monkeypatch):
     assert [request.method for request in requests] == ["POST", "GET"]
     assert str(requests[0].url).endswith("/gradio_api/call/chat")
     assert requests[0].headers["authorization"] == "Bearer space-secret"
+    assert json.loads(requests[0].content)["data"][2] == 512
     assert result == {"type": "final", "content": "Hello from ZeroGPU"}
     assert adapter.usage == {"input_tokens": 4, "output_tokens": 3}
 

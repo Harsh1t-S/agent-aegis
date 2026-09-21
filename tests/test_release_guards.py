@@ -79,7 +79,7 @@ def test_public_report_errors_are_uncacheable_and_browser_hardened(client, monke
     assert response.headers["strict-transport-security"].startswith("max-age=")
 
 
-def test_progress_and_trace_reads_never_execute_queued_work(client, monkeypatch):
+def test_progress_drains_sync_queue_but_other_reads_do_not(client, monkeypatch):
     monkeypatch.setattr("app.frontend_api.drain_pending", lambda *_args: 0)
     agent = client.post("/api/agents", json={
         "name": f"queued-{uuid4()}",
@@ -105,7 +105,7 @@ def test_progress_and_trace_reads_never_execute_queued_work(client, monkeypatch)
     assert progress["canContinue"] is True
     assert trace["canContinue"] is True
     assert trace["status"] == "pending"
-    assert executions == []
+    assert executions == ["drain"]
 
 
 @pytest.fixture
