@@ -10,12 +10,14 @@ import {
 } from 'react';
 import type { Session, User } from '@supabase/supabase-js';
 import { configureTokenProvider } from '@/lib/session';
-import { authConfigured, localAuthEnabled, supabase } from '@/lib/supabase';
+import { authConfigured, enabledOAuthProviders, localAuthEnabled, supabase } from '@/lib/supabase';
 
 interface AuthState {
   user: User | null;
   loading: boolean;
   configured: boolean;
+  /** False until Supabase confirms the provider is enabled, so a dead button never shows. */
+  googleEnabled: boolean;
   error: string | null;
   signIn(email: string, password: string): Promise<void>;
   signUp(email: string, password: string): Promise<{ confirmationRequired: boolean }>;
@@ -47,7 +49,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       ? null
       : 'Authentication is not configured for this deployment.',
   );
+  const [googleEnabled, setGoogleEnabled] = useState(false);
   const token = useRef<string | null>(null);
+
+  useEffect(() => {
+    let active = true;
+    enabledOAuthProviders()
+      .then((providers) => { if (active) setGoogleEnabled(Boolean(providers.google)); })
+      .catch(() => undefined);
+    return () => { active = false; };
+  }, []);
 
   useEffect(() => {
     configureTokenProvider(async () => token.current);
@@ -136,6 +147,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     user: localAuthEnabled ? LOCAL_USER : session?.user ?? null,
     loading,
     configured: authConfigured || localAuthEnabled,
+    googleEnabled,
     error,
     signIn: async (email, password) => {
       try {
@@ -151,7 +163,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     sendMagicLink,
     signInWithGoogle,
     signOut,
-  }), [error, loading, sendMagicLink, session, signIn, signInWithGoogle, signOut, signUp]);
+  }), [error, googleEnabled, loading, sendMagicLink, session, signIn, signInWithGoogle, signOut, signUp]);
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }

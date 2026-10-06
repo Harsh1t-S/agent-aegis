@@ -140,10 +140,12 @@ export default function AuthPage() {
               {mode === 'magic' ? 'USE PASSWORD' : 'USE EMAIL LINK'}
             </button>
           </div>
-          <button type="button" onClick={() => void auth.signInWithGoogle()} disabled={!auth.configured}
-            className="mt-3 min-h-11 w-full border border-bone-600/30 font-mono text-[10px] uppercase tracking-wider text-bone-300 hover:text-bone-50 disabled:opacity-50">
-            CONTINUE WITH GOOGLE
-          </button>
+          {auth.googleEnabled && (
+            <button type="button" onClick={() => void auth.signInWithGoogle()}
+              className="mt-3 min-h-11 w-full border border-bone-600/30 font-mono text-[10px] uppercase tracking-wider text-bone-300 hover:text-bone-50">
+              CONTINUE WITH GOOGLE
+            </button>
+          )}
           <p className="mt-8 text-center text-xs text-bone-500">
             Want to look around first? <Link to="/demo" className="text-signal-400 hover:underline">Explore the public demo</Link>.
           </p>
