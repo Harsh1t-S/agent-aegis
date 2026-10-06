@@ -40,6 +40,8 @@ class UserProfile(Base):
     id: Mapped[str] = mapped_column(String, primary_key=True)
     email: Mapped[str] = mapped_column(String(320), default="")
     display_name: Mapped[str] = mapped_column(String(200), default="")
+    # The free trial belongs to the person, not to an organization they can delete.
+    trial_claimed_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=now)
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=now, onupdate=now)
 

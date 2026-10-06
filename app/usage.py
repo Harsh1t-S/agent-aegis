@@ -11,7 +11,7 @@ from sqlalchemy.orm import Session
 
 from .adapters import LLMAgentAdapter, is_self_hosted_model
 from .models import Subscription, UsageEvent, UsageReservation, Workspace, now
-from .plans import plan_for
+from .plans import TRIAL_USED, plan_for
 
 
 def _period(subscription: Subscription | None) -> tuple[datetime, datetime]:
@@ -58,7 +58,8 @@ def usage_summary(db: Session, workspace_id: str, organization_id: str) -> dict:
                 UsageReservation.expires_at > now())
         .scalar() or 0
     )
-    included = plan.monthly_scenario_credits
+    trial_spent = bool(subscription and subscription.status == TRIAL_USED)
+    included = 0 if trial_spent else plan.monthly_scenario_credits
     estimated_cost = float(
         db.query(func.coalesce(func.sum(UsageEvent.estimated_cost_usd), 0.0))
         .filter(UsageEvent.workspace_id == workspace_id,
@@ -86,7 +87,7 @@ def usage_summary(db: Session, workspace_id: str, organization_id: str) -> dict:
         configured_cap = float(configured_cap) if configured_cap is not None else None
     except (TypeError, ValueError):
         configured_cap = None
-    plan_cap = float(plan.monthly_model_spend_cap_usd)
+    plan_cap = 0.0 if trial_spent else float(plan.monthly_model_spend_cap_usd)
     spend_cap = min(max(configured_cap, 0.0), plan_cap) if configured_cap is not None else plan_cap
     return {
         "plan": plan.payload(),
@@ -120,6 +121,10 @@ def reserve_credits(db: Session, workspace_id: str, organization_id: str,
         .with_for_update()
         .first()
     )
+    if subscription and subscription.status == TRIAL_USED:
+        raise HTTPException(
+            402, "This account has already used its free trial. Choose a plan in "
+                 "Billing to keep running evaluations.")
     if subscription and subscription.status in {"past_due", "unpaid", "canceled", "incomplete"}:
         raise HTTPException(402, "Subscription is not active; update billing before running evaluations")
     summary = usage_summary(db, workspace_id, organization_id)

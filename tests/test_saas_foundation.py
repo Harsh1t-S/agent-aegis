@@ -493,6 +493,32 @@ def test_reviewed_benchmark_reports_errors_uncertainty_and_repeatability():
     assert result["repeatability"]["scenarioContracts"] == 1
 
 
+def test_deleting_the_last_workspace_does_not_grant_a_new_trial(client):
+    from app.auth import Principal
+    from app.tenancy import ensure_personal_workspace
+
+    principal = Principal(user_id=f"trial-{uuid4()}", email="repeat@example.com")
+    with SessionLocal() as db:
+        first = ensure_personal_workspace(db, principal)
+        assert usage_summary(db, first.id, first.organization_id)["included"] == 25
+        # The final workspace takes its organization with it.
+        db.delete(db.get(Organization, first.organization_id))
+        db.commit()
+
+        second = ensure_personal_workspace(db, principal)
+        summary = usage_summary(db, second.id, second.organization_id)
+        assert summary["included"] == 0
+        assert summary["spendCapUsd"] == 0.0
+        with pytest.raises(HTTPException) as refused:
+            reserve_credits(db, second.id, second.organization_id, 1, f"trial-{uuid4()}")
+        assert refused.value.status_code == 402
+        assert "already used its free trial" in refused.value.detail
+
+        db.delete(db.get(Organization, second.organization_id))
+        db.delete(db.get(UserProfile, principal.user_id))
+        db.commit()
+
+
 def test_usage_settlement_is_idempotent(client):
     db = SessionLocal()
     try:

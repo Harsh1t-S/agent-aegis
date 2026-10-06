@@ -14,7 +14,7 @@ const plans = [
     price: '₹1,999 / month',
     credits: '500 scenarios / month',
     description: 'For one team proving a support agent before release.',
-    features: ['Private workspace', '2 concurrent scenarios', '90-day trace history', 'CI release gate', '3 team members'],
+    features: ['Private workspace', '2 concurrent scenarios', '90-day trace history', 'CI release gate', 'API keys and audit log', '3 team members'],
   },
   {
     key: 'team' as const,
@@ -22,7 +22,7 @@ const plans = [
     price: '₹9,999 / month',
     credits: '5,000 scenarios / month',
     description: 'For teams evaluating multiple agents and releases.',
-    features: ['Up to 5 workspaces', '5 concurrent scenarios', 'One-year trace history', 'API keys and audit log', '20 team members'],
+    features: ['Up to 5 workspaces', '5 concurrent scenarios', 'One-year trace history', 'CI release gate', 'API keys and audit log', '20 team members'],
   },
 ];
 

@@ -19,7 +19,9 @@ from .models import (
     Subscription,
     UserProfile,
     Workspace,
+    now,
 )
+from .plans import TRIAL_USED
 
 
 @dataclass(frozen=True)
@@ -79,6 +81,11 @@ def ensure_personal_workspace(db: Session, principal: Principal) -> Workspace:
             display_name=(principal.email.split("@", 1)[0] if principal.email else ""),
         )
         db.add(profile)
+    # Deleting the final workspace deletes its organization, so the trial is
+    # tracked on the person. Without this, every new organization was a new trial.
+    trial_already_claimed = profile.trial_claimed_at is not None
+    if principal.user_id != LOCAL_USER_ID and not trial_already_claimed:
+        profile.trial_claimed_at = now()
     organization = Organization(
         **({"id": organization_id} if organization_id else {}),
         name=organization_name,
@@ -109,7 +116,8 @@ def ensure_personal_workspace(db: Session, principal: Principal) -> Workspace:
         organization_id=organization.id,
         provider="local" if principal.user_id == LOCAL_USER_ID else "razorpay",
         plan="development" if principal.user_id == LOCAL_USER_ID else "trial",
-        status="active" if principal.user_id == LOCAL_USER_ID else "trialing",
+        status=("active" if principal.user_id == LOCAL_USER_ID
+                else TRIAL_USED if trial_already_claimed else "trialing"),
     ))
     db.commit()
     db.refresh(workspace)
