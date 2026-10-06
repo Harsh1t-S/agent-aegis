@@ -9,6 +9,7 @@ from sqlalchemy import func
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
+from .adapters import LLMAgentAdapter, is_self_hosted_model
 from .models import Subscription, UsageEvent, UsageReservation, Workspace, now
 from .plans import plan_for
 
@@ -159,9 +160,9 @@ def estimate_reservation_cost(adapter: str, units: int) -> float:
     """Reserve a conservative upper bound before a provider-backed run starts.
 
     Behavioral runs and connected customer runners do not spend Aegis model
-    budget. A local model can explicitly reserve zero. For an external endpoint
-    with no configured rate, the fallback reserve prevents an accidentally
-    unpriced provider from bypassing the workspace cap.
+    budget, and neither does a self-hosted Hugging Face Space. For an external
+    endpoint with no configured rate, the fallback reserve prevents an
+    accidentally unpriced provider from bypassing the workspace cap.
     """
     if adapter != "llm" or units <= 0:
         return 0.0
@@ -173,6 +174,8 @@ def estimate_reservation_cost(adapter: str, units: int) -> float:
             raise RuntimeError(
                 "LLM_RESERVED_COST_PER_SCENARIO_USD must be a non-negative number"
             ) from exc
+    if is_self_hosted_model(os.getenv("LLM_BASE_URL", LLMAgentAdapter.DEFAULT_BASE)):
+        return 0.0
     input_rate = max(float(os.getenv("LLM_INPUT_COST_PER_MILLION", "0")), 0.0)
     output_rate = max(float(os.getenv("LLM_OUTPUT_COST_PER_MILLION", "0")), 0.0)
     if input_rate or output_rate:

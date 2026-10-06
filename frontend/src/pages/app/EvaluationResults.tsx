@@ -157,7 +157,7 @@ export default function EvaluationResults() {
     { key: 'warning', label: 'WARNING' },
   ];
 
-  const delta = evaluation.score - evaluation.previousScore;
+  const delta = evaluation.previousScore === null ? null : evaluation.score - evaluation.previousScore;
   // criticalCount is what the gate acts on; the plain count includes findings
   // that only cap the score at 80. Reporting one as the other made the dashboard
   // and the CI gate disagree.
@@ -220,9 +220,11 @@ export default function EvaluationResults() {
               <div className="border-l border-bone-600/30 pl-4 sm:pl-6">
                 <SystemLabel className="text-bone-600">PREVIOUS</SystemLabel>
                 <div className="mt-1 font-mono text-lg text-bone-300">
-                  {evaluation.previousScore.toFixed(1)}
+                  {evaluation.previousScore === null ? '—' : evaluation.previousScore.toFixed(1)}
                 </div>
-                <div className={`mt-1 font-mono text-xs ${deltaTone(delta)}`}>{signed(delta)}</div>
+                <div className={`mt-1 font-mono text-xs ${delta === null ? 'text-bone-500' : deltaTone(delta)}`}>
+                  {delta === null ? 'first run' : signed(delta)}
+                </div>
               </div>
               <div className="border-l border-bone-600/30 pl-6">
                 <SystemLabel className="text-bone-600">VERDICT</SystemLabel>

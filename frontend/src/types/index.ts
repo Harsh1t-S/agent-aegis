@@ -138,7 +138,8 @@ export interface Evaluation {
   agentName: string;
   version: string;
   score: number;
-  previousScore: number;
+  /** null for an agent's first version: there is nothing to compare against. */
+  previousScore: number | null;
   total: number;
   passed: number;
   failed: number;
