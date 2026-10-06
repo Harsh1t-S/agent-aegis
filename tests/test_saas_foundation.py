@@ -1091,3 +1091,17 @@ def test_operations_status_exposes_monitorable_signals(client):
         "expiredReservations",
     )).issubset(status)
     assert status["oldestQueuedSeconds"] >= 0
+
+
+def test_rejected_razorpay_keys_are_not_reported_as_a_sign_in_failure(monkeypatch):
+    from app import billing_api
+
+    monkeypatch.setenv("RAZORPAY_KEY_ID", "rzp_test_revoked")
+    monkeypatch.setenv("RAZORPAY_KEY_SECRET", "revoked")
+    monkeypatch.setattr(billing_api.httpx, "request", lambda *args, **kwargs: httpx.Response(
+        401, json={"error": {"description": "Authentication failed"}}))
+    with pytest.raises(HTTPException) as rejected:
+        billing_api._razorpay_request("POST", "orders", data={})
+    assert rejected.value.status_code == 503
+    assert "Authentication failed" not in rejected.value.detail
+    assert "API keys" in rejected.value.detail
