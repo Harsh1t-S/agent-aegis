@@ -86,7 +86,8 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 export interface ToolDraft {
   name: string;
   description: string;
-  risk: RiskLevel;
+  /** Unset means Aegis derives the risk from the tool's name and description. */
+  risk?: RiskLevel;
   /**
    * The JSON-Schema block off a real tool definition. Dropping it cost every
    * generated scenario its argument shape, so a call like

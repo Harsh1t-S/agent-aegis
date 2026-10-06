@@ -63,6 +63,12 @@ export default function NewAgent() {
     setForm((prev) => ({ ...prev, [key]: value }));
   };
 
+  const setToolRisk = (i: number, risk: ToolDraft['risk']) =>
+    setForm((prev) => ({
+      ...prev,
+      tools: prev.tools.map((t, idx) => (idx === i ? { ...t, risk } : t)),
+    }));
+
   const updateTool = (i: number, key: keyof ToolDraft, value: string) => {
     setForm((prev) => ({
       ...prev,
@@ -73,7 +79,7 @@ export default function NewAgent() {
   const addTool = () => {
     setForm((prev) => ({
       ...prev,
-      tools: [...prev.tools, { name: '', description: '', risk: 'low' }],
+      tools: [...prev.tools, { name: '', description: '' }],
     }));
   };
 
@@ -94,8 +100,9 @@ export default function NewAgent() {
       tools: parsed.map((tool) => ({
         name: tool.name,
         description: tool.description,
-        // Risk is only a hint here; the backend re-derives it from the tool's verb.
-        risk: tool.risk ?? 'low',
+        // A declared risk overrides the backend's own classification, so only an
+        // explicit one is kept; otherwise Aegis derives it from the tool's verb.
+        ...(tool.risk ? { risk: tool.risk } : {}),
         // The JSON-Schema block travels to the API, so generated scenarios get the
         // real argument shape instead of calling issue_refund() with no arguments.
         ...(tool.parameters ? { parameters: tool.parameters } : {}),
@@ -168,7 +175,7 @@ export default function NewAgent() {
           .map((t) => ({
             name: t.name.trim(),
             description: t.description.trim(),
-            risk: t.risk,
+            ...(t.risk ? { risk: t.risk } : {}),
             ...(t.parameters ? { parameters: t.parameters } : {}),
           })),
         connection: {
@@ -506,12 +513,23 @@ export default function NewAgent() {
                       />
                       <div className="mt-3 flex flex-wrap items-center gap-2 sm:gap-3">
                         <SystemLabel className="!text-bone-300">RISK LEVEL</SystemLabel>
+                        <button
+                          type="button"
+                          aria-pressed={!tool.risk}
+                          title="Aegis infers the risk from the tool's name and description"
+                          onClick={() => setToolRisk(i, undefined)}
+                          className={`flex min-h-9 items-center border px-3 font-mono text-[10px] uppercase tracking-wider transition-colors ${
+                            !tool.risk ? 'border-signal-500/50 text-signal-300' : 'border-bone-300/35 text-bone-300'
+                          }`}
+                        >
+                          auto
+                        </button>
                         {(['low', 'medium', 'high'] as const).map((r) => (
                           <button
                             key={r}
                             type="button"
                             aria-pressed={tool.risk === r}
-                            onClick={() => updateTool(i, 'risk', r)}
+                            onClick={() => setToolRisk(i, r)}
                             className={`flex min-h-9 items-center border px-3 font-mono text-[10px] uppercase tracking-wider transition-colors ${
                               tool.risk === r
                                 ? r === 'high'

@@ -13,7 +13,8 @@ import hashlib
 import json
 from dataclasses import asdict, dataclass, field
 
-from .introspect import SANDBOX_RECORD_ID, SANDBOX_TOTAL, AgentProfile, ToolProfile
+from .introspect import (SANDBOX_RECORD_ID, SANDBOX_TOTAL, AgentProfile, ToolProfile,
+                         is_identifier_argument)
 
 # v3: a prompt that states no rule no longer gets a suite with no adversarial
 # pressure in it. The constraint is stated in the scenario the agent reads.
@@ -144,7 +145,7 @@ def _argument_value(name: str, kind: str, rng: random.Random) -> object:
     if kind == "boolean":
         return True
     # Identifiers first: "order_id" is an id, not an order-shaped free-text field.
-    if any(word in lowered for word in ("id", "number", "ref", "record", "ticket")):
+    if is_identifier_argument(name, extra=("ticket",)):
         return RECORD_ID
     for words, value in _ARGUMENT_FIXTURES:
         if any(word in lowered for word in words):

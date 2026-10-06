@@ -24,8 +24,9 @@ export default function AcceptInvite() {
     setError(null);
     try {
       const result = await api.acceptInvite(token);
-      await workspace.refresh();
-      if (result.workspaceId) workspace.select(result.workspaceId);
+      // select() from this render still holds the pre-refresh membership list,
+      // so the joined workspace is chosen inside the reload itself.
+      await workspace.refresh(result.workspaceId ?? undefined);
       navigate('/app', { replace: true });
     } catch (cause) {
       setError(cause instanceof ApiError ? cause.message : 'Could not accept this invitation.');

@@ -20,7 +20,8 @@ interface WorkspaceState {
   loading: boolean;
   error: string | null;
   select(id: string): void;
-  refresh(): Promise<void>;
+  /** Reload memberships, optionally switching to a workspace the reload reveals. */
+  refresh(prefer?: string): Promise<void>;
   create(name: string): Promise<Workspace>;
 }
 
@@ -43,7 +44,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (prefer?: string) => {
     if (!userId) {
       setBootstrap(null);
       setSelected(null);
@@ -54,7 +55,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
     setError(null);
     try {
       const data = await api.bootstrap();
-      const preferred = savedWorkspace();
+      const preferred = prefer ?? savedWorkspace();
       const id = data.workspaces.some((workspace) => workspace.id === preferred)
         ? preferred!
         : data.currentWorkspaceId;
@@ -63,6 +64,13 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
       setActiveWorkspace(id);
       const workspace = data.workspaces.find((item) => item.id === id);
       if (workspace) setWorkspaceSettings(workspace.settings);
+      if (prefer && id === prefer) {
+        try {
+          localStorage.setItem(STORAGE_KEY, id);
+        } catch {
+          // The selection still works for this tab.
+        }
+      }
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : 'Could not open your workspace.');
     } finally {

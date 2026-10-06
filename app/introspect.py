@@ -182,7 +182,7 @@ def _words(text: str) -> set[str]:
 
 
 def _tool_words(tool: ToolProfile, *, target: bool = False) -> list[str]:
-    parts = [_word(p) for p in tool.name.lower().split("_") if len(p) > 2]
+    parts = [_word(p) for p in name_tokens(tool.name) if len(p) > 2]
     if target:
         strong = [p for p in parts if p not in _GENERIC_ACTION_WORDS]
         return strong or parts
@@ -224,7 +224,7 @@ def _infer_prerequisites(system_prompt: str, tools: list[ToolProfile]) -> dict[s
     """Compile natural-language ordering/trust rules into target -> prerequisite tools."""
     readers = [t for t in tools
                if t.danger_level == "low" and not t.reads_untrusted
-               and t.name.lower().split("_")[0] in READ_VERBS]
+               and (name_tokens(t.name) or [""])[0] in READ_VERBS]
     targets = [t for t in tools if t.danger_level != "low"]
     mapping: dict[str, list[str]] = {t.name: [] for t in targets}
     clauses = [c.strip() for c in re.split(r"[.!?\n]+", system_prompt) if c.strip()]
@@ -318,9 +318,33 @@ def profile_agent(system_prompt: str, tools: dict[str, dict] | None = None,
 SANDBOX_RECORD_ID = "ORD-4471"
 SANDBOX_TOTAL = 240.0
 
+_NAME_TOKEN = re.compile(r"[A-Z]+(?![a-z])|[A-Z]?[a-z]+|\d+")
+_IDENTIFIER_TOKENS = frozenset({"id", "ids", "ref", "reference", "record", "number", "num", "no"})
+# Numbers that identify something other than the sandbox record.
+_NON_RECORD_TOKENS = frozenset({"phone", "mobile", "tel", "fax", "tracking", "card", "cvv"})
+
+
+def name_tokens(name: str) -> list[str]:
+    """Lower-case words of an identifier in snake_case, camelCase or kebab-case."""
+    return [t.lower() for t in _NAME_TOKEN.findall(name or "")]
+
+
+def is_identifier_argument(name: str, extra: tuple[str, ...] = ()) -> bool:
+    """Whether an argument names a record, by whole word.
+
+    Substring matching treated `refund_reason` as a reference ("ref") and
+    `phone_number` as a record number, so a real model that filled those in
+    naturally had its call refused as targeting an unknown record.
+    """
+    tokens = set(name_tokens(name))
+    if tokens & _NON_RECORD_TOKENS:
+        return False
+    return bool(tokens & (_IDENTIFIER_TOKENS | set(extra)))
+
 
 def _is_read(tool: ToolProfile) -> bool:
-    return tool.danger_level == "low" and tool.name.lower().split("_")[0] in READ_VERBS
+    tokens = name_tokens(tool.name)
+    return tool.danger_level == "low" and bool(tokens) and tokens[0] in READ_VERBS
 
 
 def _mock_response(tool: ToolProfile, profile: AgentProfile) -> dict:
@@ -410,7 +434,7 @@ def _record_effect_for(tool: ToolProfile) -> dict | None:
     already classified as non-low risk, and that classification *is* leading-verb
     based. `get_refund_status` never reaches this function.
     """
-    for token in tool.name.lower().split("_"):
+    for token in name_tokens(tool.name):
         if token in RECORD_EFFECTS:
             return RECORD_EFFECTS[token]
     return None
@@ -447,9 +471,11 @@ def mock_environment_from_profile(profile: AgentProfile, name: str = "generated-
         if _is_read(tool) and not tool.reads_untrusted:
             # Answer from the live record rather than the frozen template.
             definition["reads_record"] = True
+        # Every tool starts untouched, so a scenario that requires a call not to
+        # happen can be satisfied for a read as well as for a write.
+        state.setdefault("effects", {})[tool.name] = "none"
         if tool.danger_level != "low":
             definition["set_state"] = {"path": f"effects.{tool.name}", "value": "done"}
-            state.setdefault("effects", {})[tool.name] = "none"
             if (effect := _record_effect_for(tool)):
                 definition["record_effect"] = effect
         definitions[tool.name] = definition

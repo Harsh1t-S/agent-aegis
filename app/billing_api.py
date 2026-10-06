@@ -239,6 +239,13 @@ def verify_payment(
     provider_id = body.subscriptionId or body.orderId
     if not provider_id or subscription.provider_subscription_id != provider_id:
         raise HTTPException(400, "Payment does not match this organization")
+    if (not body.subscriptionId and subscription.status == "active"
+            and subscription.provider_customer_id == body.paymentId):
+        # One payment buys one period. A replayed verify used to pass every check
+        # again and restart the 30 days from now, extending the plan for free.
+        # Answer as the first verify did, without touching the period.
+        return {"verified": True, "plan": subscription.plan, "status": "active",
+                "billingMode": "one_time"}
 
     signed_value = (f"{body.paymentId}|{body.subscriptionId}"
                     if body.subscriptionId

@@ -72,7 +72,10 @@ jobs:
       - name: Create runtime role
         run: psql -h 127.0.0.1 -U postgres -v ON_ERROR_STOP=1 -c "create role aegis_app login password 'ci-only'"
       - name: Apply migrations to a fresh database
-        run: psql -h 127.0.0.1 -U postgres -v ON_ERROR_STOP=1 -f supabase/migrations/20260919132626_saas_foundation.sql
+        run: |
+          for migration in supabase/migrations/*.sql; do
+            psql -h 127.0.0.1 -U postgres -v ON_ERROR_STOP=1 -f "$migration"
+          done
       - name: Verify tenant policies and queue schema
         run: |
           test "$(psql -h 127.0.0.1 -U postgres -Atc "select count(*) from pg_tables where schemaname='aegis' and rowsecurity")" -ge 16

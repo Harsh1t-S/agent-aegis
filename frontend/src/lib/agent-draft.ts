@@ -12,7 +12,7 @@ export interface AgentForm {
 
 export const EMPTY_AGENT_FORM: AgentForm = {
   name: '', description: '', domain: '', systemPrompt: '',
-  tools: [{ name: '', description: '', risk: 'low' }],
+  tools: [{ name: '', description: '' }],
   connectionMode: 'simulation', endpointUrl: '',
 };
 const DRAFT_KEY = 'aegis.agent-draft.v2';
@@ -43,7 +43,7 @@ export function loadAgentDraft(): AgentForm | undefined {
           if (!tool || typeof tool !== 'object') return false;
           const row = tool as Record<string, unknown>;
           return typeof row.name === 'string' && typeof row.description === 'string' &&
-            ['low', 'medium', 'high'].includes(String(row.risk)) &&
+            (row.risk === undefined || ['low', 'medium', 'high'].includes(String(row.risk))) &&
             (row.parameters === undefined || (row.parameters !== null &&
               typeof row.parameters === 'object' && !Array.isArray(row.parameters)));
         })) {

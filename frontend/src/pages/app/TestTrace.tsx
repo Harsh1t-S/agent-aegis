@@ -49,6 +49,19 @@ export default function TestTrace() {
   }
 
   const test = evaluation?.test;
+  if (!test && evaluation && !error && evaluation.status === 'canceled') {
+    return (
+      <div className="min-h-screen bg-ink-950">
+        <AppNavigation />
+        <div className="px-6 py-16 text-center md:px-10">
+          <p className="font-mono text-xs text-bone-400">SCENARIO CANCELED</p>
+          <p className="mt-3 text-sm text-bone-500">
+            This scenario was canceled before it produced a trace.
+          </p>
+        </div>
+      </div>
+    );
+  }
   if (!test && evaluation && !error) {
     return (
       <div className="min-h-screen bg-ink-950">

@@ -25,7 +25,7 @@ def main() -> None:
     while True:
         job_id = claim_next_job(worker_id)
         if job_id:
-            execute_job(job_id)
+            execute_job(job_id, claimed=True)
         elif args.once:
             return
         else:

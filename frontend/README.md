@@ -22,8 +22,9 @@ Calls go to the same-origin `/api` prefix, so the browser never issues a
 cross-origin preflight:
 
 - **Development** — `vite.config.ts` proxies `/api` to `AEGIS_API_ORIGIN`
-  (default: the deployed API). Point it at `http://127.0.0.1:8000` to develop
-  against a local FastAPI instance.
+  (default: `http://127.0.0.1:8000`, a local FastAPI instance). For single-user
+  local development, set `VITE_AUTH_DISABLED=1` here and `AEGIS_AUTH_DISABLED=1`
+  on the backend.
 - **Production** — `vercel.json` pins the Vite preset, rewrites `/api/:path*` to
   the API, and serves `index.html` for every other path so client-side routes
   survive a refresh. Rewrites run after the filesystem check, so hashed assets
