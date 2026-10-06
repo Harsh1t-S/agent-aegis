@@ -69,6 +69,12 @@ def _razorpay_request(method: str, path: str, *, data: dict | None = None) -> di
         )
     except httpx.HTTPError as exc:
         raise HTTPException(503, "Billing provider is temporarily unavailable") from exc
+    if response.status_code == 401:
+        # Razorpay's own text is "Authentication failed", which a customer reads as
+        # their sign-in failing. It means our API keys are wrong or revoked.
+        raise HTTPException(
+            503, "Payments are unavailable right now: the payment provider rejected "
+                 "Aegis's API keys. This is a configuration problem on our side.")
     if response.status_code >= 400:
         try:
             message = response.json()["error"]["description"]
