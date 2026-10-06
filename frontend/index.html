@@ -6,12 +6,25 @@
          stays as the fallback for older browsers and Windows shortcuts. -->
     <link rel="icon" href="/mark.svg" type="image/svg+xml" />
     <link rel="icon" href="/favicon.ico" sizes="any" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
     <!-- Matches ink-950, so mobile browser chrome does not frame the page in a
          colour the page does not use. -->
     <meta name="theme-color" content="#0b0a09" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="description" content="Aegis — AI Agent Evaluation & Reliability Engine. Stress-test your AI agents before deployment." />
     <title>Aegis — Agent Reliability Engine</title>
+    <!-- Link previews (WhatsApp, Slack, X). Without an og:image they fell back to
+         favicon.ico, which still held the scaffold's icon instead of the mark. -->
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="Aegis" />
+    <meta property="og:title" content="Aegis — Agent Reliability Engine" />
+    <meta property="og:description" content="Stress-test your AI agents before deployment." />
+    <meta property="og:url" content="https://agent-aegis.vercel.app/" />
+    <meta property="og:image" content="https://agent-aegis.vercel.app/og-image.png" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content="The Aegis mark, a broken A, beside the words Stress-test AI agents before they ship." />
+    <meta name="twitter:card" content="summary_large_image" />
   </head>
   <body>
     <div id="root"></div>
