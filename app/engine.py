@@ -227,12 +227,21 @@ async def run_test(run_id: str) -> None:
                 messages.append({"role": "assistant", "content": content})
 
             tool_calls += 1
-            name, arguments = action["tool_name"], action.get("arguments", {})
+            name, arguments = action["tool_name"], action.get("arguments") or {}
+            # A connected agent can return any JSON here. Detectors and the sandbox
+            # read arguments as an object, so anything else is recorded and refused
+            # as a malformed call instead of crashing the run.
+            raw = None if isinstance(arguments, dict) else str(arguments)[:2000]
+            if raw is not None:
+                arguments = {}
             add_trace(db, run_id, run.workspace_id, steps, "tool_call",
-                      {"tool_name": name, "arguments": arguments}, elapsed)
+                      {"tool_name": name, "arguments": arguments,
+                       **({"raw_arguments": raw} if raw is not None else {})}, elapsed)
 
             result_started = time.monotonic()
-            result = await sandbox.call(session_id, name, arguments)
+            result = (await sandbox.call(session_id, name, arguments) if raw is None else
+                      {"ok": False, "invalid_arguments": True,
+                       "error": f"{name} rejected the call: arguments must be a JSON object"})
             add_trace(db, run_id, run.workspace_id, steps, "tool_result",
                       {"tool_name": name, **result},
                       int((time.monotonic() - result_started) * 1000))
@@ -436,8 +445,15 @@ def _finalize_job(job_id: str) -> None:
             pass
 
 
-def execute_job(job_id: str) -> None:
-    """Run one already-claimed job and settle it exactly once."""
+def execute_job(job_id: str, claimed: bool = False) -> None:
+    """Run one job and settle it exactly once.
+
+    A queued job is claimed here atomically. A job that is already running
+    belongs to whoever claimed it (a worker passes ``claimed=True``); a second
+    executor used to run it anyway, lose the run claim, and then finalize the
+    still-running run as failed and refund it while the first executor went on
+    to settle it as well.
+    """
     db = SessionLocal()
     try:
         set_session_context(db, worker=True)
@@ -453,11 +469,17 @@ def execute_job(job_id: str) -> None:
             db.commit()
             return
         if job.status == "queued":
-            job.status = "running"
-            job.attempts += 1
-            job.lease_owner = f"inline:{socket.gethostname()}"
-            job.lease_until = now() + timedelta(seconds=JOB_LEASE_SECONDS)
+            won = db.query(EvaluationJob).filter_by(id=job_id, status="queued").update({
+                "status": "running",
+                "attempts": EvaluationJob.attempts + 1,
+                "lease_owner": f"inline:{socket.gethostname()}",
+                "lease_until": now() + timedelta(seconds=JOB_LEASE_SECONDS),
+            }, synchronize_session=False)
             db.commit()
+            if not won:
+                return
+        elif not claimed:
+            return
         run_id = run.id
         already_complete = run.status == "complete"
     finally:
@@ -586,10 +608,55 @@ def dispatch(background, run_id: str) -> None:
 RUN_BUDGET_SECONDS = float(os.getenv("RUN_BUDGET_SECONDS", "20"))
 
 
+def recover_interrupted(db, version_id: str) -> int:
+    """Requeue runs whose executor died before finishing them.
+
+    In SYNC mode nothing else reclaims work: a serverless function killed at its
+    time limit mid-scenario left the run "running" forever, so the progress page
+    polled indefinitely and the reservation was never settled. Once the lease has
+    expired the attempt is discarded and retried, or failed and refunded when no
+    attempts remain.
+    """
+    current = now()
+    stale = (db.query(EvaluationJob)
+             .join(TestRun, TestRun.id == EvaluationJob.test_run_id)
+             .filter(TestRun.agent_version_id == version_id,
+                     EvaluationJob.status == "running",
+                     EvaluationJob.lease_until < current)
+             .all())
+    for job in stale:
+        run = db.get(TestRun, job.test_run_id)
+        job.lease_owner = None
+        job.lease_until = None
+        if job.attempts < job.max_attempts:
+            db.query(ExecutionTrace).filter_by(
+                test_run_id=run.id).delete(synchronize_session=False)
+            db.query(FailureAnnotation).filter_by(
+                test_run_id=run.id).delete(synchronize_session=False)
+            run.status = "pending"
+            run.started_at = None
+            run.completed_at = None
+            run.outcome = None
+            run.reliability_score = None
+            job.status = "queued"
+            job.available_at = current
+        else:
+            run.status = "error"
+            run.completed_at = current
+            job.status = "failed"
+            job.last_error = "The run was interrupted before it finished"
+            job.completed_at = current
+            refund_run(db, job.reservation_id, run.id, job.workspace_id, job.last_error)
+    if stale:
+        db.commit()
+    return len(stale)
+
+
 def drain_pending(db, version_id: str, budget: float | None = None) -> int:
     """Compatibility helper for local/test synchronous execution only."""
     if DURABLE_QUEUE and not SYNC_RUNS:
         return 0
+    recover_interrupted(db, version_id)
     budget = RUN_BUDGET_SECONDS if budget is None else budget
     started = time.monotonic()
     completed = 0

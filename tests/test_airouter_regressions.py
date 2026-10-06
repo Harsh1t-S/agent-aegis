@@ -255,7 +255,9 @@ def test_guardrail_queues_all_probes_before_draining(client, monkeypatch):
         assert db.query(Run).filter_by(agent_version_id=evaluation_id, status="pending").count() == response.json()["queued"]
     assert len(calls) == 1
     report = client.get(f"/api/evaluations/{evaluation_id}/guardrail").json()
-    assert len(calls) == 1  # report reads never execute queued work
+    # The ladder poll is the only request left to advance unfinished probes in
+    # SYNC mode, so it drains while any probe is still pending.
+    assert len(calls) == 2
     assert report["pending"] == response.json()["queued"]
     progress = client.get(f"/api/evaluations/{evaluation_id}/progress").json()
     assert progress["status"] == "completed"

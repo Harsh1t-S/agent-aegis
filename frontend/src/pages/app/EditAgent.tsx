@@ -69,7 +69,7 @@ export default function EditAgent() {
       parsed.map((tool) => ({
         name: tool.name,
         description: tool.description,
-        risk: tool.risk ?? 'low',
+        ...(tool.risk ? { risk: tool.risk } : {}),
         ...(tool.parameters ? { parameters: tool.parameters } : {}),
       })),
     );
@@ -103,7 +103,7 @@ export default function EditAgent() {
         tools: named.map((t) => ({
           name: t.name.trim(),
           description: t.description.trim(),
-          risk: t.risk,
+          ...(t.risk ? { risk: t.risk } : {}),
           ...(t.parameters ? { parameters: t.parameters } : {}),
         })),
         connection: {
@@ -353,7 +353,7 @@ export default function EditAgent() {
                   <button
                     type="button"
                     onClick={() =>
-                      setTools((prev) => [...prev, { name: '', description: '', risk: 'low' }])
+                      setTools((prev) => [...prev, { name: '', description: '' }])
                     }
                     className="flex w-full items-center justify-center gap-2 border border-dashed border-bone-600/30 py-3 font-mono text-xs uppercase tracking-wider text-bone-300 transition-colors hover:border-signal-400/50 hover:text-signal-300"
                   >

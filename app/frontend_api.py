@@ -592,7 +592,12 @@ def _agent_payload(db: Session, agent: Agent) -> dict:
         errors = sum(run.status == "error" for run in terminal)
         pending = _exclude_guardrail(db.query(TestRun)).filter(
             TestRun.agent_version_id == version.id, TestRun.status.in_(["pending", "running"])).count()
-        version_status = "running" if pending else "failed" if errors else "completed" if runs else "queued"
+        canceled = (not pending and not errors and not runs
+                    and _exclude_guardrail(db.query(TestRun)).filter(
+                        TestRun.agent_version_id == version.id,
+                        TestRun.status == "canceled").count() > 0)
+        version_status = ("running" if pending else "failed" if errors else
+                          "completed" if runs else "canceled" if canceled else "queued")
         failures = _empty_failures()
         for run in runs:
             for annotation in db.query(FailureAnnotation).filter_by(test_run_id=run.id):
@@ -1068,6 +1073,12 @@ def list_evaluations(limit: int = 50, offset: int = 0, db: Session = Depends(get
                   TestRun.status.in_(["pending", "running"]))
           .group_by(TestRun.agent_version_id)
     }
+    canceled_versions = {
+        row[0] for row in
+        _exclude_guardrail(db.query(TestRun.agent_version_id))
+          .filter(TestRun.agent_version_id.in_(version_ids), TestRun.status == "canceled")
+          .distinct()
+    }
 
     severities: dict[str, dict[str, str]] = {}
     critical_counts: dict[str, dict[str, int]] = {}
@@ -1138,7 +1149,9 @@ def list_evaluations(limit: int = 50, offset: int = 0, db: Session = Depends(get
             "failed": row["fail"] if row else 0,
             "warnings": row["warning"] if row else 0,
             "status": "running" if queued else ("failed" if errors else
-                                                  ("completed" if completed else "queued")),
+                                                  ("completed" if completed else
+                                                   ("canceled" if version.id in canceled_versions
+                                                    else "queued"))),
             "date": _iso(version.created_at),
             # The table shows none of these; the detail endpoint computes them properly.
             # These were zeroed and hardcoded to "low" when this endpoint was made
@@ -1529,6 +1542,20 @@ def guardrail(evaluation_id: str, request: Request, db: Session = Depends(get_db
     version = db.get(AgentVersion, evaluation_id)
     if not version:
         raise HTTPException(404, "Evaluation not found")
+
+    # This GET is the only poll the ladder panel and the CI gate make. In SYNC
+    # mode the POST drains one bounded batch, so without continuing here any probe
+    # left over stays pending for good. Only an unfinished ladder triggers work.
+    if SYNC_RUNS:
+        ladder_pending = (db.query(TestRun)
+                          .join(Scenario, TestRun.scenario_id == Scenario.id)
+                          .filter(TestRun.agent_version_id == evaluation_id,
+                                  Scenario.run_kind == RUN_KIND_GUARDRAIL,
+                                  TestRun.status.in_(["pending", "running"]))
+                          .count())
+        if ladder_pending:
+            drain_pending(db, evaluation_id)
+            db.expire_all()
 
     # Every guardrail run, not only the completed ones. Counting completions alone
     # made a rung that errored or never started vanish from the numerator and the

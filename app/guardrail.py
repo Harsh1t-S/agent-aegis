@@ -10,7 +10,8 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass
 
-from .introspect import READ_VERBS, SANDBOX_RECORD_ID, SANDBOX_TOTAL, AgentProfile, ToolProfile
+from .introspect import (READ_VERBS, SANDBOX_RECORD_ID, SANDBOX_TOTAL, AgentProfile, ToolProfile,
+                         is_identifier_argument)
 from .scenarios import ScenarioSpec
 
 # v3: where a prompt states no rule, the ladder now states one in the scenario and
@@ -79,7 +80,7 @@ LADDER: tuple[Rung, ...] = (
 )
 
 _GENERIC = {"issue", "perform", "execute", "do", "run", "make", "set"}
-_ID_HINTS = ("id", "number", "ref", "record", "order", "ticket", "account")
+_ID_EXTRA = ("order", "ticket", "account")
 _VERIFY_HINTS = ("verify", "check", "confirm", "validate", "without checking",
                  "without verifying", "without confirming")
 _CONDITIONAL_HINTS = ("above", "over", "more than", "without", "unless", "if ", "when ",
@@ -191,7 +192,7 @@ def _arguments(tool: ToolProfile, policy: GuardrailPolicy) -> dict[str, object]:
             values[name] = int(SANDBOX_TOTAL) if kind == "integer" else SANDBOX_TOTAL
         elif kind == "boolean":
             values[name] = True
-        elif any(h in lower for h in _ID_HINTS):
+        elif is_identifier_argument(name, extra=_ID_EXTRA):
             values[name] = SANDBOX_RECORD_ID
         elif "reason" in lower or "message" in lower or "note" in lower:
             values[name] = "routine customer request"

@@ -17,6 +17,8 @@ import random
 import uuid
 from typing import Any
 
+from .introspect import is_identifier_argument
+
 # Session id -> sandbox state. Process-local by design: a sandbox must not outlive
 # the run it belongs to.
 SESSIONS: dict[str, dict[str, Any]] = {}
@@ -85,7 +87,14 @@ def validate_arguments(definition: dict, arguments: dict | None) -> str | None:
 # The record the generated sandbox is built around. A lookup for anything else has
 # to miss, or the "returns nothing at all" scenario is unrunnable.
 KNOWN_RECORD = "ORD-4471"
-_ID_HINTS = ("id", "number", "ref", "record")
+
+
+def _identifiers(arguments: dict | None) -> list[tuple[str, str]]:
+    """Identifier-shaped arguments as (field, value), the known record first."""
+    found = [(key, str(value)) for key, value in (arguments or {}).items()
+             if is_identifier_argument(key)
+             and isinstance(value, (str, int)) and not isinstance(value, bool)]
+    return sorted(found, key=lambda item: item[1] != KNOWN_RECORD)
 
 
 def _respond(template: dict, arguments: dict | None) -> dict:
@@ -100,14 +109,12 @@ def _respond(template: dict, arguments: dict | None) -> dict:
     if not isinstance(response, dict):
         return response
     arguments = arguments or {}
-    requested = next((str(value) for key, value in arguments.items()
-                      if any(hint in key.lower() for hint in _ID_HINTS)
-                      and isinstance(value, (str, int))), None)
-    if requested is None:
+    targets = _identifiers(arguments)
+    if not targets:
         return response
+    requested = targets[0][1]
 
-    identifier = next((key for key in response
-                       if any(hint in key.lower() for hint in _ID_HINTS)), None)
+    identifier = next((key for key in response if is_identifier_argument(key)), None)
     if identifier:
         response[identifier] = requested
     if "found" in response and requested != KNOWN_RECORD:
@@ -124,13 +131,8 @@ def _target(arguments: dict | None) -> tuple[str, str] | None:
     name the caller used — an agent that asked about `order_id` should not be
     answered about `record_id`.
     """
-    for key, value in (arguments or {}).items():
-        if not any(hint in key.lower() for hint in _ID_HINTS):
-            continue
-        if isinstance(value, bool) or not isinstance(value, (str, int)):
-            continue
-        return key, str(value)
-    return None
+    targets = _identifiers(arguments)
+    return targets[0] if targets else None
 
 
 def _unknown_target(arguments: dict | None) -> str | None:
@@ -140,14 +142,12 @@ def _unknown_target(arguments: dict | None) -> str | None:
     mutation that names no record (a create, a global setting) has no target to
     validate and is left alone.
     """
-    for key, value in (arguments or {}).items():
-        if not any(hint in key.lower() for hint in _ID_HINTS):
-            continue
-        if not isinstance(value, (str, int)) or isinstance(value, bool):
-            continue
-        if str(value) != KNOWN_RECORD:
-            return str(value)
-    return None
+    targets = _identifiers(arguments)
+    if not targets or targets[0][1] == KNOWN_RECORD:
+        # Naming the held record is enough; a customer or account id alongside it
+        # is context, not a second target.
+        return None
+    return targets[0][1]
 
 
 def call_tool(session_id: str, tool_name: str, arguments: dict | None = None) -> dict:
@@ -173,7 +173,7 @@ def call_tool(session_id: str, tool_name: str, arguments: dict | None = None) ->
         return {"ok": False, "error": definition["error"], "call_number": seen}
     if seen <= int(definition.get("fail_times", 0)):
         return {"ok": False, "error": f"{tool_name} temporarily unavailable, try again",
-                "call_number": seen}
+                "call_number": seen, "transient": True}
 
     response_template = definition.get("response", {"message": "ok"})
     mutation = definition.get("set_state")

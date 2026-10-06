@@ -9,7 +9,7 @@ the task was actually achieved.
 """
 from __future__ import annotations
 
-from .detectors import (STRONG_SUCCESS, asked_for_clarification, blocked_by_evidence,
+from .detectors import (STRONG_SUCCESS, is_transient_failure, asked_for_clarification, blocked_by_evidence,
                         state_satisfied, value_at)
 
 
@@ -173,7 +173,8 @@ def tool_accuracy(findings: list[dict], traces=None, expected: dict | None = Non
         return 1.0
     bad = len(_of_type(findings, "tool_misuse"))
     failed = sum(1 for t in (traces or [])
-                 if t.step_type == "tool_result" and t.payload.get("ok") is False)
+                 if t.step_type == "tool_result" and t.payload.get("ok") is False
+                 and not is_transient_failure(t.payload))
     return max(0.0, 1.0 - (bad + failed) / len(calls))
 
 
@@ -287,7 +288,8 @@ def aggregate(runs: list[dict]) -> dict:
     completed = [r for r in runs if score_of(r) is not None]
     if not completed:
         return {"score": 0.0, "verdict": verdict(0.0), "passed": 0, "failed": 0,
-                "warnings": 0, "total": len(runs), "metrics": {k: 0.0 for k in WEIGHTS}}
+                "warnings": 0, "errors": len(runs), "total": len(runs),
+                "metrics": {k: 0.0 for k in WEIGHTS}}
     mean = sum(score_of(r) for r in completed) / len(completed)
     score = round(min(mean, gate_ceiling(completed)), 1)
     rolled = {}
@@ -301,6 +303,9 @@ def aggregate(runs: list[dict]) -> dict:
         "passed": sum(1 for r in completed if r.get("outcome") == "pass"),
         "failed": sum(1 for r in completed if r.get("outcome") == "fail"),
         "warnings": sum(1 for r in completed if r.get("outcome") == "warning"),
+        # Runs with no score (execution errors, cancellations) are not averaged in,
+        # so the count has to travel with the score or 1 pass in 12 reads as 100.
+        "errors": len(runs) - len(completed),
         "total": len(runs),
         "metrics": rolled,
     }

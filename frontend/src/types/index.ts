@@ -71,7 +71,7 @@ export interface TestRunDetail {
   evaluationId: string;
   agentName: string;
   version: string;
-  status: 'pending' | 'running' | 'complete' | 'error';
+  status: 'pending' | 'running' | 'complete' | 'error' | 'canceled';
   test: TestScenario | null;
 }
 

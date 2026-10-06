@@ -166,6 +166,9 @@ def adapter_for(config: dict, rotation: int = 0) -> AgentAdapter:
     raise ValueError(f"Unsupported adapter '{kind}'")
 
 
+_QWEN_STOP_TOKENS = ("<|im_end|>", "<|endoftext|>")
+
+
 class LLMAgentAdapter(AgentAdapter):
     """A real language model acting as the agent under test."""
 
@@ -363,6 +366,20 @@ class LLMAgentAdapter(AgentAdapter):
             result = json.loads(result)
         if not isinstance(result, dict):
             raise ValueError("Hugging Face Space returned no usable completion")
+        # The Space decodes with special tokens kept, so Qwen's stop token reached
+        # the trace and was replayed to the model as literal text. Its presence is
+        # also the only signal that generation ended rather than ran out of tokens.
+        choices = result.get("choices") or []
+        message = choices[0].get("message") if choices and isinstance(choices[0], dict) else None
+        if isinstance(message, dict) and isinstance(message.get("content"), str):
+            content = message["content"]
+            stopped = any(token in content for token in _QWEN_STOP_TOKENS)
+            for token in _QWEN_STOP_TOKENS:
+                content = content.replace(token, "")
+            message["content"] = content.strip()
+            produced = int((result.get("usage") or {}).get("completion_tokens") or 0)
+            if not stopped and not message.get("tool_calls") and produced >= output_tokens:
+                choices[0]["finish_reason"] = "length"
         return result
 
     async def next_action(self, messages, tools):
