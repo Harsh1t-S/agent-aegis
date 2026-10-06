@@ -26,6 +26,11 @@ VAGUE = re.compile(
     r"outstanding|sort out everything|i'?ll let you)\b", re.I)
 
 
+def is_self_hosted_model(base_url: str) -> bool:
+    """A Hugging Face Space runs our own model: no per-token bill, no paid fallbacks."""
+    return ".hf.space" in base_url
+
+
 class AgentAdapter:
     async def next_action(self, messages: list[dict], tools: dict[str, dict]) -> dict[str, Any]:
         raise NotImplementedError
@@ -202,10 +207,7 @@ class LLMAgentAdapter(AgentAdapter):
     def default_pool(cls) -> list[str]:
         primary = os.getenv("LLM_MODEL", "").strip() or cls.DEFAULT_MODEL
         fallbacks = os.getenv("LLM_FALLBACK_MODELS")
-        base_url = os.getenv("LLM_BASE_URL", cls.DEFAULT_BASE).rstrip("/")
-        hosted_locally = (base_url.endswith(".hf.space/v1") or
-                          base_url.endswith(".hf.space"))
-        if hosted_locally:
+        if is_self_hosted_model(os.getenv("LLM_BASE_URL", cls.DEFAULT_BASE)):
             backups = []
         else:
             backups = (cls.DEFAULT_FALLBACKS if fallbacks is None else
@@ -420,7 +422,7 @@ class LLMAgentAdapter(AgentAdapter):
                     request_payload.update(temperature=self.temperature,
                                            max_tokens=self.max_output_tokens)
                 try:
-                    if ".hf.space" in base_url:
+                    if is_self_hosted_model(base_url):
                         body = await self._hf_space_completion(
                             client, base_url, key, request_payload)
                         self.served_by.append(candidate)

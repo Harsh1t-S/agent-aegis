@@ -464,7 +464,7 @@ def _version_evaluation(db: Session, version: AgentVersion, agent: Agent,
         "agentName": agent.name if agent else "",
         "version": version.version_label,
         "score": score,
-        "previousScore": _previous_score(db, agent, version) if agent else 0.0,
+        "previousScore": _previous_score(db, agent, version) if agent else None,
         "total": len(latest) + pending + len(errors) + canceled,
         "errors": len(errors),
         "passed": passed,
@@ -525,12 +525,12 @@ def _version_reliability(db: Session, version_id: str) -> float:
 _version_score = _version_reliability
 
 
-def _previous_score(db: Session, agent: Agent, version: AgentVersion) -> float:
+def _previous_score(db: Session, agent: Agent, version: AgentVersion) -> float | None:
     earlier = (db.query(AgentVersion)
                  .filter(AgentVersion.agent_id == agent.id,
                          AgentVersion.created_at < version.created_at)
                  .order_by(AgentVersion.created_at.desc()).first())
-    return _version_score(db, earlier.id) if earlier else 0.0
+    return _version_score(db, earlier.id) if earlier else None
 
 
 def _version_notes(version: AgentVersion) -> str:
@@ -1125,7 +1125,7 @@ def list_evaluations(limit: int = 50, offset: int = 0, db: Session = Depends(get
                                    ceiling_for([(severity, types)]))
 
     out = []
-    previous_by_agent: dict[str, float] = {}
+    previous_by_agent: dict[str, float] = {}  # a first version has no previous score
     for version in reversed(versions):          # oldest first, to carry previousScore
         agent = agents.get(version.agent_id)
         row = totals.get(version.id)
@@ -1142,7 +1142,7 @@ def list_evaluations(limit: int = 50, offset: int = 0, db: Session = Depends(get
             "agentName": agent.name if agent else "",
             "version": version.version_label,
             "score": score,
-            "previousScore": previous_by_agent.get(version.agent_id, 0.0),
+            "previousScore": previous_by_agent.get(version.agent_id),
             "total": completed + queued + errors,
             "errors": errors,
             "passed": row["pass"] if row else 0,

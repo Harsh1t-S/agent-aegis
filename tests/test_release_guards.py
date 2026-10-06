@@ -205,6 +205,19 @@ def test_hugging_face_space_does_not_add_paid_fallbacks(monkeypatch):
     ]
 
 
+def test_hugging_face_space_reserves_no_model_spend(monkeypatch):
+    from app.usage import estimate_reservation_cost
+
+    monkeypatch.delenv("LLM_RESERVED_COST_PER_SCENARIO_USD", raising=False)
+    monkeypatch.setenv("LLM_BASE_URL", "https://example.hf.space/v1")
+    # A free self-hosted model must not reserve the unpriced-provider fallback,
+    # or 11 scenarios at $0.25 exceed the $2 trial cap and nothing can run.
+    assert estimate_reservation_cost("llm", 11) == 0.0
+
+    monkeypatch.setenv("LLM_BASE_URL", "https://api.example.com/v1")
+    assert estimate_reservation_cost("llm", 11) == 2.75
+
+
 def test_ci_waits_for_all_guardrail_probes(monkeypatch):
     from app.ci import guardrail_resistance
 

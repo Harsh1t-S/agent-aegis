@@ -130,7 +130,10 @@ export default function Developer() {
                 <div key={key.id} className="flex items-center justify-between gap-4 py-4">
                   <div>
                     <p className="text-sm text-bone-100">{key.name}</p>
-                    <p className="mt-1 font-mono text-[10px] text-bone-500">{key.prefix}… · {key.scopes.join(', ')}</p>
+                    <p className="mt-1 font-mono text-[10px] text-bone-500">
+                      {key.prefix}… · {key.scopes.join(', ')}
+                      {key.revoked && <span className="text-fault-400"> · revoked</span>}
+                    </p>
                   </div>
                   {!key.revoked && canManage && (
                     <button type="button" aria-label={`Revoke ${key.name}`} onClick={async () => {

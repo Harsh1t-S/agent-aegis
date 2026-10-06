@@ -96,7 +96,7 @@ export default function Evaluations() {
             ) : (
               <div className="space-y-2">
                 {rows.map((evaluation, i) => {
-                  const delta = evaluation.score - evaluation.previousScore;
+                  const delta = evaluation.score - (evaluation.previousScore ?? 0);
                   return (
                     <ScrollReveal key={evaluation.id} delay={Math.min(i, 8) * 0.03}>
                       <Link
@@ -145,7 +145,7 @@ export default function Evaluations() {
                             </div>
                             <div className="font-mono text-[10px] text-bone-500">
                               {evaluationVerdict(evaluation)}
-                              {evaluation.status === 'completed' && evaluation.previousScore > 0 && (
+                              {evaluation.status === 'completed' && evaluation.previousScore !== null && (
                                 <>
                                   {' · '}
                                   <span
