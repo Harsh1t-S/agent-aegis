@@ -53,19 +53,20 @@ export default {
         // background. Every "small text is not visible" complaint was one of these:
         // the labels were technically rendered and practically invisible.
         //
-        // The two dimmest steps are now set by measurement, not by eye: 600 is
-        // 4.77:1 and 500 is 5.76:1 against ink-950, so even an 10px mono label at
-        // the quietest weight in the product clears WCAG AA for body text. Anything
-        // dimmer than 600 does not exist, because there is nothing worth saying
-        // that is not worth being able to read.
+        // Every step is set by measurement against ink-950. Passing AA was not
+        // enough: warm greys at 4.8–9:1 still read as muddy on a near-black page, so
+        // the scale was lifted and 50 is true white. 300 (body copy) is 12.5:1,
+        // 400 is 9.7:1, 500 is 7.5:1 and 600, the quietest label, is 5.9:1.
+        // Anything dimmer than 600 does not exist, because there is nothing worth
+        // saying that is not worth being able to read.
         bone: {
-          50: '#f6f2ea',
-          100: '#eae4d8',
-          200: '#d6cfc0',
-          300: '#bcb3a1',
-          400: '#a1977f',
-          500: '#948a77',
-          600: '#857c6d',
+          50: '#ffffff',
+          100: '#f5f2ec',
+          200: '#e8e3d9',
+          300: '#d4cdc0',
+          400: '#bdb5a5',
+          500: '#a89f8d',
+          600: '#958c7c',
         },
         // Interactive.
         //

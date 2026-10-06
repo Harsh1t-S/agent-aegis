@@ -22,8 +22,12 @@ class Plan:
         return asdict(self)
 
 
+# Subscription status of a personal organization created after its owner had
+# already used the free trial, for example by deleting their last workspace.
+TRIAL_USED = "trial_used"
+
 PLANS = {
-    "trial": Plan("trial", "Pilot trial", 25, 1, 14, 1, 1, False, 2.0, 0),
+    "trial": Plan("trial", "Pilot trial", 60, 1, 14, 1, 1, False, 2.0, 0),
     "starter": Plan("starter", "Starter", 500, 2, 90, 3, 1, True, 50.0, 1999),
     "team": Plan("team", "Team", 5000, 5, 365, 20, 5, True, 500.0, 9999),
     # Local development and automated tests should not need a fake payment.

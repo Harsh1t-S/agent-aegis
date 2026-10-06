@@ -67,7 +67,7 @@ export default function Billing() {
                 <section className="border border-bone-600/20 bg-ink-900/60 p-6">
                   <SystemLabel>CURRENT PLAN</SystemLabel>
                   <p className="massive mt-3 text-3xl text-signal-400">{data.plan.name}</p>
-                  <p className="mt-2 font-mono text-xs uppercase text-bone-500">{data.subscriptionStatus}</p>
+                  <p className="mt-2 font-mono text-xs uppercase text-bone-500">{data.subscriptionStatus.replace(/_/g, ' ')}</p>
                   {data.customerConfigured && data.billingMode === 'subscription' && canManage && (
                     <button type="button" onClick={() => void redirect('portal')} disabled={busy !== null}
                       className="mt-5 flex min-h-10 items-center gap-2 font-mono text-[10px] uppercase tracking-wider text-signal-300">

@@ -19,14 +19,14 @@ body {
      utilities apply, and a flash of the wrong ground is worse than a duplicated
      hex. */
   background-color: #0b0a09;
-  color: #f6f2ea;
+  color: #ffffff;
   font-family: 'Inter', system-ui, sans-serif;
   overflow-x: hidden;
 }
 
 ::selection {
   background-color: rgba(91, 200, 232, 0.32);
-  color: #f6f2ea;
+  color: #ffffff;
 }
 
 /* Custom scrollbar */

@@ -16,11 +16,11 @@ export const palette = {
   ink850: '#191613',
   ink600: '#453d35',
 
-  bone50: '#f6f2ea',
-  bone300: '#bcb3a1',
-  bone400: '#a1977f',
-  bone500: '#8b8270',
-  bone600: '#7a7264',
+  bone50: '#ffffff',
+  bone300: '#d4cdc0',
+  bone400: '#bdb5a5',
+  bone500: '#a89f8d',
+  bone600: '#958c7c',
 
   /** Interactive. */
   signal400: '#5bc8e8',

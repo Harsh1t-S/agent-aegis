@@ -493,6 +493,32 @@ def test_reviewed_benchmark_reports_errors_uncertainty_and_repeatability():
     assert result["repeatability"]["scenarioContracts"] == 1
 
 
+def test_deleting_the_last_workspace_does_not_grant_a_new_trial(client):
+    from app.auth import Principal
+    from app.tenancy import ensure_personal_workspace
+
+    principal = Principal(user_id=f"trial-{uuid4()}", email="repeat@example.com")
+    with SessionLocal() as db:
+        first = ensure_personal_workspace(db, principal)
+        assert usage_summary(db, first.id, first.organization_id)["included"] == 60
+        # The final workspace takes its organization with it.
+        db.delete(db.get(Organization, first.organization_id))
+        db.commit()
+
+        second = ensure_personal_workspace(db, principal)
+        summary = usage_summary(db, second.id, second.organization_id)
+        assert summary["included"] == 0
+        assert summary["spendCapUsd"] == 0.0
+        with pytest.raises(HTTPException) as refused:
+            reserve_credits(db, second.id, second.organization_id, 1, f"trial-{uuid4()}")
+        assert refused.value.status_code == 402
+        assert "already used its free trial" in refused.value.detail
+
+        db.delete(db.get(Organization, second.organization_id))
+        db.delete(db.get(UserProfile, principal.user_id))
+        db.commit()
+
+
 def test_usage_settlement_is_idempotent(client):
     db = SessionLocal()
     try:
@@ -533,6 +559,38 @@ def test_usage_settlement_is_idempotent(client):
         db.close()
 
 
+def test_credits_are_shared_across_an_organizations_workspaces(client):
+    db = SessionLocal()
+    workspace_id = str(uuid4())
+    reservation_id = None
+    try:
+        db.add(Workspace(id=workspace_id, organization_id=LOCAL_ORGANIZATION_ID,
+                         name="Second workspace", slug=f"second-{workspace_id}",
+                         settings={}))
+        db.commit()
+        reservation = reserve_credits(
+            db, workspace_id, LOCAL_ORGANIZATION_ID, 3, f"shared-{uuid4()}")
+        db.commit()
+        reservation_id = reservation.id
+        # A plan's credits belong to the organization, so a second workspace
+        # draws on the same pool instead of getting its own.
+        first = usage_summary(db, LOCAL_WORKSPACE_ID, LOCAL_ORGANIZATION_ID)
+        second = usage_summary(db, workspace_id, LOCAL_ORGANIZATION_ID)
+        assert first["reserved"] == second["reserved"] >= 3
+        assert first["remaining"] == second["remaining"]
+    finally:
+        db.rollback()
+        if reservation_id:
+            db.query(UsageReservation).execution_options(
+                include_all_workspaces=True).filter_by(
+                id=reservation_id).delete(synchronize_session=False)
+        workspace = db.get(Workspace, workspace_id)
+        if workspace:
+            db.delete(workspace)
+        db.commit()
+        db.close()
+
+
 def test_workspace_model_spend_cap_is_reserved_atomically(client):
     db = SessionLocal()
     workspace_id = str(uuid4())
@@ -561,7 +619,8 @@ def test_workspace_model_spend_cap_is_reserved_atomically(client):
         reservation_id = reservation.id
         summary = usage_summary(db, workspace_id, LOCAL_ORGANIZATION_ID)
         assert summary["spendCapUsd"] == 0.50
-        assert summary["reservedCostUsd"] == pytest.approx(0.40)
+        # Reserved cost is reported for the whole organization, which other tests share.
+        assert summary["reservedCostUsd"] >= 0.40 - 1e-9
         assert summary["spendRemainingUsd"] == pytest.approx(0.10)
     finally:
         db.rollback()
