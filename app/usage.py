@@ -5,7 +5,7 @@ import os
 from datetime import datetime, timedelta
 
 from fastapi import HTTPException
-from sqlalchemy import func
+from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
@@ -28,6 +28,33 @@ def _period(subscription: Subscription | None) -> tuple[datetime, datetime]:
     return start, end
 
 
+def _consumption(db: Session, workspace_ids, period_start: datetime,
+                 period_end: datetime) -> tuple[int, int, float, float]:
+    """Settled and reserved credits and model spend across `workspace_ids`."""
+    used, estimated_cost = (
+        db.query(func.coalesce(func.sum(UsageEvent.units), 0),
+                 func.coalesce(func.sum(UsageEvent.estimated_cost_usd), 0.0))
+        .filter(UsageEvent.workspace_id.in_(workspace_ids),
+                UsageEvent.kind == "settlement",
+                UsageEvent.created_at >= period_start,
+                UsageEvent.created_at < period_end)
+        .one()
+    )
+    open_units = (UsageReservation.reserved_units
+                  - UsageReservation.settled_units
+                  - UsageReservation.refunded_units)
+    reserved, reserved_cost = (
+        db.query(func.coalesce(func.sum(open_units), 0),
+                 func.coalesce(func.sum(UsageReservation.reserved_cost_usd * open_units
+                                        / UsageReservation.reserved_units), 0.0))
+        .filter(UsageReservation.workspace_id.in_(workspace_ids),
+                UsageReservation.status == "reserved",
+                UsageReservation.expires_at > now())
+        .one()
+    )
+    return int(used or 0), int(reserved or 0), float(estimated_cost or 0.0), float(reserved_cost or 0.0)
+
+
 def usage_summary(db: Session, workspace_id: str, organization_id: str) -> dict:
     subscription = db.get(Subscription, organization_id)
     current = now()
@@ -40,55 +67,32 @@ def usage_summary(db: Session, workspace_id: str, organization_id: str) -> dict:
     )
     plan = plan_for(subscription.plan if paid_plan_active else "trial")
     period_start, period_end = _period(subscription)
-    used = int(
-        db.query(func.coalesce(func.sum(UsageEvent.units), 0))
-        .filter(UsageEvent.workspace_id == workspace_id,
-                UsageEvent.kind == "settlement",
-                UsageEvent.created_at >= period_start,
-                UsageEvent.created_at < period_end)
-        .scalar() or 0
-    )
-    reserved = int(
-        db.query(func.coalesce(func.sum(
-            UsageReservation.reserved_units
-            - UsageReservation.settled_units
-            - UsageReservation.refunded_units), 0))
-        .filter(UsageReservation.workspace_id == workspace_id,
-                UsageReservation.status == "reserved",
-                UsageReservation.expires_at > now())
-        .scalar() or 0
-    )
+    # Credits and the plan's spend cap belong to the organization. Counting them
+    # per workspace gave a five-workspace Team plan five times what it paid for.
+    organization_workspaces = select(Workspace.id).where(
+        Workspace.organization_id == organization_id)
+    used, reserved, estimated_cost, reserved_cost = _consumption(
+        db, organization_workspaces, period_start, period_end)
     trial_spent = bool(subscription and subscription.status == TRIAL_USED)
     included = 0 if trial_spent else plan.monthly_scenario_credits
-    estimated_cost = float(
-        db.query(func.coalesce(func.sum(UsageEvent.estimated_cost_usd), 0.0))
-        .filter(UsageEvent.workspace_id == workspace_id,
-                UsageEvent.kind == "settlement",
-                UsageEvent.created_at >= period_start,
-                UsageEvent.created_at < period_end)
-        .scalar() or 0.0
-    )
-    reserved_cost = float(
-        db.query(func.coalesce(func.sum(
-            UsageReservation.reserved_cost_usd
-            * (UsageReservation.reserved_units
-               - UsageReservation.settled_units
-               - UsageReservation.refunded_units)
-            / UsageReservation.reserved_units
-        ), 0.0))
-        .filter(UsageReservation.workspace_id == workspace_id,
-                UsageReservation.status == "reserved",
-                UsageReservation.expires_at > now())
-        .scalar() or 0.0
-    )
+    plan_cap = 0.0 if trial_spent else float(plan.monthly_model_spend_cap_usd)
+    spend_cap = plan_cap
+    spend_remaining = max(plan_cap - estimated_cost - reserved_cost, 0.0)
+
     workspace = db.get(Workspace, workspace_id)
     configured_cap = (workspace.settings or {}).get("monthlySpendCapUsd") if workspace else None
     try:
         configured_cap = float(configured_cap) if configured_cap is not None else None
     except (TypeError, ValueError):
         configured_cap = None
-    plan_cap = 0.0 if trial_spent else float(plan.monthly_model_spend_cap_usd)
-    spend_cap = min(max(configured_cap, 0.0), plan_cap) if configured_cap is not None else plan_cap
+    if configured_cap is not None:
+        # A workspace can hold its own share of the spend under a tighter cap.
+        spend_cap = min(max(configured_cap, 0.0), plan_cap)
+        _, _, workspace_cost, workspace_reserved_cost = _consumption(
+            db, [workspace_id], period_start, period_end)
+        spend_remaining = min(
+            spend_remaining,
+            max(spend_cap - workspace_cost - workspace_reserved_cost, 0.0))
     return {
         "plan": plan.payload(),
         "subscriptionStatus": subscription.status if subscription else "trialing",
@@ -101,7 +105,7 @@ def usage_summary(db: Session, workspace_id: str, organization_id: str) -> dict:
         "estimatedCostUsd": round(estimated_cost, 6),
         "reservedCostUsd": round(reserved_cost, 6),
         "spendCapUsd": spend_cap,
-        "spendRemainingUsd": round(max(spend_cap - estimated_cost - reserved_cost, 0.0), 6),
+        "spendRemainingUsd": round(spend_remaining, 6),
     }
 
 
