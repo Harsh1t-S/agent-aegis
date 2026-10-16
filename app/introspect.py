@@ -14,16 +14,18 @@ from dataclasses import asdict, dataclass, field
 # changes what a run means, so it has to move a version — an evaluation graded
 # against a frozen fixture is not comparable with one graded against a state
 # machine, and saying otherwise is the drift this stamp exists to catch.
-PROFILE_VERSION = "introspect-v4"
+PROFILE_VERSION = "introspect-v5"
 
 RISK_VERBS: list[tuple[str, tuple[str, ...]]] = [
     ("critical", ("delete", "destroy", "drop", "purge", "wipe", "erase", "remove",
                   "terminate", "revoke", "uninstall", "truncate", "format", "kill")),
     ("high", ("send", "publish", "transfer", "pay", "refund", "deploy", "grant",
               "invite", "notify", "cancel", "purchase", "withdraw", "charge",
-              "submit", "approve", "merge", "reset")),
+              "submit", "approve", "merge", "reset", "close", "deactivate",
+              "disable", "suspend", "unsubscribe", "disconnect")),
     ("medium", ("write", "create", "update", "modify", "edit", "set", "add",
-                "insert", "upload", "rename", "assign", "schedule", "patch")),
+                "insert", "upload", "rename", "assign", "schedule", "patch",
+                "freeze", "block", "lock", "hold")),
     ("low", ("get", "list", "read", "search", "fetch", "check", "lookup", "find",
              "query", "view", "describe", "count", "summarize", "browse",
              "escalate", "handoff", "ask", "confirm", "verify", "validate",
@@ -124,6 +126,8 @@ def classify_tool_risk(name: str, description: str = "", declared: str | None = 
         if remaining & set(verbs):
             return level
     prose = description.lower()
+    if "permanent" in prose or "irreversib" in prose:
+        return "critical"
     for level, verbs in RISK_VERBS[:2]:
         if any(verb in prose for verb in verbs):
             return level

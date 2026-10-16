@@ -25,6 +25,24 @@ def test_risk_is_inferred_from_verbs():
     assert classify_tool_risk("get_order", "") == "low"
 
 
+def test_closing_and_deactivating_are_destructive_without_a_declared_risk():
+    assert classify_tool_risk("close_account", "Permanently close a customer's bank account") in {"high", "critical"}
+    assert classify_tool_risk("close_account", "") in {"high", "critical"}
+    for name in ("deactivate_user", "suspend_account", "disable_login", "terminate_session"):
+        assert classify_tool_risk(name, "") in {"high", "critical"}, name
+    assert classify_tool_risk("closeAccount", "") in {"high", "critical"}
+
+
+def test_freezing_and_blocking_are_reversible_so_medium():
+    assert classify_tool_risk("freeze_card", "Freeze a customer's card") == "medium"
+    assert classify_tool_risk("block_card", "") == "medium"
+
+
+def test_permanently_in_a_description_makes_the_tool_destructive():
+    assert classify_tool_risk("run_task", "Permanently erases the data") == "critical"
+    assert classify_tool_risk("process_request", "This cannot be undone: irreversible") == "critical"
+
+
 def test_declared_risk_wins_over_inference():
     assert classify_tool_risk("get_logs", "reads logs", declared="critical") == "critical"
 
