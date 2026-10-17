@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
-import { AppNavigation } from '@/components/AppNavigation';
+import { PageHeader } from '@/components/PageHeader';
 import { IncidentTrace } from '@/components/IncidentTrace';
 import { FailureAnalysis } from '@/components/FailureAnalysis';
 import { ScrollReveal } from '@/components/ScrollReveal';
@@ -13,6 +13,7 @@ import { severityTone, testStatusTone } from '@/lib/format';
 import { Check, Copy, Loader2, RotateCcw, ArrowLeft } from 'lucide-react';
 import type { ReviewDecision } from '@/types';
 import { useWorkspace } from '@/contexts/WorkspaceContext';
+import { buttonSecondary } from '@/lib/ui';
 
 export default function TestTrace() {
   const { evaluationId, testId } = useParams<{ evaluationId: string; testId: string }>();
@@ -41,33 +42,26 @@ export default function TestTrace() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-ink-950">
-        <AppNavigation />
-        <LoadingState label="LOADING INCIDENT" />
-      </div>
+      <LoadingState label="LOADING INCIDENT" />
     );
   }
 
   const test = evaluation?.test;
   if (!test && evaluation && !error && evaluation.status === 'canceled') {
     return (
-      <div className="min-h-screen bg-ink-950">
-        <AppNavigation />
-        <div className="px-6 py-16 text-center md:px-10">
-          <p className="font-mono text-xs text-bone-400">SCENARIO CANCELED</p>
-          <p className="mt-3 text-sm text-bone-500">
-            This scenario was canceled before it produced a trace.
-          </p>
-        </div>
+      <div className="py-16 text-center">
+        <p className="font-mono text-xs text-bone-400">SCENARIO CANCELED</p>
+        <p className="mt-3 text-sm text-bone-500">
+          This scenario was canceled before it produced a trace.
+        </p>
       </div>
     );
   }
   if (!test && evaluation && !error) {
     return (
-      <div className="min-h-screen bg-ink-950">
-        <AppNavigation />
+      <div>
         <LoadingState label="SCENARIO IN PROGRESS" />
-        <p className="px-6 text-center font-mono text-[11px] text-bone-500">
+        <p className="text-center font-mono text-xs text-bone-500">
           {evaluation.canContinue === false
             ? 'The evaluation worker is offline. This queued scenario will resume when the worker returns.'
             : 'The scenario is executing. This page switches to the saved trace as soon as it completes.'}
@@ -78,21 +72,15 @@ export default function TestTrace() {
 
   if (error || !test) {
     return (
-      <div className="min-h-screen bg-ink-950">
-        <AppNavigation />
-        <div className="px-6 py-16 md:px-10">
-          <ErrorState
-            message={error ?? 'This scenario run is not part of the evaluation.'}
-            onRetry={reload}
-          />
-          <div className="mt-6 text-center">
-            <Link
-              to={evaluationId ? `/app/evaluations/${evaluationId}` : '/app/agents'}
-              className="border border-signal-500/40 px-6 py-3 font-mono text-xs uppercase tracking-wider text-signal-400 hover:bg-signal-500/10"
-            >
-              BACK TO RESULTS
-            </Link>
-          </div>
+      <div className="py-8">
+        <ErrorState
+          message={error ?? 'This scenario run is not part of the evaluation.'}
+          onRetry={reload}
+        />
+        <div className="mt-6 text-center">
+          <Link to={evaluationId ? `/app/evaluations/${evaluationId}` : '/app/evaluations'} className={buttonSecondary}>
+            Back to report
+          </Link>
         </div>
       </div>
     );
@@ -142,61 +130,43 @@ export default function TestTrace() {
   };
 
   return (
-    <div className="min-h-screen bg-ink-950">
-      <AppNavigation />
-
-      <div className="px-4 py-8 sm:px-6 md:px-10">
-        <div className="flex flex-wrap items-center gap-2 font-mono text-[10px] uppercase tracking-wider text-bone-500">
-          <Link
-            to={`/app/evaluations/${evaluationId}`}
-            className="inline-flex min-h-9 items-center hover:text-bone-200"
-          >
-            {evaluation?.agentName?.toUpperCase() ?? 'EVALUATION'}
-          </Link>
-          <span>/</span>
-          <span>{evaluation?.version}</span>
-          <span>/</span>
-          <span className="text-signal-400">{test.title.toUpperCase()}</span>
-        </div>
-
-        <div className="mt-6 flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
-          <div>
-            <div className="flex flex-wrap items-center gap-3">
-              <SystemLabel>INCIDENT REPORT</SystemLabel>
-              <span
-                className={`border px-2 py-0.5 font-mono text-[10px] uppercase tracking-wider ${cfg.color} border-current/40`}
-              >
+    <>
+        <PageHeader
+          crumbs={[
+            { label: 'Runs', to: '/app/evaluations' },
+            { label: `${evaluation?.agentName ?? 'Evaluation'} ${evaluation?.version ?? ''}`.trim(), to: `/app/evaluations/${evaluationId}` },
+            { label: 'Scenario' },
+          ]}
+          meta={(
+            <>
+              <span className={`border px-2 py-0.5 font-mono text-[11px] uppercase tracking-wider ${cfg.color} border-current/40`}>
                 {test.executionError ? 'EXECUTION ERROR' : cfg.label}
               </span>
               {test.severity && (
-                <span
-                  className={`border px-2 py-0.5 font-mono text-[10px] uppercase tracking-wider ${severityTone[test.severity]}`}
-                >
+                <span className={`border px-2 py-0.5 font-mono text-[11px] uppercase tracking-wider ${severityTone[test.severity]}`}>
                   {test.severity}
                 </span>
               )}
-              <span className="tech-label text-bone-600">{test.category}</span>
-            </div>
-            {isFail && test.failureType ? (
-              <h1 className="massive mt-4 text-[clamp(2rem,5vw,3.5rem)] text-fault-500">
-                {test.failureType.toUpperCase()}.
-              </h1>
-            ) : (
-              <h1 className="massive mt-4 text-[clamp(1.5rem,4vw,2.75rem)] text-bone-50">
-                {test.title}
-              </h1>
-            )}
-            <p className="mt-2 font-mono text-[11px] text-bone-500">
-              Run {test.id} · scenario {test.scenarioId} · {test.durationMs} ms
-            </p>
-          </div>
-          <Link
-            to={`/app/evaluations/${evaluationId}`}
-            className="flex h-fit min-h-11 items-center gap-2 font-mono text-[11px] uppercase tracking-wider text-bone-400 transition-colors hover:text-bone-100"
-          >
-            <ArrowLeft className="h-4 w-4" /> BACK TO RESULTS
-          </Link>
-        </div>
+              <span className="tech-label">{test.category}</span>
+            </>
+          )}
+          title={isFail && test.failureType
+            ? <span className="text-fault-500">{test.failureType.toUpperCase()}</span>
+            : test.title}
+          description={(
+            <>
+              {isFail && test.failureType && <span className="block text-bone-200">{test.title}</span>}
+              <span className="font-mono text-xs text-bone-500">
+                Run {test.id} · scenario {test.scenarioId} · {test.durationMs} ms
+              </span>
+            </>
+          )}
+          actions={(
+            <Link to={`/app/evaluations/${evaluationId}`} className={buttonSecondary}>
+              <ArrowLeft className="h-4 w-4" aria-hidden /> Back to report
+            </Link>
+          )}
+        />
 
         <div className="mt-12 grid min-w-0 gap-6 md:grid-cols-2">
           <ScrollReveal>
@@ -307,7 +277,6 @@ export default function TestTrace() {
             </button>}
           </div>
         </ScrollReveal>
-      </div>
-    </div>
+    </>
   );
 }

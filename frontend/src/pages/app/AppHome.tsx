@@ -1,5 +1,5 @@
 import { Link } from 'react-router-dom';
-import { AppNavigation } from '@/components/AppNavigation';
+import { PageHeader } from '@/components/PageHeader';
 import { ReliabilityScore } from '@/components/ReliabilityScore';
 import { MetricLine } from '@/components/MetricLine';
 import { ScrollReveal } from '@/components/ScrollReveal';
@@ -11,6 +11,7 @@ import { api } from '@/lib/api';
 import { deltaTone, evaluationPath, evaluationVerdict, formatDate, hasAgentScore, signed } from '@/lib/format';
 import { Plus, ArrowRight, TrendingUp, AlertTriangle, Activity, Bot } from 'lucide-react';
 import { useWorkspace } from '@/contexts/WorkspaceContext';
+import { buttonPrimary } from '@/lib/ui';
 
 export default function AppHome() {
   const workspace = useWorkspace();
@@ -77,25 +78,17 @@ export default function AppHome() {
     : [];
 
   return (
-    <div className="min-h-screen bg-ink-950">
-      <AppNavigation />
-
-      <div className="px-4 py-8 sm:px-6 md:px-10">
-        <SystemLabel>AEGIS / CONTROL CENTER</SystemLabel>
-
-        <div className="mt-4 grid gap-8 lg:grid-cols-[1fr_auto]">
-          <div>
-            <h1 className="massive text-[clamp(2rem,6vw,4.5rem)] text-bone-50">YOUR AGENTS.</h1>
-            <h1 className="massive text-[clamp(2rem,6vw,4.5rem)] text-signal-400">UNDER PRESSURE.</h1>
-          </div>
-          {canCreate && <Link
-            to="/app/agents/new"
-            className="group flex h-fit items-center gap-2 border border-signal-500/40 bg-signal-500/10 px-6 py-3 font-mono text-xs uppercase tracking-wider text-signal-400 transition-colors hover:bg-signal-500/20"
-          >
-            <Plus className="h-4 w-4" />
-            INITIALIZE NEW AGENT
-          </Link>}
-        </div>
+    <>
+        <PageHeader
+          crumbs={[{ label: workspace.current?.name ?? 'Workspace' }, { label: 'Overview' }]}
+          title={<>YOUR AGENTS. <span className="text-signal-400">UNDER PRESSURE.</span></>}
+          description="The latest run, the numbers behind it, and every agent in this workspace."
+          actions={canCreate && (
+            <Link to="/app/agents/new" className={buttonPrimary}>
+              <Plus className="h-4 w-4" aria-hidden /> New agent
+            </Link>
+          )}
+        />
 
         {loading && <LoadingState label="LOADING WORKSPACE" />}
         {!loading && error && (
@@ -106,7 +99,7 @@ export default function AppHome() {
 
         {!loading && !error && (
           <>
-            <div className="mt-12 grid min-w-0 gap-6 lg:grid-cols-3">
+            <div className="mt-8 grid min-w-0 gap-6 lg:grid-cols-3">
               <ScrollReveal className="min-w-0 lg:col-span-2">
                 <div className="noise relative flex min-h-[320px] flex-col border border-bone-600/20 bg-gradient-to-br from-ink-900/80 to-ink-850/50 p-5 sm:min-h-[400px] sm:p-8">
                   {latest ? (
@@ -264,7 +257,6 @@ export default function AppHome() {
             </ScrollReveal>
           </>
         )}
-      </div>
-    </div>
+    </>
   );
 }

@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
-import { AppNavigation } from '@/components/AppNavigation';
+import { PageHeader } from '@/components/PageHeader';
 import { ReliabilityScore } from '@/components/ReliabilityScore';
 import { MetricLine } from '@/components/MetricLine';
 import { VersionEvolution } from '@/components/VersionEvolution';
@@ -12,8 +12,9 @@ import { METRIC_COLORS } from '@/lib/palette';
 import { api, ApiError } from '@/lib/api';
 import { useToast } from '@/components/Toaster';
 import { agentStatusLabel, agentStatusTone, evaluationPath, formatDate, hasAgentScore } from '@/lib/format';
-import { Play, ArrowRight, Clock, Loader2, Pencil, Trash2 } from 'lucide-react';
+import { Play, ArrowRight, Clock, GitCompareArrows, Loader2, Pencil, Trash2 } from 'lucide-react';
 import { useWorkspace } from '@/contexts/WorkspaceContext';
+import { buttonPrimary, buttonSecondary } from '@/lib/ui';
 
 export default function AgentDetail() {
   const { id } = useParams<{ id: string }>();
@@ -47,27 +48,16 @@ export default function AgentDetail() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-ink-950">
-        <AppNavigation />
-        <LoadingState label="LOADING AGENT" />
-      </div>
+      <LoadingState label="LOADING AGENT" />
     );
   }
 
   if (error || !agent) {
     return (
-      <div className="min-h-screen bg-ink-950">
-        <AppNavigation />
-        <div className="px-6 py-16 md:px-10">
-          <ErrorState message={error ?? 'Agent not found.'} onRetry={reload} />
-          <div className="mt-6 text-center">
-            <Link
-              to="/app/agents"
-              className="border border-signal-500/40 px-6 py-3 font-mono text-xs uppercase tracking-wider text-signal-400 hover:bg-signal-500/10"
-            >
-              BACK TO AGENTS
-            </Link>
-          </div>
+      <div className="py-8">
+        <ErrorState message={error ?? 'Agent not found.'} onRetry={reload} />
+        <div className="mt-6 text-center">
+          <Link to="/app/agents" className={buttonSecondary}>Back to agents</Link>
         </div>
       </div>
     );
@@ -77,49 +67,38 @@ export default function AgentDetail() {
   const hasRun = hasAgentScore(agent) && Boolean(latestVersion);
 
   return (
-    <div className="min-h-screen bg-ink-950">
-      <AppNavigation />
-
-      <div className="px-4 py-8 sm:px-6 md:px-10">
-        <div className="flex items-center gap-2 font-mono text-[10px] uppercase tracking-wider text-bone-500">
-          <Link to="/app/agents" className="inline-flex min-h-9 items-center hover:text-bone-200">
-            AGENTS
-          </Link>
-          <span>/</span>
-          <span className="text-signal-400">{agent.name.toUpperCase()}</span>
-        </div>
-
-        <div className="mt-4 flex flex-col gap-6 md:flex-row md:items-end md:justify-between">
-          <div>
-            <div className="flex flex-wrap items-center gap-3">
-              <SystemLabel>{agent.domain.toUpperCase()}</SystemLabel>
+    <>
+        <PageHeader
+          crumbs={[{ label: 'Agents', to: '/app/agents' }, { label: agent.name }]}
+          meta={(
+            <>
+              <span className="tech-label">{agent.domain.toUpperCase()}</span>
               <span className={`tech-label ${agentStatusTone[agent.status]}`}>
                 {agentStatusLabel[agent.status]}
               </span>
-            </div>
-            <h1 className="massive mt-2 text-[clamp(2rem,5vw,3.5rem)] text-bone-50">{agent.name}</h1>
-            <p className="mt-2 max-w-lg text-sm text-bone-400">{agent.description}</p>
-          </div>
-          {canMutate && <div className="flex flex-col items-start gap-2">
-            <div className="flex flex-wrap items-center gap-2">
-            <Link
-              to={`/app/agents/${agent.id}/edit`}
-              className="flex min-h-11 items-center gap-2 border border-bone-600/35 px-4 font-mono text-xs uppercase tracking-wider text-bone-300 transition-colors hover:border-signal-400/50 hover:text-signal-300"
-            >
-              <Pencil className="h-3.5 w-3.5" /> EDIT
-            </Link>
-            <Link
-              to={`/app/agents/${agent.id}/review`}
-              className="group flex min-h-11 items-center gap-2 border border-signal-500/40 bg-signal-500/10 px-6 py-3 font-mono text-xs uppercase tracking-wider text-signal-400 transition-colors hover:bg-signal-500/20"
-            >
-              <Play className="h-4 w-4" /> REVIEW & RUN
-            </Link>
-            </div>
-            {startError && <span className="font-mono text-[11px] text-fault-400">{startError}</span>}
-          </div>}
-        </div>
+            </>
+          )}
+          title={agent.name}
+          description={agent.description}
+          actions={canMutate && (
+            <>
+              <Link to={`/app/agents/${agent.id}/edit`} className={buttonSecondary}>
+                <Pencil className="h-4 w-4" aria-hidden /> Edit
+              </Link>
+              {agent.versions.length > 1 && (
+                <Link to={`/app/compare?agent=${agent.id}`} className={buttonSecondary}>
+                  <GitCompareArrows className="h-4 w-4" aria-hidden /> Compare
+                </Link>
+              )}
+              <Link to={`/app/agents/${agent.id}/review`} className={buttonPrimary}>
+                <Play className="h-4 w-4" aria-hidden /> Review & run
+              </Link>
+            </>
+          )}
+        />
+        {startError && <p role="alert" className="mt-4 font-mono text-xs text-fault-400">{startError}</p>}
 
-        <div className="mt-12 grid min-w-0 gap-6 lg:grid-cols-3">
+        <div className="mt-8 grid min-w-0 gap-6 lg:grid-cols-3">
           <ScrollReveal className="min-w-0 lg:col-span-1">
             <div className="flex min-h-[240px] min-w-0 flex-col items-center justify-center border border-bone-600/20 bg-ink-900/60 p-5 sm:min-h-[320px] sm:p-8">
               {hasRun ? (
@@ -301,7 +280,6 @@ export default function AgentDetail() {
             )}
           </div>
         </ScrollReveal>}
-      </div>
-    </div>
+    </>
   );
 }

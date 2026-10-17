@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { ExternalLink, Loader2 } from 'lucide-react';
-import { AppNavigation } from '@/components/AppNavigation';
 import { AsyncBoundary } from '@/components/AsyncState';
+import { PageHeader } from '@/components/PageHeader';
 import { SystemLabel } from '@/components/SystemLabel';
 import { useToast } from '@/components/Toaster';
 import { useResource } from '@/hooks/useResource';
@@ -40,15 +40,16 @@ export default function Billing() {
   const percent = data ? Math.min((data.used + data.reserved) / Math.max(data.included, 1) * 100, 100) : 0;
 
   return (
-    <div className="min-h-screen bg-ink-950">
-      <AppNavigation />
-      <main className="px-4 py-8 sm:px-6 md:px-10">
-        <SystemLabel>WORKSPACE / BILLING</SystemLabel>
-        <h1 className="massive mt-2 text-[clamp(2.5rem,6vw,4.5rem)] text-bone-50">USAGE & PLAN.</h1>
+    <>
+        <PageHeader
+          crumbs={[{ label: 'Workspace' }, { label: 'Billing' }]}
+          title="USAGE & PLAN"
+          description="Scenario credits and model spend for this organization, and the plan that sets them."
+        />
         <AsyncBoundary loading={billing.loading} error={billing.error} onRetry={billing.reload} label="LOADING BILLING">
           {data && (
             <>
-              <div className="mt-10 grid gap-5 lg:grid-cols-4">
+              <div className="mt-8 grid gap-5 lg:grid-cols-4">
                 <section className="border border-bone-600/20 bg-ink-900/60 p-6 lg:col-span-2">
                   <div className="flex items-end justify-between gap-4">
                     <div>
@@ -93,9 +94,22 @@ export default function Billing() {
               </div>
 
               <div className="mt-6 grid gap-5 md:grid-cols-2">
-                {data.plans.map((plan) => (
-                  <section key={plan.key} className="border border-bone-600/20 bg-ink-900/50 p-6">
-                    <SystemLabel>{plan.name}</SystemLabel>
+                {data.plans.map((plan) => {
+                  const active = plan.key === data.plan.key;
+                  return (
+                  <section key={plan.key}
+                    aria-current={active ? 'true' : undefined}
+                    className={`relative p-6 ${active
+                      ? 'border-2 border-bone-50 bg-ink-900/80'
+                      : 'border border-bone-600/20 bg-ink-900/50'}`}>
+                    <div className="flex items-start justify-between gap-3">
+                      <SystemLabel className={active ? 'text-bone-100' : ''}>{plan.name}</SystemLabel>
+                      {active && (
+                        <span className="bg-bone-50 px-2 py-0.5 font-mono text-[10px] font-bold uppercase tracking-wider text-ink-950">
+                          Current plan
+                        </span>
+                      )}
+                    </div>
                     <p className="mt-3 font-mono text-xl text-signal-300">
                       {plan.monthly_price_inr ? `₹${plan.monthly_price_inr.toLocaleString('en-IN')} / month` : 'Pilot access'}
                     </p>
@@ -118,7 +132,8 @@ export default function Billing() {
                       </button>
                     )}
                   </section>
-                ))}
+                  );
+                })}
               </div>
               {!data.checkoutAvailable && (
                 <p className="mt-5 border border-warn-500/30 p-4 text-sm text-warn-400">
@@ -128,7 +143,6 @@ export default function Billing() {
             </>
           )}
         </AsyncBoundary>
-      </main>
-    </div>
+    </>
   );
 }

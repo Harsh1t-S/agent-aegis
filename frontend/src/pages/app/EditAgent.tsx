@@ -1,8 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useNavigate, useParams, Link } from 'react-router-dom';
-import { AppNavigation } from '@/components/AppNavigation';
+import { PageHeader } from '@/components/PageHeader';
 import { SystemLabel } from '@/components/SystemLabel';
-import { MassiveHeading } from '@/components/MassiveHeading';
 import { AsyncBoundary } from '@/components/AsyncState';
 import { useToast } from '@/components/Toaster';
 import { useResource } from '@/hooks/useResource';
@@ -129,36 +128,18 @@ export default function EditAgent() {
     'w-full border border-bone-300/35 bg-ink-900/60 px-4 py-3 font-mono text-base sm:text-sm text-bone-50 placeholder:text-bone-300 focus:border-signal-400/70 focus:outline-none transition-colors';
 
   return (
-    <div className="min-h-screen bg-ink-950">
-      <AppNavigation />
-
-      <div className="px-4 py-8 sm:px-6 md:px-10">
-        <div className="flex flex-wrap items-center gap-2 font-mono text-[10px] uppercase tracking-wider text-bone-500">
-          <Link to="/app/agents" className="inline-flex min-h-9 items-center hover:text-bone-200">
-            AGENTS
-          </Link>
-          <span>/</span>
-          <Link
-            to={`/app/agents/${id}`}
-            className="inline-flex min-h-9 items-center hover:text-bone-200"
-          >
-            {(agent.data?.name ?? '').toUpperCase() || 'AGENT'}
-          </Link>
-          <span>/</span>
-          <span className="text-signal-400">EDIT</span>
-        </div>
-
-        <MassiveHeading
-          lines={['EDIT', 'THE AGENT.']}
-          className="mt-2 text-[clamp(2rem,6vw,4rem)] text-bone-50"
+    <>
+        <PageHeader
+          crumbs={[
+            { label: 'Agents', to: '/app/agents' },
+            { label: agent.data?.name || 'Agent', to: `/app/agents/${id}` },
+            { label: 'Edit' },
+          ]}
+          title="EDIT AGENT"
+          description="Changing the prompt or the tools does not rewrite any evaluation that already ran. Save, then run a new evaluation; the comparison between the two is the regression report."
         />
-        <p className="mt-4 max-w-2xl text-sm leading-relaxed text-bone-400">
-          Changing the prompt or the tools does not rewrite any evaluation that already
-          ran. Save, then run a new evaluation — the comparison between the two is the
-          regression report.
-        </p>
 
-        <div className="mt-10 max-w-2xl">
+        <div className="mt-8 max-w-2xl">
           <AsyncBoundary
             loading={agent.loading}
             error={agent.error}
@@ -393,7 +374,6 @@ export default function EditAgent() {
             </div>
           </AsyncBoundary>
         </div>
-      </div>
-    </div>
+    </>
   );
 }

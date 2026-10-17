@@ -1,6 +1,6 @@
 import { useEffect, useState, type FormEvent } from 'react';
 import { Copy, Download, KeyRound, Trash2 } from 'lucide-react';
-import { AppNavigation } from '@/components/AppNavigation';
+import { PageHeader } from '@/components/PageHeader';
 import { AsyncBoundary } from '@/components/AsyncState';
 import { SystemLabel } from '@/components/SystemLabel';
 import { useToast } from '@/components/Toaster';
@@ -64,14 +64,12 @@ export default function Developer() {
   };
 
   return (
-    <div className="min-h-screen bg-ink-950">
-      <AppNavigation />
-      <main className="px-4 py-8 sm:px-6 md:px-10">
-        <SystemLabel>WORKSPACE / DEVELOPER</SystemLabel>
-        <h1 className="massive mt-2 text-[clamp(2.5rem,6vw,4.5rem)] text-bone-50">API & AUDIT.</h1>
-        <p className="mt-4 max-w-2xl text-sm leading-relaxed text-bone-400">
-          Named keys belong to this workspace. The raw secret is shown once and only its hash is stored.
-        </p>
+    <>
+        <PageHeader
+          crumbs={[{ label: 'Workspace' }, { label: 'API & audit' }]}
+          title="API & AUDIT"
+          description="Named keys belong to this workspace. The raw secret is shown once and only its hash is stored."
+        />
 
         {canManage && (
           <form onSubmit={create} className="mt-8 grid max-w-3xl gap-4 border border-bone-600/20 bg-ink-900/60 p-5 sm:grid-cols-[1fr_180px_auto]">
@@ -194,7 +192,6 @@ export default function Developer() {
             )}
           </AsyncBoundary>
         </section>
-      </main>
-    </div>
+    </>
   );
 }

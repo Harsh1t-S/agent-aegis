@@ -132,8 +132,8 @@ export default function LandingPage() {
             <SystemLabel>FIRST RUN</SystemLabel>
             <h2 className="massive mt-4 text-[clamp(2.5rem,6vw,5rem)] text-bone-50">A SHORT PATH TO A USEFUL REPORT.</h2>
             <p className="mt-5 text-sm leading-relaxed text-bone-400">
-              Use the deterministic stand-in while configuring the workspace, then switch
-              to a self-hosted evaluator model or your connected agent when ready.
+              Runs use the hosted model by default, so the first report already tests
+              your prompt. Connect your own agent when you want its full stack tested.
             </p>
           </ScrollReveal>
           <ol className="grid gap-3">

@@ -1,9 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { AppNavigation } from '@/components/AppNavigation';
+import { PageHeader } from '@/components/PageHeader';
 import { SystemLabel } from '@/components/SystemLabel';
-import { MassiveHeading } from '@/components/MassiveHeading';
 import { useToast } from '@/components/Toaster';
 import {
   ArrowRight,
@@ -205,14 +204,11 @@ export default function NewAgent() {
     'w-full border border-bone-300/35 bg-ink-900/60 px-4 py-3 font-mono text-base sm:text-sm text-bone-50 placeholder:text-bone-300 focus:border-signal-400/70 focus:outline-none transition-colors';
 
   return (
-    <div className="min-h-screen bg-ink-950 new-agent-page">
-      <AppNavigation />
-
-      <div className="px-4 py-8 sm:px-6 md:px-10">
-        <SystemLabel>NEW AGENT / CONFIGURATION</SystemLabel>
-        <MassiveHeading
-          lines={['DEFINE', 'THE AGENT.']}
-          className="mt-2 text-[clamp(2rem,6vw,4rem)] text-bone-50"
+    <div className="new-agent-page">
+        <PageHeader
+          crumbs={[{ label: 'Agents', to: '/app/agents' }, { label: 'New agent' }]}
+          title="NEW AGENT"
+          description="Describe the agent, how Aegis should reach it, and the tools it can call. Nothing runs until you review the suite."
         />
 
         {/* Progress */}
@@ -656,7 +652,6 @@ export default function NewAgent() {
             )}
           </div>
         </div>
-      </div>
     </div>
   );
 }

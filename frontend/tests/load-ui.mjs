@@ -12,7 +12,6 @@ const dataUrl = (code) => `data:text/javascript;base64,${Buffer.from(code).toStr
 const react = pathToFileURL(require.resolve('react')).href;
 const stubs = {
   'framer-motion': dataUrl('export const motion = new Proxy({}, {get: (_, tag) => tag}); export const AnimatePresence = ({children}) => children;'),
-  '@/components/AppNavigation': dataUrl('export const AppNavigation = () => null;'),
   '@/components/ScrollReveal': dataUrl(`import {createElement} from ${JSON.stringify(react)}; export const ScrollReveal = ({children}) => createElement('div', null, children);`),
   '@/components/Toaster': dataUrl('export const useToast = () => globalThis.websiteTestToast;'),
   '@/contexts/WorkspaceContext': dataUrl(`export const useWorkspace = () => ({

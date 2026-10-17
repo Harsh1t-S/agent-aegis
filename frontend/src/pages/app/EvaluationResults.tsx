@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useParams, Link, Navigate } from 'react-router-dom';
-import { AppNavigation } from '@/components/AppNavigation';
+import { PageHeader } from '@/components/PageHeader';
 import { MetricLine } from '@/components/MetricLine';
 import { FailureReveal } from '@/components/FailureReveal';
 import { TestResult } from '@/components/TestResult';
@@ -16,9 +16,10 @@ import { METRIC_COLORS } from '@/lib/palette';
 import { api, ApiError } from '@/lib/api';
 import { deltaTone, evaluationPath, formatDate, isEvaluationActive, signed, verdictFrom } from '@/lib/format';
 import type { TestStatus } from '@/types';
-import { ArrowRight, Download } from 'lucide-react';
+import { Download, GitCompareArrows } from 'lucide-react';
 import { useWorkspace } from '@/contexts/WorkspaceContext';
 import { ReportSharing } from '@/components/ReportSharing';
+import { buttonPrimary, buttonSecondary } from '@/lib/ui';
 
 type Filter = 'all' | TestStatus;
 
@@ -115,27 +116,16 @@ export default function EvaluationResults() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-ink-950">
-        <AppNavigation />
-        <LoadingState label="LOADING REPORT" />
-      </div>
+      <LoadingState label="LOADING REPORT" />
     );
   }
 
   if (error || !evaluation) {
     return (
-      <div className="min-h-screen bg-ink-950">
-        <AppNavigation />
-        <div className="px-6 py-16 md:px-10">
-          <ErrorState message={error ?? 'Evaluation not found.'} onRetry={reload} />
-          <div className="mt-6 text-center">
-            <Link
-              to="/app/agents"
-              className="border border-signal-500/40 px-6 py-3 font-mono text-xs uppercase tracking-wider text-signal-400 hover:bg-signal-500/10"
-            >
-              BACK TO AGENTS
-            </Link>
-          </div>
+      <div className="py-8">
+        <ErrorState message={error ?? 'Evaluation not found.'} onRetry={reload} />
+        <div className="mt-6 text-center">
+          <Link to="/app/evaluations" className={buttonSecondary}>Back to runs</Link>
         </div>
       </div>
     );
@@ -184,22 +174,26 @@ export default function EvaluationResults() {
         : undefined;
 
   return (
-    <div className="min-h-screen bg-ink-950">
-      <AppNavigation />
-
-      <div className="px-4 py-8 sm:px-6 md:px-10">
-        <div className="flex flex-wrap items-center gap-x-2 gap-y-1 font-mono text-[10px] uppercase tracking-wider text-bone-500">
-          <Link
-            to={`/app/agents/${evaluation.agentId}`}
-            className="inline-flex min-h-9 items-center hover:text-bone-200"
-          >
-            {evaluation.agentName.toUpperCase()}
-          </Link>
-          <span>/</span>
-          <span className="text-signal-400">{evaluation.version}</span>
-          <span>/</span>
-          <span>{formatDate(evaluation.date)}</span>
-        </div>
+    <>
+        <PageHeader
+          crumbs={[
+            { label: 'Runs', to: '/app/evaluations' },
+            { label: evaluation.agentName, to: `/app/agents/${evaluation.agentId}` },
+            { label: evaluation.version },
+          ]}
+          title="RELIABILITY REPORT"
+          description={`${evaluation.agentName} · ${evaluation.version} · ${formatDate(evaluation.date)}`}
+          actions={(
+            <>
+              <button type="button" onClick={exportReport} className={buttonSecondary}>
+                <Download className="h-4 w-4" aria-hidden /> Export JSON
+              </button>
+              <Link to={`/app/compare?agent=${evaluation.agentId}`} className={buttonPrimary}>
+                <GitCompareArrows className="h-4 w-4" aria-hidden /> Compare versions
+              </Link>
+            </>
+          )}
+        />
 
         {(evaluation.errors ?? 0) > 0 && (
           <div role="alert" className="mt-6 border border-fault-500/40 bg-fault-500/10 p-4 text-sm text-bone-200">
@@ -207,10 +201,9 @@ export default function EvaluationResults() {
             {' '}The score covers completed scenarios only. Review the error traces and rerun them; this evaluation cannot pass CI.
           </div>
         )}
-        <div className="mt-6 grid gap-8 lg:grid-cols-[1fr_auto] lg:items-center">
+        <div className="mt-8">
           <div>
-            <SystemLabel>RELIABILITY REPORT</SystemLabel>
-            <div className="mt-4 flex flex-wrap items-center gap-x-6 gap-y-4">
+            <div className="flex flex-wrap items-center gap-x-6 gap-y-4">
               <div className="flex items-baseline gap-2">
                 <span className="massive text-5xl text-bone-50 sm:text-6xl md:text-7xl">
                   {evaluation.tests.length === evaluation.errors ? '—' : evaluation.score.toFixed(1)}
@@ -247,19 +240,6 @@ export default function EvaluationResults() {
                 </div>
               </div>
             </div>
-          </div>
-          <div className="flex flex-wrap gap-3">
-            <button type="button" onClick={exportReport}
-              className="flex h-fit min-h-11 items-center gap-2 border border-bone-600/30 px-5 py-3 font-mono text-xs uppercase tracking-wider text-bone-300 hover:border-bone-400">
-              <Download className="h-4 w-4" /> EXPORT JSON
-            </button>
-            <Link
-              to={`/app/compare?agent=${evaluation.agentId}`}
-              className="group flex h-fit min-h-11 items-center gap-2 border border-signal-500/40 bg-signal-500/10 px-6 py-3 font-mono text-xs uppercase tracking-wider text-signal-400 transition-colors hover:bg-signal-500/20"
-            >
-              COMPARE VERSIONS{' '}
-              <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-1" />
-            </Link>
           </div>
         </div>
 
@@ -413,7 +393,6 @@ export default function EvaluationResults() {
             )}
           </div>
         </ScrollReveal>
-      </div>
-    </div>
+    </>
   );
 }

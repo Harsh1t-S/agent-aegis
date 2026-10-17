@@ -1,6 +1,6 @@
 import { useState, type FormEvent } from 'react';
 import { Building2, Copy, Loader2, Trash2, UserPlus } from 'lucide-react';
-import { AppNavigation } from '@/components/AppNavigation';
+import { PageHeader } from '@/components/PageHeader';
 import { AsyncBoundary } from '@/components/AsyncState';
 import { SystemLabel } from '@/components/SystemLabel';
 import { useToast } from '@/components/Toaster';
@@ -43,14 +43,12 @@ export default function Team() {
   };
 
   return (
-    <div className="min-h-screen bg-ink-950">
-      <AppNavigation />
-      <main className="px-4 py-8 sm:px-6 md:px-10">
-        <SystemLabel>WORKSPACE / TEAM</SystemLabel>
-        <h1 className="massive mt-2 text-[clamp(2.5rem,6vw,4.5rem)] text-bone-50">PEOPLE & ACCESS.</h1>
-        <p className="mt-4 max-w-2xl text-sm leading-relaxed text-bone-400">
-          Members inherit access to this organization’s workspaces. Roles are enforced by the API.
-        </p>
+    <>
+        <PageHeader
+          crumbs={[{ label: 'Workspace' }, { label: 'Team' }]}
+          title="PEOPLE & ACCESS"
+          description="Members inherit access to this organization’s workspaces. Roles are enforced by the API."
+        />
 
         {canManage && (
           <form className="mt-8 flex max-w-2xl flex-col gap-3 border border-bone-600/20 bg-ink-900/40 p-5 sm:flex-row"
@@ -206,7 +204,6 @@ export default function Team() {
             </AsyncBoundary>
           </section>
         )}
-      </main>
-    </div>
+    </>
   );
 }

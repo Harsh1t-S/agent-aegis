@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react';
-import { AppNavigation } from '@/components/AppNavigation';
+import { PageHeader } from '@/components/PageHeader';
 import { SystemLabel } from '@/components/SystemLabel';
-import { MassiveHeading } from '@/components/MassiveHeading';
 import { AsyncBoundary } from '@/components/AsyncState';
 import { useToast } from '@/components/Toaster';
 import { useResource } from '@/hooks/useResource';
@@ -39,19 +38,12 @@ export default function Settings() {
   const actual = perCategory * (settings.adversarial ? 4 : 3);
 
   return (
-    <div className="min-h-screen bg-ink-950">
-      <AppNavigation />
-
-      <div className="px-4 py-8 sm:px-6 md:px-10">
-        <SystemLabel>WORKSPACE / DEFAULTS</SystemLabel>
-        <MassiveHeading
-          lines={['EVALUATION', 'DEFAULTS.']}
-          className="mt-2 text-[clamp(2rem,6vw,4rem)] text-bone-50"
+    <>
+        <PageHeader
+          crumbs={[{ label: 'Workspace' }, { label: 'Run settings' }]}
+          title="RUN SETTINGS"
+          description="Defaults for every evaluation in this workspace: suite size, adversarial coverage and which agent runs. They follow your team across devices."
         />
-        <p className="mt-4 max-w-2xl text-sm leading-relaxed text-bone-400">
-          These defaults are saved to the active workspace and follow your team across
-          devices. Each connected agent can still choose its own runner endpoint.
-        </p>
 
         {!storageAvailable && (
           <p role="status" className="mt-4 border border-warn-500/40 p-4 text-sm text-warn-400">
@@ -64,7 +56,7 @@ export default function Settings() {
             These settings are read-only for your role. Ask a workspace administrator to change them.
           </p>
         )}
-        <div className="mt-10 grid min-w-0 gap-6 lg:grid-cols-2">
+        <div className="mt-8 grid min-w-0 gap-6 lg:grid-cols-2">
           <section className="min-w-0 border border-bone-600/20 bg-ink-900/60 p-5 sm:p-6">
             <SystemLabel>SUITE SIZE</SystemLabel>
             <label htmlFor="scenarios" className="mt-4 block text-sm text-bone-300">
@@ -142,16 +134,16 @@ export default function Settings() {
               {(
                 [
                   {
+                    key: 'llm' as const,
+                    title: 'Real model (default)',
+                    detail:
+                      'Runs your prompt and tools on the hosted model, so the score reflects your prompt. The exact model is pinned in every report.',
+                  },
+                  {
                     key: 'behavioral' as const,
                     title: 'Behavioral stand-in',
                     detail:
-                      'A deterministic scripted agent. Same trace every time, so a demo and a regression diff are reproducible.',
-                  },
-                  {
-                    key: 'llm' as const,
-                    title: 'Real model',
-                    detail:
-                      'Runs the prompt and tools against the evaluator server model. This can be a self-hosted OpenAI-compatible model; the exact model is pinned in every report.',
+                      'A scripted agent that ignores the prompt and gives the same trace every time. Use it only for a reproducible demo; it does not test your prompt.',
                   },
                 ]
               ).map((option) => (
@@ -291,14 +283,14 @@ export default function Settings() {
               const persisted = reset();
               toast.success(
                 'Settings reset',
-                `Back to ${DEFAULT_SETTINGS.scenariosPerRun} scenarios, adversarial coverage on, and the free behavioral stand-in.${persisted ? '' : ' The workspace save is still being attempted.'}`,
+                `Back to ${DEFAULT_SETTINGS.scenariosPerRun} scenarios, adversarial coverage on, and the real model.${persisted ? '' : ' The workspace save is still being attempted.'}`,
               );
             }}
             className="flex min-h-11 items-center gap-2 border border-bone-600/35 px-4 font-mono text-[11px] uppercase tracking-wider text-bone-300 transition-colors hover:border-bone-400 hover:text-bone-100"
           >
             <RotateCcw className="h-3.5 w-3.5" /> RESET TO DEFAULTS
           </button>
-          <p className="font-mono text-[10px] text-bone-600">
+          <p role="status" className="font-mono text-xs text-bone-500">
             {saving ? 'Saving workspace defaults…' : 'Workspace defaults are saved.'}
           </p>
         </div>
@@ -365,7 +357,6 @@ export default function Settings() {
           </section>
           </>
         )}
-      </div>
-    </div>
+    </>
   );
 }

@@ -1,15 +1,15 @@
 import { useEffect, useState } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { AppNavigation } from '@/components/AppNavigation';
+import { PageHeader } from '@/components/PageHeader';
 import { EvaluationProgress } from '@/components/EvaluationProgress';
 import { LiveActivityStream } from '@/components/LiveActivityStream';
-import { MassiveHeading } from '@/components/MassiveHeading';
 import { SystemLabel } from '@/components/SystemLabel';
 import { ErrorState, LoadingState } from '@/components/AsyncState';
 import { useResource } from '@/hooks/useResource';
 import { api } from '@/lib/api';
-import { Loader2, Square } from 'lucide-react';
+import { FileText, Loader2, Square } from 'lucide-react';
+import { buttonPrimary, buttonSecondary } from '@/lib/ui';
 import { useWorkspace } from '@/contexts/WorkspaceContext';
 
 export default function EvaluationRunning() {
@@ -39,56 +39,64 @@ export default function EvaluationRunning() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-ink-950">
-        <AppNavigation />
-        <LoadingState label="ATTACHING TO RUN" />
-      </div>
+      <LoadingState label="ATTACHING TO RUN" />
     );
   }
 
   if (error || !data) {
     return (
-      <div className="min-h-screen bg-ink-950">
-        <AppNavigation />
-        <div className="px-6 py-16 md:px-10">
-          <ErrorState message={error ?? 'Evaluation not found.'} onRetry={reload} />
-          <div className="mt-6 text-center">
-            <Link
-              to="/app/agents"
-              className="border border-signal-500/40 px-6 py-3 font-mono text-xs uppercase tracking-wider text-signal-400 hover:bg-signal-500/10"
-            >
-              BACK TO AGENTS
-            </Link>
-          </div>
+      <div className="py-8">
+        <ErrorState message={error ?? 'Evaluation not found.'} onRetry={reload} />
+        <div className="mt-6 text-center">
+          <Link to="/app/evaluations" className={buttonSecondary}>Back to runs</Link>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-ink-950">
-      <AppNavigation />
-
-      <div className="px-4 py-8 sm:px-6 md:px-10">
-        <div className="flex items-center gap-2 font-mono text-[10px] uppercase tracking-wider text-bone-500">
-          <Link to="/app/agents" className="hover:text-bone-200">
-            {data.agentName.toUpperCase() || 'AGENTS'}
-          </Link>
-          <span>/</span>
-          <span className="text-signal-400">
-            {failed ? 'EVALUATION ENDED WITH ERRORS' : canceled ? 'EVALUATION CANCELED' : done ? 'EVALUATION COMPLETE' : 'EVALUATION IN PROGRESS'}
-          </span>
-        </div>
-
-        <MassiveHeading
-          lines={failed ? ['EVALUATION', 'EXECUTION ERROR.'] : canceled ? ['EVALUATION', 'CANCELED.'] : done ? ['EVALUATION', 'COMPLETE.'] : ['EVALUATION', 'IN PROGRESS.']}
-          className="mt-2 text-[clamp(2rem,6vw,4rem)] text-bone-50"
+    <>
+        <PageHeader
+          crumbs={[{ label: 'Runs', to: '/app/evaluations' }, { label: data.agentName || 'Evaluation' }, { label: data.version }]}
+          title={failed ? 'EXECUTION ERROR' : canceled ? 'EVALUATION CANCELED' : done ? 'EVALUATION COMPLETE' : 'EVALUATION IN PROGRESS'}
+          description={done
+            ? 'Every scenario has finished. Open the report for scores, findings and traces.'
+            : 'Scenarios run in a sandbox with mocked tools. This page updates as each one finishes.'}
+          actions={(
+            <>
+              {!done && workspace.current?.role !== 'viewer' && (
+                <button type="button" disabled={canceling}
+                  onClick={async () => {
+                    setCanceling(true);
+                    setCancelError(null);
+                    try {
+                      await api.cancelEvaluation(id as string);
+                      await reload();
+                    } catch (cause) {
+                      setCancelError(cause instanceof Error ? cause.message : 'The evaluation could not be canceled.');
+                    } finally {
+                      setCanceling(false);
+                    }
+                  }}
+                  className={buttonSecondary}>
+                  {canceling ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> : <Square className="h-4 w-4" aria-hidden />}
+                  Cancel run
+                </button>
+              )}
+              {done && (
+                <Link to={`/app/evaluations/${id}`} className={buttonPrimary}>
+                  <FileText className="h-4 w-4" aria-hidden /> View report
+                </Link>
+              )}
+            </>
+          )}
         />
+        {cancelError && <p role="alert" className="mt-4 text-sm text-fault-400">{cancelError}</p>}
 
         {!done && data.canContinue === false && <p className="mt-6 border border-warn-500/40 p-4 text-sm text-warn-400">
           The evaluation worker is not available. Your queued scenarios are safe; an administrator should restart the worker and this page will update automatically.
         </p>}
-        <div className="mt-12 grid min-w-0 gap-6 lg:grid-cols-2">
+        <div className="mt-8 grid min-w-0 gap-6 lg:grid-cols-2">
           <div className="min-w-0 border border-bone-600/20 bg-ink-900/60 p-5 sm:p-8">
             <div className="flex items-center gap-3">
               <motion.div
@@ -109,34 +117,6 @@ export default function EvaluationRunning() {
               />
             </div>
 
-            {done && (
-              <Link
-                to={`/app/evaluations/${id}`}
-                className="mt-8 inline-block border border-signal-500/40 bg-signal-500/10 px-5 py-2 font-mono text-[11px] uppercase tracking-wider text-signal-400 hover:bg-signal-500/20"
-              >
-                VIEW REPORT →
-              </Link>
-            )}
-            {!done && workspace.current?.role !== 'viewer' && (
-              <button type="button" disabled={canceling}
-                onClick={async () => {
-                  setCanceling(true);
-                  setCancelError(null);
-                  try {
-                    await api.cancelEvaluation(id as string);
-                    await reload();
-                  } catch (cause) {
-                    setCancelError(cause instanceof Error ? cause.message : 'The evaluation could not be canceled.');
-                  } finally {
-                    setCanceling(false);
-                  }
-                }}
-                className="mt-8 flex min-h-11 items-center gap-2 border border-bone-600/30 px-4 font-mono text-[11px] uppercase tracking-wider text-bone-400 hover:border-fault-500/50 hover:text-fault-400 disabled:opacity-50">
-                {canceling ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Square className="h-3.5 w-3.5" />}
-                CANCEL EVALUATION
-              </button>
-            )}
-            {cancelError && <p role="alert" className="mt-3 text-xs text-fault-400">{cancelError}</p>}
           </div>
 
           <div className="min-w-0 border border-bone-600/20 bg-ink-900/60 p-5 sm:p-6">
@@ -163,7 +143,6 @@ export default function EvaluationRunning() {
             </div>
           ))}
         </div>
-      </div>
-    </div>
+    </>
   );
 }

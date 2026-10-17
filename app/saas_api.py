@@ -204,7 +204,7 @@ def create_workspace(
         settings={
             "scenariosPerRun": 12,
             "adversarial": True,
-            "adapter": "behavioral",
+            "adapter": "llm",
         },
         retention_days=entitlement.retention_days,
     )

@@ -1,6 +1,5 @@
 import { useState } from 'react';
 import { Navigate, useNavigate, useSearchParams } from 'react-router-dom';
-import { AppNavigation } from '@/components/AppNavigation';
 import { useAuth } from '@/contexts/AuthContext';
 import { useWorkspace } from '@/contexts/WorkspaceContext';
 import { api, ApiError } from '@/lib/api';
@@ -36,9 +35,7 @@ export default function AcceptInvite() {
   };
 
   return (
-    <div className="min-h-screen bg-ink-950">
-      <AppNavigation />
-      <main className="mx-auto max-w-xl px-6 py-20 text-center">
+    <div className="mx-auto max-w-xl py-16 text-center">
         <p className="font-mono text-xs uppercase tracking-[0.22em] text-signal-400">TEAM INVITATION</p>
         <h1 className="massive mt-4 text-5xl text-bone-50">JOIN THE WORKSPACE.</h1>
         <p className="mt-5 text-sm leading-relaxed text-bone-400">
@@ -50,7 +47,6 @@ export default function AcceptInvite() {
           className="mt-8 min-h-12 border border-signal-500/50 bg-signal-500/10 px-8 font-mono text-xs uppercase tracking-wider text-signal-300 disabled:opacity-50">
           {busy ? 'ACCEPTING…' : 'ACCEPT INVITATION'}
         </button>
-      </main>
     </div>
   );
 }

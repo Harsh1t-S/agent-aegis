@@ -13,8 +13,9 @@ export type { WorkspaceSettings };
 export const DEFAULT_SETTINGS: WorkspaceSettings = {
   scenariosPerRun: 12,
   adversarial: true,
-  // Keep a new workspace free until the user deliberately chooses a model run.
-  adapter: 'behavioral',
+  // Runs test the user's own prompt on the hosted model unless they pick the
+  // scripted stand-in, which ignores the prompt and always scores the same.
+  adapter: 'llm',
   notifications: { emailEnabled: false, email: '' },
 };
 

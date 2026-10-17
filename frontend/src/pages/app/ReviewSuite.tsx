@@ -1,9 +1,8 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Link, useNavigate, useParams } from 'react-router-dom';
-import { ArrowLeft, Loader2, Play, Trash2 } from 'lucide-react';
-import { AppNavigation } from '@/components/AppNavigation';
+import { useNavigate, useParams } from 'react-router-dom';
+import { Loader2, Play, Trash2 } from 'lucide-react';
+import { PageHeader } from '@/components/PageHeader';
 import { ErrorState, LoadingState } from '@/components/AsyncState';
-import { SystemLabel } from '@/components/SystemLabel';
 import { useToast } from '@/components/Toaster';
 import { useResource } from '@/hooks/useResource';
 import { api, ApiError, type ScenarioContractDraft } from '@/lib/api';
@@ -91,41 +90,34 @@ export default function ReviewSuite() {
   };
 
   if (agent.loading || preview.loading) {
-    return <div className="min-h-screen bg-ink-950"><AppNavigation /><LoadingState label="GENERATING TEST CONTRACT" /></div>;
+    return <LoadingState label="GENERATING TEST CONTRACT" />;
   }
   if (agent.error || preview.error || !agent.data || !rows) {
     return (
-      <div className="min-h-screen bg-ink-950">
-        <AppNavigation />
-        <div className="px-6 py-16 md:px-10">
-          <ErrorState message={agent.error ?? preview.error ?? 'The test contract could not be generated.'}
-            onRetry={() => { agent.reload(); preview.reload(); }} />
-        </div>
+      <div className="py-8">
+        <ErrorState message={agent.error ?? preview.error ?? 'The test contract could not be generated.'}
+          onRetry={() => { agent.reload(); preview.reload(); }} />
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-ink-950">
-      <AppNavigation />
-      <main className="px-4 py-8 sm:px-6 md:px-10">
-        <Link to={`/app/agents/${agent.data.id}`}
-          className="inline-flex min-h-10 items-center gap-2 font-mono text-[11px] uppercase tracking-wider text-bone-500 hover:text-bone-200">
-          <ArrowLeft className="h-4 w-4" /> BACK TO {agent.data.name}
-        </Link>
-        <div className="mt-4 flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
-          <div>
-            <SystemLabel>DATASET / {versionLabel}</SystemLabel>
-            <h1 className="massive mt-2 text-[clamp(2.5rem,6vw,4.5rem)] text-bone-50">REVIEW BEFORE RUN.</h1>
-            <p className="mt-4 max-w-3xl text-sm leading-relaxed text-bone-400">
-              Correct the prompts and expected behavior now. Starting the evaluation stores this exact contract and its fingerprint, so later comparisons cannot silently grade a different test.
-            </p>
-          </div>
-          <div className="border border-bone-600/25 bg-ink-900/60 px-5 py-4 text-sm text-bone-300">
-            <span className="font-mono text-signal-300">{rows.length}</span> scenario credits
-            {billing.data && <span className="ml-2 text-bone-500">· {billing.data.remaining} remaining</span>}
-          </div>
-        </div>
+    <>
+        <PageHeader
+          crumbs={[
+            { label: 'Agents', to: '/app/agents' },
+            { label: agent.data.name, to: `/app/agents/${agent.data.id}` },
+            { label: `Review ${versionLabel}` },
+          ]}
+          title="REVIEW BEFORE RUN"
+          description="Correct the prompts and expected behavior now. Starting the evaluation stores this exact contract and its fingerprint, so later comparisons cannot silently grade a different test."
+          actions={(
+            <div className="border border-bone-600/25 bg-ink-900/60 px-4 py-2.5 text-sm text-bone-300">
+              <span className="font-mono text-signal-300">{rows.length}</span> scenario credits
+              {billing.data && <span className="ml-2 text-bone-500">· {billing.data.remaining} remaining</span>}
+            </div>
+          )}
+        />
 
         <div className="mt-8 space-y-4">
           {rows.map((row, index) => {
@@ -186,7 +178,6 @@ export default function ReviewSuite() {
             {starting ? 'RESERVING CREDITS…' : `RUN ${rows.length} SCENARIOS`}
           </button>
         </div>
-      </main>
-    </div>
+    </>
   );
 }

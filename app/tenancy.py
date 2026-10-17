@@ -108,7 +108,7 @@ def ensure_personal_workspace(db: Session, principal: Principal) -> Workspace:
         settings={
             "scenariosPerRun": 12,
             "adversarial": True,
-            "adapter": "behavioral",
+            "adapter": "llm",
         },
     )
     db.add(workspace)

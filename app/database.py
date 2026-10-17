@@ -197,7 +197,7 @@ def _seed_local_workspace() -> None:
                 settings={
                     "scenariosPerRun": 12,
                     "adversarial": True,
-                    "adapter": "behavioral",
+                    "adapter": "llm",
                 },
             ))
         if db.get(Subscription, LOCAL_ORGANIZATION_ID) is None:

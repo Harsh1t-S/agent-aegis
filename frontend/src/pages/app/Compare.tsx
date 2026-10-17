@@ -1,6 +1,6 @@
 import { useEffect, useMemo } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { AppNavigation } from '@/components/AppNavigation';
+import { PageHeader } from '@/components/PageHeader';
 import { VersionBattle } from '@/components/VersionBattle';
 import { ScrollReveal } from '@/components/ScrollReveal';
 import { SystemLabel } from '@/components/SystemLabel';
@@ -46,18 +46,18 @@ export default function Compare() {
   );
 
   return (
-    <div className="min-h-screen bg-ink-950">
-      <AppNavigation />
-
-      <div className="px-4 py-8 sm:px-6 md:px-10">
-        <SystemLabel>VERSION COMPARISON</SystemLabel>
-        <h1 className="massive mt-2 text-[clamp(2rem,6vw,4rem)] text-bone-50">COMPARE.</h1>
+    <>
+        <PageHeader
+          crumbs={[{ label: 'Testing' }, { label: 'Compare versions' }]}
+          title="COMPARE VERSIONS"
+          description="Pick an agent and two of its versions. Only scenarios both versions ran are compared."
+        />
 
         {agents.loading && <LoadingState label="LOADING AGENTS" />}
         {agents.error && <ErrorState message={agents.error} onRetry={agents.reload} />}
 
         {!agents.loading && !agents.error && comparable.length === 0 && (
-          <div className="mt-10">
+          <div className="mt-8">
             <EmptyState
               title="NOTHING TO COMPARE YET"
               hint="An agent needs at least two evaluated versions before a regression diff is possible. Run a second evaluation on any agent."
@@ -136,7 +136,7 @@ export default function Compare() {
               </div>
             </ScrollReveal>
 
-            <div className="mt-12">
+            <div className="mt-8">
               <VersionBattle
                 left={left}
                 right={right}
@@ -146,7 +146,6 @@ export default function Compare() {
             </div>
           </>
         )}
-      </div>
-    </div>
+    </>
   );
 }

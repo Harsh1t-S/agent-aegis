@@ -107,7 +107,7 @@ test('manually duplicated tool names block the review step', async () => {
 test('invalid stored settings never send an unsupported adapter or invalid suite size', () => {
   globalThis.localStorage = storage(JSON.stringify({ scenariosPerRun: 'bad', adapter: 'http', adversarial: 'false' }));
   assert.deepEqual(settings.runOptionsFor('v2'), {
-    versionLabel: 'v2', perCategory: 3, adapter: 'behavioral', adversarial: true,
+    versionLabel: 'v2', perCategory: 3, adapter: 'llm', adversarial: true,
   });
   assert.equal(settings.perCategoryFor(NaN), 3);
 });

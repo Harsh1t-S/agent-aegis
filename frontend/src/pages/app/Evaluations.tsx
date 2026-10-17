@@ -1,14 +1,13 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { AppNavigation } from '@/components/AppNavigation';
-import { SystemLabel } from '@/components/SystemLabel';
-import { MassiveHeading } from '@/components/MassiveHeading';
+import { PageHeader } from '@/components/PageHeader';
 import { AsyncBoundary, EmptyState } from '@/components/AsyncState';
 import { ScrollReveal } from '@/components/ScrollReveal';
 import { useResource } from '@/hooks/useResource';
 import { api } from '@/lib/api';
 import { evaluationPath, evaluationVerdict, formatDate, scoreTone } from '@/lib/format';
-import { ArrowRight, Search } from 'lucide-react';
+import { ArrowRight, Plus, Search } from 'lucide-react';
+import { buttonPrimary } from '@/lib/ui';
 import { useWorkspace } from '@/contexts/WorkspaceContext';
 
 const PAGE_SIZE = 40;
@@ -44,14 +43,11 @@ export default function Evaluations() {
   }, [data, query]);
 
   return (
-    <div className="min-h-screen bg-ink-950">
-      <AppNavigation />
-
-      <div className="px-4 py-8 sm:px-6 md:px-10">
-        <SystemLabel>EVALUATIONS / HISTORY</SystemLabel>
-        <MassiveHeading
-          lines={['EVERY RUN.', 'IN ORDER.']}
-          className="mt-2 text-[clamp(2rem,6vw,4rem)] text-bone-50"
+    <>
+        <PageHeader
+          crumbs={[{ label: 'Testing' }, { label: 'Runs' }]}
+          title="RUNS"
+          description="Every evaluation in this workspace, newest first. Open a run for its scenarios and traces."
         />
 
         <div className="mt-8 max-w-md">
@@ -86,9 +82,9 @@ export default function Evaluations() {
                   data?.length ? undefined : (
                     <Link
                       to="/app/agents/new"
-                      className="mt-2 border border-signal-500/40 px-5 py-2 font-mono text-[11px] uppercase tracking-wider text-signal-400 hover:bg-signal-500/10"
+                      className={`${buttonPrimary} mt-2`}
                     >
-                      INITIALIZE NEW AGENT
+                      <Plus className="h-4 w-4" aria-hidden /> New agent
                     </Link>
                   )
                 }
@@ -170,18 +166,17 @@ export default function Evaluations() {
                   <div className="mt-6 flex items-center justify-between border-t border-bone-600/20 pt-5">
                     <button type="button" disabled={page === 0}
                       onClick={() => setPage((value) => Math.max(value - 1, 0))}
-                      className="min-h-10 px-3 font-mono text-[10px] uppercase text-bone-400 disabled:opacity-30">NEWER</button>
-                    <span className="font-mono text-[10px] text-bone-600">PAGE {page + 1}</span>
+                      className="min-h-10 px-3 font-mono text-xs uppercase text-bone-300 hover:text-bone-50 disabled:opacity-30">Newer</button>
+                    <span className="font-mono text-xs text-bone-500">Page {page + 1}</span>
                     <button type="button" disabled={(data?.length ?? 0) < PAGE_SIZE}
                       onClick={() => setPage((value) => value + 1)}
-                      className="min-h-10 px-3 font-mono text-[10px] uppercase text-bone-400 disabled:opacity-30">OLDER</button>
+                      className="min-h-10 px-3 font-mono text-xs uppercase text-bone-300 hover:text-bone-50 disabled:opacity-30">Older</button>
                   </div>
                 )}
               </div>
             )}
           </AsyncBoundary>
         </div>
-      </div>
-    </div>
+    </>
   );
 }

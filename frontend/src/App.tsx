@@ -1,10 +1,11 @@
 import { BrowserRouter, Routes, Route, useLocation } from 'react-router-dom';
 import { AnimatePresence, MotionConfig, motion } from 'framer-motion';
 import { SiteNav } from '@/components/SiteNav';
+import { AppFrame } from '@/components/AppShell';
 import { AppErrorBoundary } from '@/components/AppErrorBoundary';
 import { ToastProvider } from '@/components/Toaster';
-import { AuthProvider } from '@/contexts/AuthContext';
-import { WorkspaceProvider } from '@/contexts/WorkspaceContext';
+import { AuthProvider, useAuth } from '@/contexts/AuthContext';
+import { WorkspaceProvider, useWorkspace } from '@/contexts/WorkspaceContext';
 import { ProtectedRoute } from '@/components/ProtectedRoute';
 import { lazy, Suspense, useEffect, type ReactNode } from 'react';
 
@@ -32,13 +33,22 @@ const Team = lazy(() => import('@/pages/app/Team'));
 const Billing = lazy(() => import('@/pages/app/Billing'));
 const Developer = lazy(() => import('@/pages/app/Developer'));
 const SharedReport = lazy(() => import('@/pages/SharedReport'));
+const Profile = lazy(() => import('@/pages/app/Profile'));
 
 const publicRoutes = ['/', '/how-it-works', '/about'];
 
 function Layout({ children }: { children: ReactNode }) {
   const location = useLocation();
+  const auth = useAuth();
+  const workspace = useWorkspace();
   const isPublic = publicRoutes.includes(location.pathname)
     || location.pathname.startsWith('/shared-report/');
+  // The console frame sits outside the page transition so the sidebar stays put
+  // while screens change. Signed-out visitors never see it: ProtectedRoute sends
+  // them to sign in first.
+  const inConsole = Boolean(auth.user && workspace.current)
+    && (location.pathname === '/app' || location.pathname.startsWith('/app/')
+      || location.pathname === '/accept-invite');
 
   // Without this a click from halfway down the (very long) landing page lands
   // halfway down the next one.
@@ -46,20 +56,24 @@ function Layout({ children }: { children: ReactNode }) {
     window.scrollTo({ top: 0, behavior: 'instant' as ScrollBehavior });
   }, [location.pathname]);
 
+  const page = (
+    <AnimatePresence mode="wait">
+      <motion.div
+        key={location.pathname}
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        exit={{ opacity: 0 }}
+        transition={{ duration: inConsole ? 0.15 : 0.3, ease: 'easeInOut' }}
+      >
+        {children}
+      </motion.div>
+    </AnimatePresence>
+  );
+
   return (
     <>
       {isPublic && <SiteNav />}
-      <AnimatePresence mode="wait">
-        <motion.div
-          key={location.pathname}
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
-          transition={{ duration: 0.3, ease: 'easeInOut' }}
-        >
-          {children}
-        </motion.div>
-      </AnimatePresence>
+      {inConsole ? <AppFrame>{page}</AppFrame> : page}
     </>
   );
 }
@@ -107,6 +121,7 @@ function App() {
                     <Route path="/app/settings" element={<ProtectedRoute><Settings /></ProtectedRoute>} />
                     <Route path="/app/team" element={<ProtectedRoute><Team /></ProtectedRoute>} />
                     <Route path="/app/billing" element={<ProtectedRoute><Billing /></ProtectedRoute>} />
+                    <Route path="/app/profile" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
                     <Route path="/app/developer" element={<ProtectedRoute roles={['owner', 'admin']}><Developer /></ProtectedRoute>} />
                     <Route path="*" element={<NotFound />} />
                     </Routes>
