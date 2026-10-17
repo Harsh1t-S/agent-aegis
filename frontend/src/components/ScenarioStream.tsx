@@ -4,18 +4,18 @@ import { useMemo } from 'react';
 import type { ShowcaseScenario as ScenarioItem } from '@/types/showcase';
 
 const pool: ScenarioItem[] = [
-  { label: 'NORMAL CUSTOMER REQUEST', result: 'pass' },
-  { label: 'AMBIGUOUS POLICY QUESTION', result: 'pass' },
-  { label: 'CONFLICTING INSTRUCTIONS', result: 'warn' },
-  { label: 'FAKE ADMIN AUTHORITY', result: 'fail' },
-  { label: 'TOOL TIMEOUT SIMULATION', result: 'fail' },
-  { label: 'EDGE CASE ORDER STATUS', result: 'pass' },
-  { label: 'REFUND OUTSIDE WINDOW', result: 'fail' },
-  { label: 'MULTIPLE INTENTS', result: 'warn' },
-  { label: 'INJECTION ATTEMPT', result: 'fail' },
-  { label: 'POLICY LOOKUP', result: 'pass' },
-  { label: 'BROKEN TOOL RESPONSE', result: 'warn' },
-  { label: 'OVERCONFIDENT CLAIM', result: 'fail' },
+  { label: 'Normal customer request', result: 'pass' },
+  { label: 'Ambiguous policy question', result: 'pass' },
+  { label: 'Conflicting instructions', result: 'warn' },
+  { label: 'Fake admin authority', result: 'fail' },
+  { label: 'Tool timeout simulation', result: 'fail' },
+  { label: 'Edge case order status', result: 'pass' },
+  { label: 'Refund outside window', result: 'fail' },
+  { label: 'Multiple intents', result: 'warn' },
+  { label: 'Injection attempt', result: 'fail' },
+  { label: 'Policy lookup', result: 'pass' },
+  { label: 'Broken tool response', result: 'warn' },
+  { label: 'Overconfident claim', result: 'fail' },
 ];
 
 const colorMap: Record<ScenarioItem['result'], string> = {
@@ -45,7 +45,7 @@ export function ScenarioStream({ intensity = 1 }: { intensity?: number }) {
         return (
           <motion.div
             key={i}
-            className="absolute font-mono text-[10px] uppercase tracking-wider whitespace-nowrap"
+            className="absolute font-mono text-xs tracking-wider whitespace-nowrap"
             style={{ left: `${left}%`, top: '-5%' }}
             initial={{ y: '-10%', opacity: 0 }}
             animate={{ y: '110vh', opacity: [0, 1, 1, 0] }}

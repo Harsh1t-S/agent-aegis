@@ -27,7 +27,7 @@ export function SiteNav() {
               key={link.to}
               to={link.to}
               aria-current={pathname === link.to ? 'page' : undefined}
-              className={`flex min-h-11 items-center font-mono text-[10px] uppercase tracking-[0.15em] transition-colors sm:text-[11px] sm:tracking-[0.2em] ${
+              className={`flex min-h-11 items-center font-mono text-xs uppercase tracking-[0.12em] transition-colors sm:text-xs sm:tracking-[0.12em] ${
                 pathname === link.to
                   ? 'text-bone-50'
                   : 'text-bone-400 hover:text-bone-100'
@@ -38,7 +38,7 @@ export function SiteNav() {
           ))}
           <Link
             to="/app"
-            className="group flex min-h-11 items-center gap-2 whitespace-nowrap font-mono text-[10px] uppercase tracking-[0.15em] text-signal-400 transition-colors hover:text-signal-300 sm:text-[11px] sm:tracking-[0.2em]"
+            className="group flex min-h-11 items-center gap-2 whitespace-nowrap font-mono text-xs uppercase tracking-[0.12em] text-signal-400 transition-colors hover:text-signal-300 sm:text-xs sm:tracking-[0.12em]"
           >
             <span className="hidden xs:inline">LAUNCH AEGIS</span>
             <span className="xs:hidden">LAUNCH</span>

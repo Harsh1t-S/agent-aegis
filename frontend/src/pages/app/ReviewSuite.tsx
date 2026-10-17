@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { buttonPrimary } from '@/lib/ui';
 import { useNavigate, useParams } from 'react-router-dom';
 import { Loader2, Play, Trash2 } from 'lucide-react';
 import { PageHeader } from '@/components/PageHeader';
@@ -90,7 +91,7 @@ export default function ReviewSuite() {
   };
 
   if (agent.loading || preview.loading) {
-    return <LoadingState label="GENERATING TEST CONTRACT" />;
+    return <LoadingState label="Generating test contract" />;
   }
   if (agent.error || preview.error || !agent.data || !rows) {
     return (
@@ -101,6 +102,17 @@ export default function ReviewSuite() {
     );
   }
 
+  // Rendered in the header and again at the foot of the list: the list is long,
+  // and the action must not be a scroll away from wherever the reader stops.
+  const runButton = (
+    <button type="button" onClick={() => void start()}
+      disabled={starting || invalid || rows.length === 0}
+      className={buttonPrimary}>
+      {starting ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> : <Play className="h-4 w-4" aria-hidden />}
+      {starting ? 'Reserving credits…' : `Run ${rows.length} scenarios`}
+    </button>
+  );
+
   return (
     <>
         <PageHeader
@@ -109,74 +121,70 @@ export default function ReviewSuite() {
             { label: agent.data.name, to: `/app/agents/${agent.data.id}` },
             { label: `Review ${versionLabel}` },
           ]}
-          title="REVIEW BEFORE RUN"
+          title="Review before run"
           description="Correct the prompts and expected behavior now. Starting the evaluation stores this exact contract and its fingerprint, so later comparisons cannot silently grade a different test."
-          actions={(
-            <div className="border border-bone-600/25 bg-ink-900/60 px-4 py-2.5 text-sm text-bone-300">
+          meta={(
+            <p className="text-sm text-bone-300">
               <span className="font-mono text-signal-300">{rows.length}</span> scenario credits
-              {billing.data && <span className="ml-2 text-bone-500">· {billing.data.remaining} remaining</span>}
-            </div>
+              {billing.data && <span className="ml-2 text-bone-400">· {billing.data.remaining} remaining</span>}
+            </p>
           )}
+          actions={runButton}
         />
 
-        <div className="mt-8 space-y-4">
+        <div className="space-y-4">
           {rows.map((row, index) => {
             const expectedValid = Boolean(parseExpected(row.expectedJson));
             return (
-              <section key={`${row.fingerprint}-${index}`} className="border border-bone-600/20 bg-ink-900/55 p-5 sm:p-6">
+              <section key={`${row.fingerprint}-${index}`} className="border border-bone-600/30 bg-ink-900 p-4 sm:p-6">
                 <div className="flex flex-wrap items-center gap-3">
-                  <span className="font-mono text-[10px] uppercase tracking-wider text-signal-400">{String(index + 1).padStart(2, '0')}</span>
+                  <span className="font-mono text-sm text-signal-300">{String(index + 1).padStart(2, '0')}</span>
                   <select value={row.category}
                     onChange={(event) => update(index, { category: event.target.value as ReviewRow['category'] })}
-                    className="min-h-10 border border-bone-600/30 bg-ink-950 px-3 font-mono text-[10px] uppercase text-bone-300">
+                    className="min-h-11 border border-bone-600/40 bg-ink-950 px-3 text-sm text-bone-100">
                     {preview.data?.categories.map((category) => <option key={category} value={category}>{category}</option>)}
                   </select>
-                  <span className="font-mono text-[10px] text-bone-600">{row.subtype}</span>
+                  <span className="text-sm text-bone-300">{row.subtype}</span>
                   <button type="button" aria-label={`Remove ${row.name}`}
                     onClick={() => setRows((current) => current?.filter((_, rowIndex) => rowIndex !== index) ?? null)}
-                    className="ml-auto flex h-10 w-10 items-center justify-center text-bone-500 hover:text-fault-400">
+                    className="ml-auto flex h-11 w-11 items-center justify-center text-bone-300 hover:text-fault-400">
                     <Trash2 className="h-4 w-4" />
                   </button>
                 </div>
-                <label className="mt-4 block text-xs text-bone-400">
+                <label className="mt-4 block text-sm font-medium text-bone-200">
                   Scenario title
                   <input value={row.name} maxLength={300}
                     onChange={(event) => update(index, { name: event.target.value })}
-                    className="mt-2 min-h-11 w-full border border-bone-600/30 bg-ink-950 px-4 text-sm text-bone-100 outline-none focus:border-signal-500/50" />
+                    className="mt-2 min-h-11 w-full border border-bone-600/40 bg-ink-950 px-4 text-sm text-bone-100 focus-visible:border-signal-400" />
                 </label>
-                <label className="mt-4 block text-xs text-bone-400">
+                <label className="mt-4 block text-sm font-medium text-bone-200">
                   User prompt
                   <textarea value={row.initialPrompt} maxLength={12000}
                     onChange={(event) => update(index, { initialPrompt: event.target.value })}
-                    className="mt-2 min-h-28 w-full resize-y border border-bone-600/30 bg-ink-950 p-4 text-sm leading-relaxed text-bone-100 outline-none focus:border-signal-500/50" />
+                    className="mt-2 min-h-28 w-full resize-y border border-bone-600/40 bg-ink-950 p-4 text-sm leading-relaxed text-bone-100 focus-visible:border-signal-400" />
                 </label>
-                <label className="mt-4 block text-xs text-bone-400">
+                <label className="mt-4 block text-sm font-medium text-bone-200">
                   Expected behavior (JSON)
                   <textarea value={row.expectedJson}
                     onChange={(event) => update(index, { expectedJson: event.target.value })}
-                    className={`mt-2 min-h-40 w-full resize-y border bg-ink-950 p-4 font-mono text-xs leading-relaxed text-bone-200 outline-none ${expectedValid ? 'border-bone-600/30 focus:border-signal-500/50' : 'border-fault-500/60'}`} />
+                    className={`mt-2 min-h-40 w-full resize-y border bg-ink-950 p-4 font-mono text-sm leading-relaxed text-bone-100 ${expectedValid ? 'border-bone-600/40 focus-visible:border-signal-400' : 'border-fault-500/60'}`} />
                 </label>
-                {!expectedValid && <p role="alert" className="mt-2 text-xs text-fault-400">Expected behavior must be a JSON object.</p>}
+                {!expectedValid && <p role="alert" className="mt-2 text-sm text-fault-300">Expected behavior must be a JSON object.</p>}
               </section>
             );
           })}
         </div>
 
         {rows.length === 0 && (
-          <p className="mt-8 border border-fault-500/30 bg-fault-500/5 p-5 text-sm text-fault-300">
+          <p className="mt-6 border border-fault-500/40 bg-fault-500/5 p-5 text-sm text-fault-300">
             Keep at least one scenario in the reviewed dataset.
           </p>
         )}
-        <div className="sticky bottom-0 mt-8 flex flex-col gap-3 border-t border-bone-600/25 bg-ink-950/95 py-5 backdrop-blur sm:flex-row sm:items-center sm:justify-between">
-          <p className="max-w-2xl text-xs leading-relaxed text-bone-500">
+        <div className="sticky bottom-0 mt-6 flex flex-col gap-3 border-t border-bone-600/25 bg-ink-950/95 py-5 backdrop-blur sm:flex-row sm:items-center sm:justify-between">
+          <p className="max-w-2xl text-sm leading-relaxed text-bone-300">
             No credits are used until you start. A connected agent runs against its configured runner; prompt simulation uses the workspace model setting.
           </p>
-          <button type="button" onClick={() => void start()}
-            disabled={starting || invalid || rows.length === 0}
-            className="flex min-h-12 shrink-0 items-center justify-center gap-2 border border-signal-500/50 bg-signal-500/15 px-6 font-mono text-xs uppercase tracking-wider text-signal-300 disabled:opacity-40">
-            {starting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Play className="h-4 w-4" />}
-            {starting ? 'RESERVING CREDITS…' : `RUN ${rows.length} SCENARIOS`}
-          </button>
+          {runButton}
         </div>
     </>
   );

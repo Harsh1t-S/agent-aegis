@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { SystemLabel } from './SystemLabel';
+import { buttonPrimary } from '@/lib/ui';
 import { useToast } from './Toaster';
 import { api, ApiError } from '@/lib/api';
 import type { EvaluationProvenance } from '@/types';
@@ -77,7 +78,7 @@ export function ProvenancePanel({
             <History className="h-4 w-4 shrink-0 text-warn-400" strokeWidth={1.5} />
           )}
           <SystemLabel className={current ? 'text-flux-400' : 'text-warn-400'}>
-            {current ? 'GRADED BY THE DEPLOYED EVALUATOR' : 'GRADED BY AN EARLIER EVALUATOR'}
+            {current ? 'Graded by the deployed evaluator' : 'Graded by an earlier evaluator'}
           </SystemLabel>
         </div>
         {detectorStale && canReanalyze && (
@@ -85,14 +86,14 @@ export function ProvenancePanel({
             type="button"
             onClick={reanalyze}
             disabled={busy}
-            className="flex min-h-11 items-center gap-2 border border-signal-500/40 bg-signal-500/10 px-4 font-mono text-[11px] uppercase tracking-wider text-signal-300 transition-colors enabled:hover:bg-signal-500/20 disabled:opacity-50"
+            className={buttonPrimary}
           >
             {busy ? (
               <Loader2 className="h-3.5 w-3.5 animate-spin" />
             ) : (
               <RefreshCw className="h-3.5 w-3.5" />
             )}
-            RE-GRADE STORED TRACES
+            Re-grade stored traces
           </button>
         )}
       </div>
@@ -116,7 +117,7 @@ export function ProvenancePanel({
           const drifted = recorded[key] !== provenance.expected[key];
           return (
             <div key={key} className="min-w-0 bg-ink-900/90 p-3">
-              <SystemLabel className="text-bone-600">{key.toUpperCase()}</SystemLabel>
+              <SystemLabel className="text-bone-400">{key}</SystemLabel>
               <div
                 className={`mt-1 truncate font-mono text-xs ${
                   drifted ? 'text-warn-300' : 'text-bone-200'
@@ -125,7 +126,7 @@ export function ProvenancePanel({
                 {provenance.mixed ? 'mixed' : recorded[key]}
               </div>
               {drifted && !provenance.mixed && (
-                <div className="mt-0.5 truncate font-mono text-[10px] text-bone-500">
+                <div className="mt-0.5 truncate font-mono text-xs text-bone-500">
                   deployed: {provenance.expected[key]}
                 </div>
               )}
@@ -134,7 +135,7 @@ export function ProvenancePanel({
         })}
       </div>
 
-      <p className="mt-3 font-mono text-[10px] text-bone-600">
+      <p className="mt-3 font-mono text-sm text-bone-400">
         Evaluator commit{' '}
         <span className="text-bone-400">
           {(provenance.mixed ? provenance.expected.commit : recorded.commit).slice(0, 12)}

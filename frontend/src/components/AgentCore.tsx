@@ -200,7 +200,7 @@ export function AgentCore({
         }}
         transition={{ duration: 2, repeat: Infinity, ease: 'easeInOut' }}
       >
-        <span className="font-mono text-[10px] uppercase tracking-widest text-bone-300">
+        <span className="font-mono text-xs uppercase tracking-widest text-bone-300">
           {destabilized ? 'ERR' : 'AI'}
         </span>
       </motion.div>
@@ -213,7 +213,7 @@ export function AgentCore({
         return (
           <motion.span
             key={frag}
-            className="absolute font-mono text-[9px] uppercase tracking-wider whitespace-nowrap"
+            className="absolute font-mono text-xs uppercase tracking-wider whitespace-nowrap"
             style={{
               left: '50%',
               top: '50%',

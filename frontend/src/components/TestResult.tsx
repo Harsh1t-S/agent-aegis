@@ -8,7 +8,7 @@ import { ChevronRight } from 'lucide-react';
 export function TestResult({ test, evaluationId }: { test: TestScenario; evaluationId: string }) {
   const [open, setOpen] = useState(false);
   const cfg = test.executionError
-    ? { ...testStatusTone.failed, label: 'EXECUTION ERROR' }
+    ? { ...testStatusTone.failed, label: 'Execution error' }
     : testStatusTone[test.status];
 
   return (
@@ -26,25 +26,25 @@ export function TestResult({ test, evaluationId }: { test: TestScenario; evaluat
               under it instead of being hidden — severity is the whole point of
               the row. */}
           <span className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 sm:hidden">
-            <span className={`font-mono text-[9px] uppercase tracking-wider ${cfg.color}`}>
+            <span className={`font-mono text-xs tracking-wider ${cfg.color}`}>
               {cfg.label}
             </span>
             {test.severity && (
-              <span className={`border px-1.5 font-mono text-[9px] uppercase tracking-wider ${severityTone[test.severity]}`}>
+              <span className={`border px-1.5 font-mono text-xs tracking-wider ${severityTone[test.severity]}`}>
                 {test.severity}
               </span>
             )}
-            <span className="font-mono text-[9px] uppercase tracking-wider text-bone-500">
+            <span className="font-mono text-xs tracking-wider text-bone-500">
               {test.category}
             </span>
           </span>
         </span>
         {test.severity && (
-          <span className={`hidden shrink-0 border px-2 py-0.5 font-mono text-[9px] uppercase tracking-wider md:inline ${severityTone[test.severity]}`}>
+          <span className={`hidden shrink-0 border px-2 py-0.5 font-mono text-xs tracking-wider md:inline ${severityTone[test.severity]}`}>
             {test.severity}
           </span>
         )}
-        <span className="hidden shrink-0 font-mono text-[10px] uppercase tracking-wider text-bone-500 md:inline">
+        <span className="hidden shrink-0 font-mono text-xs tracking-wider text-bone-500 md:inline">
           {test.category}
         </span>
         <span className={`hidden shrink-0 sm:inline ${cfg.color} tech-label`}>{cfg.label}</span>
@@ -64,35 +64,35 @@ export function TestResult({ test, evaluationId }: { test: TestScenario; evaluat
           >
             <div className="grid gap-4 p-4 md:grid-cols-2">
               <div>
-                <span className="tech-label text-bone-600">SCENARIO</span>
+                <span className="tech-label text-bone-400">Scenario</span>
                 <p className="mt-1 whitespace-pre-wrap text-sm text-bone-200">{test.userPrompt}</p>
-                <span className="tech-label mt-3 block text-flux-400">EXPECTED</span>
+                <span className="tech-label mt-3 block text-flux-400">Expected</span>
                 <p className="mt-1 text-sm text-bone-400">{test.expectedBehavior}</p>
               </div>
               <div>
-                <span className="tech-label text-bone-600">AGENT RESPONSE</span>
-                <p className="mt-1 whitespace-pre-wrap font-mono text-xs text-bone-300">
-                  {test.agentResponse || <span className="text-bone-600">(no final answer)</span>}
+                <span className="tech-label text-bone-400">Agent response</span>
+                <p className="mt-1 whitespace-pre-wrap font-mono text-sm text-bone-300">
+                  {test.agentResponse || <span className="text-bone-400">(no final answer)</span>}
                 </p>
                 {test.failureType && (
                   <span className="tech-label mt-3 block text-fault-400">
-                    FAILURE: {test.failureType.toUpperCase()}
+                    Failure: {test.failureType}
                   </span>
                 )}
                 {test.explanation && (
-                  <p className="mt-1 text-xs text-bone-400">{test.explanation}</p>
+                  <p className="mt-1 text-sm text-bone-400">{test.explanation}</p>
                 )}
               </div>
             </div>
             <div className="flex flex-wrap items-center justify-between gap-3 border-t border-bone-600/20 p-4">
-              <span className="font-mono text-[10px] text-bone-600">
+              <span className="font-mono text-xs text-bone-400">
                 {test.durationMs} ms · {test.trace.length} trace events
               </span>
               <Link
                 to={`/app/evaluations/${evaluationId}/tests/${test.id}`}
-                className="flex min-h-11 items-center font-mono text-[11px] uppercase tracking-wider text-signal-400 hover:text-signal-300"
+                className="flex min-h-11 items-center font-mono text-xs tracking-wider text-signal-400 hover:text-signal-300"
               >
-                VIEW FULL INCIDENT REPORT →
+                View full incident report →
               </Link>
             </div>
           </motion.div>

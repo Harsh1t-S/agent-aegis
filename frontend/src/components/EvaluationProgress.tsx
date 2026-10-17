@@ -13,14 +13,14 @@ export function EvaluationProgress({ complete, total, status }: EvaluationProgre
   // others as done — as a fixed checklist did — is exactly the kind of unverified
   // status report this product exists to flag.
   const stages = [
-    { label: 'SCENARIOS GENERATED', done: total > 0 },
-    { label: 'SANDBOX INITIALIZED', done: total > 0 },
+    { label: 'Scenarios generated', done: total > 0 },
+    { label: 'Sandbox initialized', done: total > 0 },
     {
-      label: 'RUNNING SCENARIOS',
+      label: 'Running scenarios',
       done: status === 'completed',
       active: status === 'running' && total > 0,
     },
-    { label: 'SCORING COMPLETE', done: status === 'completed' },
+    { label: 'Scoring complete', done: status === 'completed' },
   ];
 
   return (
@@ -28,7 +28,7 @@ export function EvaluationProgress({ complete, total, status }: EvaluationProgre
       <div>
         <div className="flex items-baseline justify-between">
           <span className="font-mono text-sm text-bone-300">
-            {complete} / {total || '—'} SCENARIOS COMPLETE
+            {complete} / {total || '—'} Scenarios complete
           </span>
           <span className="font-mono text-sm text-signal-400">{Math.round(pct)}%</span>
         </div>
@@ -46,19 +46,19 @@ export function EvaluationProgress({ complete, total, status }: EvaluationProgre
         {stages.map((stage) => (
           <div key={stage.label} className="flex items-center gap-3">
             <span
-              className={`flex h-4 w-4 items-center justify-center rounded-full border text-[9px] ${
+              className={`flex h-4 w-4 items-center justify-center rounded-full border text-xs ${
                 stage.done
                   ? 'border-flux-500/50 text-flux-500'
                   : stage.active
                     ? 'border-signal-500 text-signal-400'
-                    : 'border-bone-600/40 text-bone-600'
+                    : 'border-bone-600/40 text-bone-400'
               }`}
             >
               {stage.done ? '✓' : stage.active ? '◉' : '○'}
             </span>
             <span
-              className={`font-mono text-xs uppercase tracking-wider ${
-                stage.done ? 'text-bone-300' : stage.active ? 'text-signal-400' : 'text-bone-600'
+              className={`font-mono text-xs tracking-wider ${
+                stage.done ? 'text-bone-300' : stage.active ? 'text-signal-400' : 'text-bone-400'
               }`}
             >
               {stage.label}

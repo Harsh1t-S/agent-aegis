@@ -1,33 +1,40 @@
 import { motion } from 'framer-motion';
-import { SystemLabel } from './SystemLabel';
 import { AlertTriangle, RefreshCw } from 'lucide-react';
+import { buttonSecondary } from '@/lib/ui';
+
+/**
+ * Call sites pass shouting labels ("Nothing evaluated yet"). Messages the reader
+ * has to act on are plain sentences, so fold an all-caps label to sentence case.
+ */
+function plain(text: string): string {
+  const letters = text.replace(/[^A-Za-z]/g, '');
+  if (letters.length < 4 || letters !== letters.toUpperCase()) return text;
+  const lower = text.toLowerCase();
+  return lower.charAt(0).toUpperCase() + lower.slice(1);
+}
 
 export function LoadingState({ label = 'LOADING' }: { label?: string }) {
   return (
-    <div className="flex flex-col items-center justify-center gap-4 py-24">
+    <div role="status" className="flex flex-col items-center justify-center gap-4 py-16">
       <motion.div
         className="h-8 w-8 border border-signal-500/40 border-t-signal-400"
         animate={{ rotate: 360 }}
         transition={{ duration: 1, repeat: Infinity, ease: 'linear' }}
       />
-      <SystemLabel className="text-bone-500">{label}</SystemLabel>
+      <span className="text-sm text-bone-300">{plain(label)}…</span>
     </div>
   );
 }
 
 export function ErrorState({ message, onRetry }: { message: string; onRetry?: () => void }) {
   return (
-    <div className="flex flex-col items-center justify-center gap-4 border border-fault-500/30 bg-fault-500/5 px-6 py-16 text-center">
-      <AlertTriangle className="h-6 w-6 text-fault-400" strokeWidth={1.5} />
-      <SystemLabel className="text-fault-400">COULD NOT LOAD</SystemLabel>
+    <div role="alert" className="flex flex-col items-center justify-center gap-3 border border-fault-500/40 bg-fault-500/5 px-6 py-12 text-center">
+      <AlertTriangle className="h-6 w-6 text-fault-400" strokeWidth={1.5} aria-hidden />
+      <p className="font-display text-lg font-semibold text-fault-300">Could not load this</p>
       <p className="max-w-md text-sm text-bone-300">{message}</p>
       {onRetry && (
-        <button
-          type="button"
-          onClick={onRetry}
-          className="mt-2 flex items-center gap-2 border border-bone-600/40 px-4 py-2 font-mono text-[11px] uppercase tracking-wider text-bone-200 transition-colors hover:border-signal-500/40 hover:text-signal-300"
-        >
-          <RefreshCw className="h-3.5 w-3.5" /> RETRY
+        <button type="button" onClick={onRetry} className={`${buttonSecondary} mt-2`}>
+          <RefreshCw className="h-4 w-4" aria-hidden /> Try again
         </button>
       )}
     </div>
@@ -36,9 +43,9 @@ export function ErrorState({ message, onRetry }: { message: string; onRetry?: ()
 
 export function EmptyState({ title, hint, action }: { title: string; hint?: string; action?: React.ReactNode }) {
   return (
-    <div className="flex flex-col items-center justify-center gap-3 border border-dashed border-bone-600/30 px-6 py-20 text-center">
-      <SystemLabel className="text-bone-500">{title}</SystemLabel>
-      {hint && <p className="max-w-md text-sm text-bone-400">{hint}</p>}
+    <div className="flex flex-col items-center justify-center gap-3 border border-dashed border-bone-600/40 px-6 py-12 text-center">
+      <p className="font-display text-lg font-semibold text-bone-100">{plain(title)}</p>
+      {hint && <p className="max-w-md text-sm leading-relaxed text-bone-300">{hint}</p>}
       {action}
     </div>
   );

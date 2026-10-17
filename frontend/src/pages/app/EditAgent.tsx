@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { buttonPrimary, buttonSecondary, fieldInput } from '@/lib/ui';
 import { useNavigate, useParams, Link } from 'react-router-dom';
 import { PageHeader } from '@/components/PageHeader';
 import { SystemLabel } from '@/components/SystemLabel';
@@ -124,8 +125,20 @@ export default function EditAgent() {
     }
   };
 
-  const inputClass =
-    'w-full border border-bone-300/35 bg-ink-900/60 px-4 py-3 font-mono text-base sm:text-sm text-bone-50 placeholder:text-bone-300 focus:border-signal-400/70 focus:outline-none transition-colors';
+  const inputClass = `${fieldInput} py-3`;
+
+  const cancelLink = <Link to={`/app/agents/${id}`} className={buttonSecondary}>Cancel</Link>;
+  const saveButton = (
+    <button type="button" onClick={save} disabled={saving} className={buttonPrimary}>
+      {saving ? (
+        <>
+          <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> Saving…
+        </>
+      ) : (
+        'Save changes'
+      )}
+    </button>
+  );
 
   return (
     <>
@@ -135,7 +148,8 @@ export default function EditAgent() {
             { label: agent.data?.name || 'Agent', to: `/app/agents/${id}` },
             { label: 'Edit' },
           ]}
-          title="EDIT AGENT"
+          title="Edit agent"
+          actions={<>{cancelLink}{saveButton}</>}
           description="Changing the prompt or the tools does not rewrite any evaluation that already ran. Save, then run a new evaluation; the comparison between the two is the regression report."
         />
 
@@ -144,12 +158,11 @@ export default function EditAgent() {
             loading={agent.loading}
             error={agent.error}
             onRetry={agent.reload}
-            label="LOADING AGENT"
+            label="Loading agent"
           >
             <div className="space-y-6">
               <div>
-                <label htmlFor="edit-name" className="tech-label mb-2 block text-bone-300">
-                  AGENT NAME
+                <label htmlFor="edit-name" className="text-sm font-medium text-bone-100 mb-2 block">Agent name
                 </label>
                 <input
                   id="edit-name"
@@ -161,8 +174,7 @@ export default function EditAgent() {
               </div>
 
               <div>
-                <label htmlFor="edit-desc" className="tech-label mb-2 block text-bone-300">
-                  DESCRIPTION
+                <label htmlFor="edit-desc" className="text-sm font-medium text-bone-100 mb-2 block">Description
                 </label>
                 <textarea
                   id="edit-desc"
@@ -173,13 +185,13 @@ export default function EditAgent() {
               </div>
 
               <div>
-                <SystemLabel className="!text-bone-300">TEST PATH</SystemLabel>
+                <SystemLabel className="!text-bone-300">Test path</SystemLabel>
                 <div className="mt-3 grid grid-cols-2 gap-2">
                   {(['simulation', 'connected'] as const).map((mode) => (
                     <button key={mode} type="button" aria-pressed={connectionMode === mode}
                       onClick={() => setConnectionMode(mode)}
-                      className={`min-h-11 border px-3 font-mono text-[11px] uppercase tracking-wider ${connectionMode === mode ? 'border-signal-500/50 bg-signal-500/10 text-signal-300' : 'border-bone-600/30 text-bone-400'}`}>
-                      {mode === 'simulation' ? 'PROMPT SIMULATION' : 'CONNECTED AGENT'}
+                      className={`min-h-11 border px-3 font-mono text-xs tracking-wider ${connectionMode === mode ? 'border-signal-500/50 bg-signal-500/10 text-signal-300' : 'border-bone-600/30 text-bone-400'}`}>
+                      {mode === 'simulation' ? 'Prompt simulation' : 'Connected agent'}
                     </button>
                   ))}
                 </div>
@@ -196,8 +208,7 @@ export default function EditAgent() {
               </div>
 
               <div>
-                <label htmlFor="edit-prompt" className="tech-label mb-2 block text-bone-300">
-                  SYSTEM PROMPT
+                <label htmlFor="edit-prompt" className="text-sm font-medium text-bone-100 mb-2 block">System prompt
                 </label>
                 <textarea
                   id="edit-prompt"
@@ -205,7 +216,7 @@ export default function EditAgent() {
                   value={systemPrompt}
                   onChange={(e) => setSystemPrompt(e.target.value)}
                 />
-                <p className="mt-2 font-mono text-[10px] text-bone-300">
+                <p className="mt-2 font-mono text-sm text-bone-300">
                   {systemPrompt.length} characters. Aegis re-profiles the prompt on save, so a
                   new constraint becomes a new executable policy predicate.
                 </p>
@@ -213,7 +224,7 @@ export default function EditAgent() {
 
               <div>
                 <div className="flex flex-wrap items-center justify-between gap-2">
-                  <SystemLabel className="!text-bone-300">TOOLS</SystemLabel>
+                  <SystemLabel className="!text-bone-300">Tools</SystemLabel>
                   <div className="flex flex-wrap items-center gap-2">
                     <input
                       ref={fileInput}
@@ -239,9 +250,9 @@ export default function EditAgent() {
                     <button
                       type="button"
                       onClick={() => fileInput.current?.click()}
-                      className="flex min-h-11 items-center gap-2 border border-bone-600/35 px-3 font-mono text-[10px] uppercase tracking-wider text-bone-300 transition-colors hover:border-signal-400/50 hover:text-signal-300"
+                      className={buttonSecondary}
                     >
-                      <Upload className="h-3.5 w-3.5" /> UPLOAD
+                      <Upload className="h-3.5 w-3.5" />Upload
                     </button>
                     <button
                       type="button"
@@ -249,10 +260,10 @@ export default function EditAgent() {
                         setSchemaText(toolsToJson(tools.filter((t) => t.name.trim())));
                         setShowSchema((v) => !v);
                       }}
-                      className="flex min-h-11 items-center gap-2 border border-bone-600/35 px-3 font-mono text-[10px] uppercase tracking-wider text-bone-300 transition-colors hover:border-signal-400/50 hover:text-signal-300"
+                      className="flex min-h-11 items-center gap-2 border border-bone-600/35 px-3 font-mono text-xs tracking-wider text-bone-300 transition-colors hover:border-signal-400/50 hover:text-signal-300"
                     >
                       <ClipboardPaste className="h-3.5 w-3.5" />
-                      {showSchema ? 'HIDE' : 'EDIT AS JSON'}
+                      {showSchema ? 'HIDE' : 'Edit as JSON'}
                     </button>
                   </div>
                 </div>
@@ -269,16 +280,15 @@ export default function EditAgent() {
                     <button
                       type="button"
                       onClick={() => importSchema(schemaText)}
-                      className="flex min-h-11 items-center border border-signal-500/40 bg-signal-500/10 px-4 font-mono text-[11px] uppercase tracking-wider text-signal-300 hover:bg-signal-500/20"
-                    >
-                      APPLY JSON
+                      className={buttonPrimary}
+                    >Apply JSON
                     </button>
                   </div>
                 )}
 
                 <div className="mt-3 space-y-3">
                   {tools.map((tool, i) => (
-                    <div key={i} className="border border-bone-300/25 bg-ink-900/60 p-4">
+                    <div key={i} className="border border-bone-300/25 bg-ink-900 p-4">
                       <div className="flex items-center justify-between">
                         <span className="font-mono text-xs text-bone-300">
                           TOOL {String(i + 1).padStart(2, '0')}
@@ -308,14 +318,14 @@ export default function EditAgent() {
                         onChange={(e) => updateTool(i, 'description', e.target.value)}
                       />
                       <div className="mt-3 flex flex-wrap items-center gap-2">
-                        <SystemLabel className="!text-bone-300">RISK</SystemLabel>
+                        <SystemLabel className="!text-bone-300">Risk</SystemLabel>
                         {(['low', 'medium', 'high'] as const).map((r) => (
                           <button
                             key={r}
                             type="button"
                             aria-pressed={tool.risk === r}
                             onClick={() => updateTool(i, 'risk', r)}
-                            className={`flex min-h-9 items-center border px-3 font-mono text-[10px] uppercase tracking-wider transition-colors ${
+                            className={`flex min-h-9 items-center border px-3 font-mono text-xs tracking-wider transition-colors ${
                               tool.risk === r
                                 ? r === 'high'
                                   ? 'border-fault-500/50 text-fault-400'
@@ -336,40 +346,22 @@ export default function EditAgent() {
                     onClick={() =>
                       setTools((prev) => [...prev, { name: '', description: '' }])
                     }
-                    className="flex w-full items-center justify-center gap-2 border border-dashed border-bone-600/30 py-3 font-mono text-xs uppercase tracking-wider text-bone-300 transition-colors hover:border-signal-400/50 hover:text-signal-300"
+                    className="flex w-full items-center justify-center gap-2 border border-dashed border-bone-600/30 py-3 font-mono text-xs tracking-wider text-bone-300 transition-colors hover:border-signal-400/50 hover:text-signal-300"
                   >
-                    <Plus className="h-4 w-4" /> ADD TOOL
+                    <Plus className="h-4 w-4" />Add tool
                   </button>
                 </div>
               </div>
 
               {saveError && (
-                <p className="border border-fault-500/40 bg-fault-500/5 px-4 py-3 font-mono text-[11px] text-fault-300">
+                <p className="border border-fault-500/40 bg-fault-500/5 px-4 py-3 font-mono text-sm text-fault-300">
                   {saveError}
                 </p>
               )}
 
-              <div className="flex flex-wrap items-center gap-3 border-t border-bone-600/20 pt-6">
-                <button
-                  type="button"
-                  onClick={save}
-                  disabled={saving}
-                  className="flex min-h-11 items-center gap-2 border border-signal-500 bg-signal-500/20 px-6 font-mono text-xs uppercase tracking-wider text-signal-300 transition-colors enabled:hover:bg-signal-500/30 disabled:opacity-40"
-                >
-                  {saving ? (
-                    <>
-                      <Loader2 className="h-4 w-4 animate-spin" /> SAVING…
-                    </>
-                  ) : (
-                    'SAVE CHANGES'
-                  )}
-                </button>
-                <Link
-                  to={`/app/agents/${id}`}
-                  className="flex min-h-11 items-center px-2 font-mono text-xs uppercase tracking-wider text-bone-400 hover:text-bone-100"
-                >
-                  CANCEL
-                </Link>
+              <div className="flex flex-col-reverse gap-3 border-t border-bone-600/20 pt-6 sm:flex-row sm:justify-end">
+                {cancelLink}
+                {saveButton}
               </div>
             </div>
           </AsyncBoundary>

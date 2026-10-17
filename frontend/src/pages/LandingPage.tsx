@@ -52,7 +52,7 @@ export default function LandingPage() {
                 <PlayCircle className="h-4 w-4" /> EXPLORE THE DEMO
               </Link>
             </div>
-            <div className="mt-7 flex flex-wrap gap-x-6 gap-y-3 font-mono text-[10px] uppercase tracking-wider text-bone-500">
+            <div className="mt-7 flex flex-wrap gap-x-6 gap-y-3 font-mono text-xs uppercase tracking-wider text-bone-500">
               <span className="flex items-center gap-2"><LockKeyhole className="h-3.5 w-3.5 text-flux-400" /> Private workspaces</span>
               <span className="flex items-center gap-2"><CheckCircle2 className="h-3.5 w-3.5 text-flux-400" /> Bounded trial credits</span>
               <span className="flex items-center gap-2"><TerminalSquare className="h-3.5 w-3.5 text-flux-400" /> CI-ready API keys</span>
@@ -66,7 +66,7 @@ export default function LandingPage() {
             <div className="relative border border-fault-500/30 bg-ink-900/90 p-6 shadow-2xl shadow-fault-950/20 backdrop-blur-xl sm:p-8">
               <div className="flex items-center justify-between gap-3">
                 <SystemLabel>CURATED RELEASE REPORT</SystemLabel>
-                <span className="border border-fault-500/45 bg-fault-500/10 px-2 py-1 font-mono text-[10px] uppercase tracking-wider text-fault-400">BLOCKED</span>
+                <span className="border border-fault-500/45 bg-fault-500/10 px-2 py-1 font-mono text-xs uppercase tracking-wider text-fault-400">BLOCKED</span>
               </div>
               <div className="mt-7 grid gap-6 sm:grid-cols-[auto_1fr] sm:items-center">
                 <ReliabilityScore score={30} size="lg" />
@@ -81,7 +81,7 @@ export default function LandingPage() {
               <div className="mt-6 border-l-2 border-fault-500/60 bg-fault-500/5 p-4 font-mono text-xs leading-relaxed text-bone-300">
                 check_order → ineligible<br /><span className="text-fault-400">issue_refund → $240.00</span>
               </div>
-              <p className="mt-4 font-mono text-[9px] uppercase tracking-wider text-bone-600">Static publishable example · no customer data</p>
+              <p className="mt-4 font-mono text-xs uppercase tracking-wider text-bone-600">Static publishable example · no customer data</p>
             </div>
           </motion.div>
         </div>
@@ -165,7 +165,7 @@ export default function LandingPage() {
             <MetricLine label="LOOP RESISTANCE" value={92} color="#5bc8e8" delay={0.15} />
             <MetricLine label="GROUNDEDNESS" value={68} color="#eda31c" delay={0.2} />
           </div>
-          <p className="mt-4 font-mono text-[9px] uppercase tracking-wider text-bone-600">Illustrative curated result</p>
+          <p className="mt-4 font-mono text-xs uppercase tracking-wider text-bone-600">Illustrative curated result</p>
         </div>
       </section>
 

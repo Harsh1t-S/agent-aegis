@@ -27,14 +27,22 @@ interface NavItem {
   adminOnly?: boolean;
 }
 
+interface NavGroup {
+  label: string;
+  /** One line under the group name saying how its items relate. */
+  caption?: string;
+  items: NavItem[];
+}
+
 /**
  * Grouped in the order the work happens: register an agent, run it, read the
  * runs, compare versions. Workspace administration sits apart from that flow
  * instead of hiding in a dropdown beside it.
  */
-const groups: { label: string; items: NavItem[] }[] = [
+const groups: NavGroup[] = [
   {
     label: 'Testing',
+    caption: 'Add an agent, run it, read the report, compare versions.',
     items: [
       { to: '/app', label: 'Overview', icon: LayoutGrid },
       { to: '/app/agents', label: 'Agents', icon: Bot },
@@ -44,6 +52,7 @@ const groups: { label: string; items: NavItem[] }[] = [
   },
   {
     label: 'Workspace',
+    caption: 'Settings and access for everyone here.',
     items: [
       { to: '/app/settings', label: 'Run settings', icon: SlidersHorizontal },
       { to: '/app/team', label: 'Team', icon: Users },
@@ -57,6 +66,14 @@ const groups: { label: string; items: NavItem[] }[] = [
 function isActive(pathname: string, to: string): boolean {
   if (to === '/app') return pathname === '/app';
   return pathname === to || pathname.startsWith(`${to}/`);
+}
+
+function currentLabel(pathname: string): string {
+  if (isActive(pathname, '/app/profile')) return 'Profile';
+  const all = groups.flatMap((group) => group.items);
+  // Longest match first so /app/agents/new reads as Agents, not Overview.
+  const match = [...all].sort((a, b) => b.to.length - a.to.length).find((item) => isActive(pathname, item.to));
+  return match?.label ?? '';
 }
 
 function initials(name: string) {
@@ -81,7 +98,7 @@ function SidebarContent() {
       </div>
 
       <div className="border-b border-bone-600/20 px-4 py-4">
-        <label htmlFor="workspace-switcher" className="tech-label text-bone-500">Workspace</label>
+        <label htmlFor="workspace-switcher" className="tech-label">Workspace</label>
         <select
           id="workspace-switcher"
           value={workspace.current?.id ?? ''}
@@ -89,7 +106,7 @@ function SidebarContent() {
             workspace.select(event.target.value);
             window.location.assign('/app');
           }}
-          className="mt-2 min-h-10 w-full border border-bone-600/30 bg-ink-950 px-3 text-sm text-bone-100 outline-none focus:border-signal-400"
+          className="mt-2 min-h-11 w-full border border-bone-600/40 bg-ink-950 px-3 text-sm text-bone-100"
         >
           {workspace.workspaces.map((item) => (
             <option key={item.id} value={item.id}>{item.name}</option>
@@ -100,7 +117,8 @@ function SidebarContent() {
       <nav aria-label="Console" className="min-h-0 flex-1 overflow-y-auto px-3 py-4">
         {groups.map((group) => (
           <div key={group.label} className="mb-6 last:mb-0">
-            <p className="tech-label px-3 text-bone-600">{group.label}</p>
+            <p className="tech-label px-3">{group.label}</p>
+            {group.caption && <p className="mt-1 px-3 text-sm leading-snug text-bone-400">{group.caption}</p>}
             <ul className="mt-2 space-y-0.5">
               {group.items.filter((item) => !item.adminOnly || canAdminister).map((item) => {
                 const active = isActive(location.pathname, item.to);
@@ -109,10 +127,10 @@ function SidebarContent() {
                     <Link
                       to={item.to}
                       aria-current={active ? 'page' : undefined}
-                      className={`flex min-h-10 items-center gap-3 px-3 text-sm transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-signal-400 ${
+                      className={`flex min-h-11 items-center gap-3 border-l-2 px-3 text-sm transition-colors focus-visible:-outline-offset-2 ${
                         active
-                          ? 'bg-signal-500/15 font-medium text-signal-300'
-                          : 'text-bone-300 hover:bg-ink-850 hover:text-bone-50'
+                          ? 'border-signal-400 bg-signal-500/15 font-medium text-signal-300'
+                          : 'border-transparent text-bone-200 hover:bg-ink-850 hover:text-bone-50'
                       }`}
                     >
                       <item.icon className="h-4 w-4 shrink-0" aria-hidden />
@@ -139,7 +157,7 @@ function SidebarContent() {
           </span>
           <span className="min-w-0">
             <span className="block truncate text-sm text-bone-100">{name}</span>
-            <span className="block truncate text-xs text-bone-500">
+            <span className="block truncate text-sm text-bone-400">
               {role ? `${role[0].toUpperCase()}${role.slice(1)} · ` : ''}View profile
             </span>
           </span>
@@ -147,14 +165,14 @@ function SidebarContent() {
         <div className="mt-2 grid grid-cols-2 gap-2">
           <Link
             to="/"
-            className="flex min-h-10 items-center justify-center gap-1.5 border border-bone-600/25 text-xs text-bone-400 transition-colors hover:border-bone-500/50 hover:text-bone-100"
+            className="flex min-h-11 items-center justify-center gap-1.5 border border-bone-600/35 text-sm text-bone-300 transition-colors hover:border-bone-400/60 hover:text-bone-50"
           >
             Website <ArrowUpRight className="h-3.5 w-3.5" aria-hidden />
           </Link>
           <button
             type="button"
             onClick={() => void auth.signOut()}
-            className="flex min-h-10 items-center justify-center gap-1.5 border border-bone-600/25 text-xs text-bone-400 transition-colors hover:border-fault-500/50 hover:text-fault-300"
+            className="flex min-h-11 items-center justify-center gap-1.5 border border-bone-600/35 text-sm text-bone-300 transition-colors hover:border-fault-500/60 hover:text-fault-300"
           >
             <LogOut className="h-3.5 w-3.5" aria-hidden /> Sign out
           </button>
@@ -206,12 +224,13 @@ export function AppFrame({ children }: { children: ReactNode }) {
 
       <header className="sticky top-0 z-40 flex h-14 items-center justify-between border-b border-bone-600/20 bg-ink-950/90 px-4 backdrop-blur-xl lg:hidden">
         <AegisLogo />
+        <span className="min-w-0 flex-1 truncate px-3 text-sm text-bone-300">{currentLabel(location.pathname)}</span>
         <button
           type="button"
           onClick={() => setOpen(true)}
           aria-label="Open navigation"
           aria-expanded={open}
-          className="-mr-2 flex h-11 w-11 items-center justify-center text-bone-300 hover:text-bone-50"
+          className="-mr-2 flex h-11 w-11 items-center justify-center text-bone-200 hover:text-bone-50"
         >
           <Menu className="h-5 w-5" />
         </button>
@@ -255,7 +274,7 @@ export function AppFrame({ children }: { children: ReactNode }) {
       </AnimatePresence>
 
       <div className="lg:pl-64">
-        <main id="app-main" className="mx-auto w-full max-w-7xl px-4 py-8 sm:px-6 lg:px-10 lg:py-10">
+        <main id="app-main" className="mx-auto w-full max-w-6xl px-4 py-6 sm:px-6 lg:px-8 lg:py-8">
           {children}
         </main>
       </div>

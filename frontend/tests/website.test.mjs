@@ -86,8 +86,8 @@ test('agent creation succeeds even when clearing the draft is blocked', async ()
     return Response.json({ id: 'created', tools: draft.tools });
   };
   await mount(NewAgent);
-  for (let step = 0; step < 3; step += 1) await click(button('CONTINUE'));
-  await click(button('CREATE AGENT'));
+  for (let step = 0; step < 3; step += 1) await click(button('Continue'));
+  await click(button('Create agent'));
   assert.equal(created, 1);
   assert.equal(location(), '/app/agents/created');
   assert.ok(!messages.some(([tone]) => tone === 'error'));
@@ -98,9 +98,9 @@ test('manually duplicated tool names block the review step', async () => {
     ...draft.tools, { ...draft.tools[0], name: ' get_order ' },
   ] }));
   await mount(NewAgent);
-  await click(button('CONTINUE'));
-  await click(button('CONTINUE'));
-  assert.equal(button('CONTINUE').props.disabled, true);
+  await click(button('Continue'));
+  await click(button('Continue'));
+  assert.equal(button('Continue').props.disabled, true);
   assert.match(pageText(), /Duplicate tool name/);
 });
 
@@ -192,12 +192,12 @@ test('an expired session can retry without losing unsaved form edits', async () 
   await act(async () => {
     tree.root.findByProps({ id: 'agent-name' }).props.onChange({ target: { value: 'Unsaved name change' } });
   });
-  for (let step = 0; step < 3; step += 1) await click(button('CONTINUE'));
-  await click(button('CREATE AGENT'));
+  for (let step = 0; step < 3; step += 1) await click(button('Continue'));
+  await click(button('Create agent'));
   assert.equal(creates.length, 1);
   assert.match(pageText(), /session expired/i);
   token = 'refreshed-token';
-  await click(button('CREATE AGENT'));
+  await click(button('Create agent'));
   assert.deepEqual(creates.map(({ payload, authorized }) => [payload.name, authorized]), [
     ['Unsaved name change', false], ['Unsaved name change', true],
   ]);

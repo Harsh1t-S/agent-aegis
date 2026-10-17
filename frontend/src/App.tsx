@@ -93,7 +93,7 @@ function App() {
               <ToastProvider>
                 <Layout>
                   <Suspense fallback={(
-                  <div className="flex min-h-[60vh] items-center justify-center bg-ink-950 font-mono text-xs uppercase tracking-[0.22em] text-bone-500">
+                  <div className="flex min-h-[60vh] items-center justify-center bg-ink-950 font-mono text-xs uppercase tracking-[0.12em] text-bone-500">
                     Loading Aegis…
                   </div>
                   )}>

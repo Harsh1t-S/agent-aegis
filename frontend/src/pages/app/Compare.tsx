@@ -1,9 +1,10 @@
 import { useEffect, useMemo } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import { PageHeader } from '@/components/PageHeader';
 import { VersionBattle } from '@/components/VersionBattle';
-import { ScrollReveal } from '@/components/ScrollReveal';
-import { SystemLabel } from '@/components/SystemLabel';
+import { buttonPrimary, buttonSecondary, card } from '@/lib/ui';
+import { evaluationPath } from '@/lib/format';
+import { ArrowRight } from 'lucide-react';
 import { EmptyState, ErrorState, LoadingState } from '@/components/AsyncState';
 import { useResource } from '@/hooks/useResource';
 import { api } from '@/lib/api';
@@ -49,17 +50,25 @@ export default function Compare() {
     <>
         <PageHeader
           crumbs={[{ label: 'Testing' }, { label: 'Compare versions' }]}
-          title="COMPARE VERSIONS"
+          title="Compare versions"
           description="Pick an agent and two of its versions. Only scenarios both versions ran are compared."
+          actions={agent && left && right && (
+            <>
+              <Link to={evaluationPath(left)} className={buttonSecondary}>Open {left.version} report</Link>
+              <Link to={evaluationPath(right)} className={buttonPrimary}>
+                Open {right.version} report <ArrowRight className="h-4 w-4" aria-hidden />
+              </Link>
+            </>
+          )}
         />
 
-        {agents.loading && <LoadingState label="LOADING AGENTS" />}
+        {agents.loading && <LoadingState label="Loading agents" />}
         {agents.error && <ErrorState message={agents.error} onRetry={agents.reload} />}
 
         {!agents.loading && !agents.error && comparable.length === 0 && (
-          <div className="mt-8">
+          <div>
             <EmptyState
-              title="NOTHING TO COMPARE YET"
+              title="Nothing to compare yet"
               hint="An agent needs at least two evaluated versions before a regression diff is possible. Run a second evaluation on any agent."
             />
           </div>
@@ -68,19 +77,19 @@ export default function Compare() {
         {agent && left && right && (
           <>
             {comparable.length > 1 && (
-              <ScrollReveal className="mt-8">
-                <div className="border border-bone-600/20 bg-ink-900/60 p-5">
-                  <SystemLabel className="text-bone-600">AGENT</SystemLabel>
+              <div className="mb-6">
+                <div className={card}>
+                  <h2 className="text-sm font-medium text-bone-200">Agent</h2>
                   <div className="mt-3 flex flex-wrap gap-2">
                     {comparable.map((a) => (
                       <button
                         key={a.id}
                         type="button"
                         onClick={() => setParams({ agent: a.id })}
-                        className={`flex min-h-11 items-center border px-3 font-mono text-xs uppercase tracking-wider transition-colors ${
+                        className={`flex min-h-11 items-center border px-4 text-sm transition-colors ${
                           a.id === agent.id
-                            ? 'border-signal-500/50 bg-signal-500/10 text-signal-400'
-                            : 'border-bone-600/30 text-bone-500 hover:text-bone-200'
+                            ? 'border-signal-400 bg-signal-500/15 font-medium text-signal-300'
+                            : 'border-bone-600/40 text-bone-200 hover:border-bone-300/60 hover:text-bone-50'
                         }`}
                       >
                         {a.name}
@@ -88,13 +97,13 @@ export default function Compare() {
                     ))}
                   </div>
                 </div>
-              </ScrollReveal>
+              </div>
             )}
 
-            <ScrollReveal className="mt-6">
+            <div className="mb-6">
               <div className="grid min-w-0 gap-6 md:grid-cols-2">
-                <div className="border border-bone-600/20 bg-ink-900/60 p-5">
-                  <SystemLabel className="text-bone-600">BASELINE VERSION</SystemLabel>
+                <div className={card}>
+                  <h2 className="text-sm font-medium text-bone-200">Baseline version</h2>
                   <div className="mt-3 flex flex-wrap gap-2">
                     {agent.versions.map((v) => (
                       <button
@@ -102,10 +111,10 @@ export default function Compare() {
                         type="button"
                         onClick={() => setParams({ agent: agent.id, baseline: v.id, target: right.id })}
                         disabled={v.id === rightId}
-                        className={`flex min-h-11 items-center border px-3 font-mono text-xs uppercase tracking-wider transition-colors disabled:opacity-30 ${
+                        className={`flex min-h-11 items-center border px-4 text-sm transition-colors disabled:opacity-30 ${
                           v.id === leftId
-                            ? 'border-bone-400 bg-bone-600/20 text-bone-100'
-                            : 'border-bone-600/30 text-bone-500 hover:text-bone-200'
+                            ? 'border-bone-300 bg-bone-600/20 font-medium text-bone-50'
+                            : 'border-bone-600/40 text-bone-200 hover:border-bone-300/60 hover:text-bone-50'
                         }`}
                       >
                         {v.version}
@@ -113,8 +122,8 @@ export default function Compare() {
                     ))}
                   </div>
                 </div>
-                <div className="border border-signal-500/20 bg-signal-500/5 p-5">
-                  <SystemLabel className="text-signal-400">COMPARING AGAINST</SystemLabel>
+                <div className="border border-signal-500/40 bg-signal-500/5 p-4 sm:p-6">
+                  <h2 className="text-sm font-medium text-signal-300">Comparing against</h2>
                   <div className="mt-3 flex flex-wrap gap-2">
                     {agent.versions.map((v) => (
                       <button
@@ -122,10 +131,10 @@ export default function Compare() {
                         type="button"
                         onClick={() => setParams({ agent: agent.id, baseline: left.id, target: v.id })}
                         disabled={v.id === leftId}
-                        className={`flex min-h-11 items-center border px-3 font-mono text-xs uppercase tracking-wider transition-colors disabled:opacity-30 ${
+                        className={`flex min-h-11 items-center border px-4 text-sm transition-colors disabled:opacity-30 ${
                           v.id === rightId
-                            ? 'border-signal-500/50 bg-signal-500/10 text-signal-400'
-                            : 'border-bone-600/30 text-bone-500 hover:text-bone-200'
+                            ? 'border-signal-400 bg-signal-500/15 font-medium text-signal-300'
+                            : 'border-bone-600/40 text-bone-200 hover:border-bone-300/60 hover:text-bone-50'
                         }`}
                       >
                         {v.version}
@@ -134,9 +143,9 @@ export default function Compare() {
                   </div>
                 </div>
               </div>
-            </ScrollReveal>
+            </div>
 
-            <div className="mt-8">
+            <div>
               <VersionBattle
                 left={left}
                 right={right}

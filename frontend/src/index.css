@@ -24,6 +24,13 @@ body {
   overflow-x: hidden;
 }
 
+/* Every focusable control shows where the keyboard is. Several screens set
+   outline-none on their own inputs, so this has to win over utility classes. */
+:focus-visible {
+  outline: 2px solid #5bc8e8 !important;
+  outline-offset: 2px;
+}
+
 ::selection {
   background-color: rgba(91, 200, 232, 0.32);
   color: #ffffff;
@@ -46,13 +53,18 @@ body {
 }
 
 @layer components {
+  /* Whatever follows a page header starts one fixed distance below it, whatever
+     margin the screen put on that block before the header owned the spacing. */
+  .page-header + * {
+    margin-top: 0 !important;
+  }
   .massive {
     @apply font-display font-bold tracking-ultraTight leading-[0.92];
   }
   .tech-label {
-    /* 11px at 0.25em tracking is already at the edge of legible; it must never
-       also be the dimmest colour on the page. */
-    @apply font-mono text-[11px] uppercase tracking-[0.2em] text-bone-400;
+    /* 12px is the floor for a label, and wide tracking on top of it costs
+       legibility; keep the tracking modest and the colour in the readable steps. */
+    @apply font-mono text-xs font-medium tracking-wide text-bone-300;
   }
   .grid-bg {
     background-image:

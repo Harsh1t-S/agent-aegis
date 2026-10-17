@@ -1,5 +1,6 @@
 import { useEffect, useState, type FormEvent } from 'react';
 import { Copy, Download, KeyRound, Trash2 } from 'lucide-react';
+import { buttonPrimary, buttonSecondary } from '@/lib/ui';
 import { PageHeader } from '@/components/PageHeader';
 import { AsyncBoundary } from '@/components/AsyncState';
 import { SystemLabel } from '@/components/SystemLabel';
@@ -67,12 +68,12 @@ export default function Developer() {
     <>
         <PageHeader
           crumbs={[{ label: 'Workspace' }, { label: 'API & audit' }]}
-          title="API & AUDIT"
+          title="API & audit"
           description="Named keys belong to this workspace. The raw secret is shown once and only its hash is stored."
         />
 
         {canManage && (
-          <form onSubmit={create} className="mt-8 grid max-w-3xl gap-4 border border-bone-600/20 bg-ink-900/60 p-5 sm:grid-cols-[1fr_180px_auto]">
+          <form onSubmit={create} className="mt-8 grid max-w-3xl gap-4 border border-bone-600/30 bg-ink-900 p-4 sm:p-6 sm:grid-cols-[1fr_180px_auto]">
             <label htmlFor="key-name" className="sr-only">API key name</label>
             <input id="key-name" required value={name} onChange={(event) => setName(event.target.value)}
               placeholder="CI release gate"
@@ -87,13 +88,13 @@ export default function Developer() {
               <option value="">No expiry</option>
             </select>
             <button type="submit"
-              className="flex min-h-11 items-center justify-center gap-2 border border-signal-500/40 bg-signal-500/10 px-5 font-mono text-[11px] text-signal-300">
-              <KeyRound className="h-4 w-4" /> CREATE KEY
+              className={buttonPrimary}>
+              <KeyRound className="h-4 w-4" />Create key
             </button>
             <fieldset className="flex flex-wrap gap-4 sm:col-span-3">
-              <legend className="mb-2 font-mono text-[10px] uppercase tracking-wider text-bone-500">Least-privilege scopes</legend>
+              <legend className="mb-2 font-mono text-xs tracking-wider text-bone-500">Least-privilege scopes</legend>
               {(['read', 'evaluate', 'admin'] as const).map((scope) => (
-                <label key={scope} className="flex min-h-9 cursor-pointer items-center gap-2 font-mono text-[10px] uppercase text-bone-300">
+                <label key={scope} className="flex min-h-9 cursor-pointer items-center gap-2 font-mono text-sm text-bone-300">
                   <input type="checkbox" checked={scopes.includes(scope)}
                     onChange={(event) => setScopes((current) => event.target.checked
                       ? [...new Set([...current, scope])]
@@ -102,33 +103,33 @@ export default function Developer() {
                   {scope}
                 </label>
               ))}
-              <p className="basis-full text-xs text-bone-500">Read inspects reports, evaluate starts or reruns tests, and admin changes workspace configuration.</p>
+              <p className="basis-full text-sm text-bone-300">Read inspects reports, evaluate starts or reruns tests, and admin changes workspace configuration.</p>
             </fieldset>
           </form>
         )}
 
         {secret && (
           <div className="mt-4 max-w-2xl border border-warn-500/35 bg-warn-500/5 p-5">
-            <SystemLabel className="text-warn-400">COPY THIS KEY NOW</SystemLabel>
+            <SystemLabel className="text-warn-400">Copy this key now</SystemLabel>
             <code className="mt-3 block break-all text-xs text-bone-100">{secret}</code>
             <button type="button" onClick={() => {
               void navigator.clipboard.writeText(secret);
               toast.success('Copied', 'The API key is on your clipboard.');
-            }} className="mt-4 flex min-h-10 items-center gap-2 border border-warn-500/30 px-4 font-mono text-[10px] text-warn-300">
-              <Copy className="h-3.5 w-3.5" /> COPY KEY
+            }} className="mt-4 flex min-h-10 items-center gap-2 border border-warn-500/30 px-4 font-mono text-xs text-warn-300">
+              <Copy className="h-3.5 w-3.5" />Copy key
             </button>
           </div>
         )}
 
-        <section className="mt-8 max-w-4xl border border-bone-600/20 bg-ink-900/50 p-5">
-          <SystemLabel>WORKSPACE KEYS</SystemLabel>
-          <AsyncBoundary loading={keys.loading} error={keys.error} onRetry={keys.reload} label="LOADING KEYS">
+        <section className="mt-8 max-w-4xl border border-bone-600/30 bg-ink-900 p-4 sm:p-6">
+          <h2 className="font-display text-lg font-semibold text-bone-50">Workspace keys</h2>
+          <AsyncBoundary loading={keys.loading} error={keys.error} onRetry={keys.reload} label="Loading keys">
             <div className="mt-4 divide-y divide-bone-600/15">
               {(keys.data ?? []).map((key) => (
                 <div key={key.id} className="flex items-center justify-between gap-4 py-4">
                   <div>
                     <p className="text-sm text-bone-100">{key.name}</p>
-                    <p className="mt-1 font-mono text-[10px] text-bone-500">
+                    <p className="mt-1 font-mono text-sm text-bone-300">
                       {key.prefix}… · {key.scopes.join(', ')}
                       {key.revoked && <span className="text-fault-400"> · revoked</span>}
                     </p>
@@ -143,31 +144,31 @@ export default function Developer() {
                   )}
                 </div>
               ))}
-              {keys.data?.length === 0 && <p className="py-6 text-sm text-bone-500">No API keys yet.</p>}
+              {keys.data?.length === 0 && <p className="py-6 text-sm text-bone-300">No API keys yet.</p>}
             </div>
           </AsyncBoundary>
         </section>
 
-        <section className="mt-8 max-w-4xl border border-bone-600/20 bg-ink-900/50 p-5">
+        <section className="mt-8 max-w-4xl border border-bone-600/30 bg-ink-900 p-4 sm:p-6">
           <div className="flex flex-wrap items-center justify-between gap-3">
-            <SystemLabel>AUDIT TRAIL</SystemLabel>
+            <SystemLabel>Audit trail</SystemLabel>
             {canManage && (
               <button type="button" onClick={() => void exportBenchmark()}
-                className="flex min-h-10 items-center gap-2 border border-bone-600/30 px-3 font-mono text-[10px] uppercase tracking-wider text-bone-300 hover:border-signal-500/40 hover:text-signal-300">
-                <Download className="h-3.5 w-3.5" /> EXPORT REVIEWED BENCHMARK
+                className={buttonSecondary}>
+                <Download className="h-3.5 w-3.5" />Export reviewed benchmark
               </button>
             )}
           </div>
-          <AsyncBoundary loading={events.loading} error={events.error} onRetry={events.reload} label="LOADING AUDIT">
+          <AsyncBoundary loading={events.loading} error={events.error} onRetry={events.reload} label="Loading audit">
             <div className="mt-4 divide-y divide-bone-600/15">
               {(events.data?.items ?? []).map((event) => (
                 <div key={event.id} className="grid gap-1 py-4 sm:grid-cols-[1fr_auto]">
-                  <p className="font-mono text-xs text-bone-200">{event.action}</p>
-                  <time className="font-mono text-[10px] text-bone-600">{new Date(event.createdAt).toLocaleString()}</time>
-                  <p className="text-xs text-bone-500">{event.targetType} {event.targetId}</p>
+                  <p className="font-mono text-sm text-bone-200">{event.action}</p>
+                  <time className="font-mono text-xs text-bone-400">{new Date(event.createdAt).toLocaleString()}</time>
+                  <p className="text-sm text-bone-300">{event.targetType} {event.targetId}</p>
                 </div>
               ))}
-              {events.data?.items.length === 0 && <p className="py-6 text-sm text-bone-500">No activity recorded yet.</p>}
+              {events.data?.items.length === 0 && <p className="py-6 text-sm text-bone-300">No activity recorded yet.</p>}
             </div>
             {(auditHistory.length > 0 || events.data?.nextCursor) && (
               <div className="mt-4 flex items-center justify-between border-t border-bone-600/15 pt-4">
@@ -177,16 +178,14 @@ export default function Developer() {
                     setAuditHistory((current) => current.slice(0, -1));
                     setAuditCursor(previous);
                   }}
-                  className="min-h-10 px-3 font-mono text-[10px] uppercase text-bone-400 disabled:opacity-30">
-                  PREVIOUS
+                  className="min-h-10 px-3 font-mono text-xs text-bone-400 disabled:opacity-30">Previous
                 </button>
                 <button type="button" disabled={!events.data?.nextCursor}
                   onClick={() => {
                     setAuditHistory((current) => [...current, auditCursor]);
                     setAuditCursor(events.data?.nextCursor ?? undefined);
                   }}
-                  className="min-h-10 px-3 font-mono text-[10px] uppercase text-bone-400 disabled:opacity-30">
-                  OLDER EVENTS
+                  className="min-h-10 px-3 font-mono text-xs text-bone-400 disabled:opacity-30">Older events
                 </button>
               </div>
             )}

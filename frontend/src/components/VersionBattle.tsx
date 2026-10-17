@@ -13,11 +13,11 @@ interface VersionBattleProps {
 }
 
 const metrics: { key: keyof AgentVersion['metrics']; label: string }[] = [
-  { key: 'taskSuccess', label: 'TASK SUCCESS' },
-  { key: 'toolAccuracy', label: 'TOOL ACCURACY' },
-  { key: 'safety', label: 'SAFETY' },
-  { key: 'consistency', label: 'LOOP RESISTANCE' },
-  { key: 'groundedness', label: 'GROUNDEDNESS' },
+  { key: 'taskSuccess', label: 'Task success' },
+  { key: 'toolAccuracy', label: 'Tool accuracy' },
+  { key: 'safety', label: 'Safety' },
+  { key: 'consistency', label: 'Loop resistance' },
+  { key: 'groundedness', label: 'Groundedness' },
 ];
 
 function ScenarioList({
@@ -46,7 +46,7 @@ function ScenarioList({
             className="flex flex-col gap-1.5 border border-bone-600/20 bg-ink-850/40 px-4 py-3 sm:flex-row sm:items-baseline sm:justify-between sm:gap-4"
           >
             <span className="min-w-0 break-words text-sm text-bone-200">{item.scenario}</span>
-            <span className="flex min-w-0 flex-wrap items-baseline gap-x-2 font-mono text-[11px] text-bone-400 sm:shrink-0 sm:justify-end">
+            <span className="flex min-w-0 flex-wrap items-baseline gap-x-2 font-mono text-xs text-bone-400 sm:shrink-0 sm:justify-end">
               <span className="whitespace-nowrap">
                 {item.from} → <span className={tone}>{item.to}</span>
               </span>
@@ -87,12 +87,12 @@ export function VersionBattle({ left, right, diff, diffError }: VersionBattlePro
         </ScrollReveal>
 
         <ScrollReveal delay={0.15} className="text-center">
-          <div className="font-display text-4xl font-bold text-bone-600">VS</div>
+          <div className="font-display text-4xl font-bold text-bone-400">VS</div>
           <div className={`mt-2 font-mono text-sm ${deltaTone(scoreDelta)}`}>
             {signed(scoreDelta)} pts
           </div>
           {diff && (
-            <div className="mt-1 font-mono text-[10px] uppercase tracking-wider text-bone-600">
+            <div className="mt-1 font-mono text-xs tracking-wider text-bone-400">
               {diff.shared_scenarios} shared scenarios
             </div>
           )}
@@ -159,7 +159,7 @@ export function VersionBattle({ left, right, diff, diffError }: VersionBattlePro
       {categories.length > 0 && (
         <ScrollReveal delay={0.2}>
           <div className="min-w-0 border border-bone-600/20 bg-ink-850/40 p-4 sm:p-5">
-            <SystemLabel>FAILURE COUNTS BY CLASS</SystemLabel>
+            <SystemLabel>Failure counts by class</SystemLabel>
             <div className="mt-4 space-y-3">
               {categories.map((category) => {
                 const l = left.failures?.[category] ?? 0;
@@ -168,17 +168,17 @@ export function VersionBattle({ left, right, diff, diffError }: VersionBattlePro
                 const tone = r < l ? 'text-flux-400' : r > l ? 'text-fault-400' : 'text-bone-400';
                 return (
                   <div key={category} className="flex items-center justify-between gap-3">
-                    <SystemLabel>{category.toUpperCase()}</SystemLabel>
+                    <SystemLabel>{category}</SystemLabel>
                     <span className="font-mono text-sm">
                       <span className="text-bone-400">{l}</span>
-                      <span className="mx-3 text-bone-600">→</span>
+                      <span className="mx-3 text-bone-400">→</span>
                       <span className={tone}>{r}</span>
                     </span>
                   </div>
                 );
               })}
             </div>
-            <p className="mt-4 font-mono text-[10px] uppercase tracking-wider text-bone-600">
+            <p className="mt-4 font-mono text-sm tracking-wider text-bone-400">
               Counts are per version and are not normalised by scenario count.
             </p>
           </div>
@@ -188,7 +188,7 @@ export function VersionBattle({ left, right, diff, diffError }: VersionBattlePro
       {/* Server-side scenario diff */}
       <ScrollReveal delay={0.25}>
         <div className="min-w-0 border border-bone-600/20 bg-ink-900/60 p-4 sm:p-5">
-          <SystemLabel>SCENARIO-LEVEL DIFF</SystemLabel>
+          <SystemLabel>Scenario-level diff</SystemLabel>
           {diffError && <p className="mt-3 text-sm text-fault-400">{diffError}</p>}
           {!diffError && !diff && (
             <p className="mt-3 text-sm text-bone-400">Loading the diff…</p>
@@ -202,9 +202,9 @@ export function VersionBattle({ left, right, diff, diffError }: VersionBattlePro
                 </p>
               ) : (
                 <>
-                  <ScenarioList title="REGRESSIONS" tone="text-fault-400" items={diff.regressions} />
-                  <ScenarioList title="IMPROVEMENTS" tone="text-flux-400" items={diff.improvements} />
-                  <ScenarioList title="SOFTENED" tone="text-warn-400" items={diff.softened} />
+                  <ScenarioList title="Regressions" tone="text-fault-400" items={diff.regressions} />
+                  <ScenarioList title="Improvements" tone="text-flux-400" items={diff.improvements} />
+                  <ScenarioList title="Softened" tone="text-warn-400" items={diff.softened} />
                   {diff.regressions.length === 0 &&
                     diff.improvements.length === 0 &&
                     diff.softened.length === 0 && (
@@ -216,7 +216,7 @@ export function VersionBattle({ left, right, diff, diffError }: VersionBattlePro
                 </>
               )}
               <div className="border-t border-bone-600/20 pt-4">
-                <SystemLabel className="text-bone-500">VERDICT</SystemLabel>
+                <SystemLabel className="text-bone-500">Verdict</SystemLabel>
                 <p className="mt-1 font-mono text-sm text-bone-200">{diff.verdict}</p>
               </div>
             </div>

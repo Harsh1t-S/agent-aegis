@@ -22,7 +22,7 @@ export function MetricLine({
   return (
     <div className="group">
       <div className="flex items-baseline justify-between">
-        <span className="font-mono text-xs uppercase tracking-wider text-bone-300">{label}</span>
+        <span className="text-sm text-bone-200">{label}</span>
         <span className="font-mono text-lg font-semibold text-bone-50">
           {value}
           <span className="text-sm text-bone-500">{unit}</span>

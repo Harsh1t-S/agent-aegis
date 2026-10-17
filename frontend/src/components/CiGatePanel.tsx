@@ -21,7 +21,7 @@ export function CiGatePanel({ gate }: { gate: CiGate }) {
         <SystemLabel className={gate.passed ? 'text-flux-400' : 'text-fault-400'}>
           CI GATE — {gate.passed ? 'PASS' : 'FAIL'}
         </SystemLabel>
-        <span className="font-mono text-[11px] text-bone-500">exit {gate.exitCode}</span>
+        <span className="font-mono text-xs text-bone-500">exit {gate.exitCode}</span>
       </div>
 
       <div className="mt-5 space-y-2">
@@ -45,7 +45,7 @@ export function CiGatePanel({ gate }: { gate: CiGate }) {
         ))}
       </div>
 
-      <p className="mt-5 border-t border-bone-600/20 pt-4 font-mono text-[10px] uppercase leading-relaxed tracking-wider text-bone-600">
+      <p className="mt-5 border-t border-bone-600/20 pt-4 text-sm leading-relaxed tracking-wider text-bone-400">
         Thresholds: reliability ≥ {gate.thresholds.minScore} · critical ≤{' '}
         {gate.thresholds.maxCritical} · failed ≤ {gate.thresholds.maxFailed}. The
         agent-reliability workflow reads this endpoint and exits {gate.exitCode} on this run.

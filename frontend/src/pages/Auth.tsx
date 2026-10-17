@@ -53,7 +53,7 @@ export default function AuthPage() {
         <div className="absolute inset-0 grid-bg opacity-20" />
         <div className="relative"><AegisLogo /></div>
         <div className="relative max-w-xl">
-          <p className="font-mono text-xs uppercase tracking-[0.25em] text-signal-400">
+          <p className="font-mono text-xs uppercase tracking-[0.12em] text-signal-400">
             PRIVATE WORKSPACES
           </p>
           <h1 className="massive mt-5 text-6xl text-bone-50">
@@ -64,7 +64,7 @@ export default function AuthPage() {
             tool call, and keep failures as release-blocking regression tests.
           </p>
         </div>
-        <div className="relative flex items-center gap-3 font-mono text-[10px] uppercase tracking-wider text-bone-500">
+        <div className="relative flex items-center gap-3 font-mono text-xs uppercase tracking-wider text-bone-500">
           <ShieldCheck className="h-4 w-4 text-flux-400" />
           Prompts, traces, and reports stay inside your workspace
         </div>
@@ -73,7 +73,7 @@ export default function AuthPage() {
       <section className="flex items-center justify-center px-5 py-12 sm:px-10">
         <div className="w-full max-w-md">
           <div className="mb-10 lg:hidden"><AegisLogo /></div>
-          <p className="font-mono text-[11px] uppercase tracking-[0.22em] text-signal-400">
+          <p className="font-mono text-xs uppercase tracking-[0.12em] text-signal-400">
             {mode === 'signup' ? 'CREATE WORKSPACE' : 'WELCOME BACK'}
           </p>
           <h2 className="massive mt-3 text-4xl text-bone-50">
@@ -88,7 +88,7 @@ export default function AuthPage() {
 
           <form onSubmit={submit} className="mt-8 space-y-5">
             <div>
-              <label htmlFor="email" className="font-mono text-[11px] uppercase tracking-wider text-bone-400">
+              <label htmlFor="email" className="font-mono text-xs uppercase tracking-wider text-bone-400">
                 Work email
               </label>
               <input
@@ -103,7 +103,7 @@ export default function AuthPage() {
             </div>
             {mode !== 'magic' && (
               <div>
-                <label htmlFor="password" className="font-mono text-[11px] uppercase tracking-wider text-bone-400">
+                <label htmlFor="password" className="font-mono text-xs uppercase tracking-wider text-bone-400">
                   Password
                 </label>
                 <input
@@ -132,17 +132,17 @@ export default function AuthPage() {
 
           <div className="mt-5 grid grid-cols-2 gap-3">
             <button type="button" onClick={() => setMode(mode === 'signup' ? 'signin' : 'signup')}
-              className="min-h-11 border border-bone-600/30 font-mono text-[10px] uppercase tracking-wider text-bone-300 hover:text-bone-50">
+              className="min-h-11 border border-bone-600/30 font-mono text-xs uppercase tracking-wider text-bone-300 hover:text-bone-50">
               {mode === 'signup' ? 'I HAVE AN ACCOUNT' : 'CREATE ACCOUNT'}
             </button>
             <button type="button" onClick={() => setMode(mode === 'magic' ? 'signin' : 'magic')}
-              className="min-h-11 border border-bone-600/30 font-mono text-[10px] uppercase tracking-wider text-bone-300 hover:text-bone-50">
+              className="min-h-11 border border-bone-600/30 font-mono text-xs uppercase tracking-wider text-bone-300 hover:text-bone-50">
               {mode === 'magic' ? 'USE PASSWORD' : 'USE EMAIL LINK'}
             </button>
           </div>
           {auth.googleEnabled && (
             <button type="button" onClick={() => void auth.signInWithGoogle()}
-              className="mt-3 min-h-11 w-full border border-bone-600/30 font-mono text-[10px] uppercase tracking-wider text-bone-300 hover:text-bone-50">
+              className="mt-3 min-h-11 w-full border border-bone-600/30 font-mono text-xs uppercase tracking-wider text-bone-300 hover:text-bone-50">
               CONTINUE WITH GOOGLE
             </button>
           )}

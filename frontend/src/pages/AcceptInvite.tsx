@@ -36,7 +36,7 @@ export default function AcceptInvite() {
 
   return (
     <div className="mx-auto max-w-xl py-16 text-center">
-        <p className="font-mono text-xs uppercase tracking-[0.22em] text-signal-400">TEAM INVITATION</p>
+        <p className="font-mono text-xs uppercase tracking-[0.12em] text-signal-400">TEAM INVITATION</p>
         <h1 className="massive mt-4 text-5xl text-bone-50">JOIN THE WORKSPACE.</h1>
         <p className="mt-5 text-sm leading-relaxed text-bone-400">
           Accepting gives your signed-in account access at the role chosen by the workspace owner.

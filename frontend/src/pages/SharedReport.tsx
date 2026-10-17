@@ -32,7 +32,7 @@ export default function SharedReport() {
     <main className="min-h-screen bg-ink-950 px-4 pb-24 pt-32 text-bone-100 sm:px-6 md:px-10">
       <div className="mx-auto max-w-6xl">
         <div className="border border-warn-500/30 bg-warn-500/5 p-4 text-sm leading-relaxed text-bone-300">
-          <strong className="font-mono text-[11px] uppercase tracking-wider text-warn-400">PRIVATE BEARER LINK</strong>
+          <strong className="font-mono text-xs uppercase tracking-wider text-warn-400">PRIVATE BEARER LINK</strong>
           <span className="ml-3">This read-only report expires {formatDate(resource.data.share.expiresAt)}. Forwarding the URL gives the recipient the same access.</span>
         </div>
 
@@ -40,13 +40,13 @@ export default function SharedReport() {
           <div>
             <SystemLabel>SHARED RELIABILITY REPORT</SystemLabel>
             <h1 className="massive mt-3 text-[clamp(2.8rem,7vw,5.5rem)] text-bone-50">{evaluation.agentName}</h1>
-            <p className="mt-3 font-mono text-[10px] uppercase tracking-wider text-bone-500">
+            <p className="mt-3 font-mono text-xs uppercase tracking-wider text-bone-500">
               {evaluation.version} · {formatDate(evaluation.date)} · READ ONLY
             </p>
           </div>
           <div className="border border-bone-600/25 bg-ink-900/70 p-6 text-center">
             <div className="massive text-6xl text-bone-50">{evaluation.score.toFixed(1)}</div>
-            <div className="mt-1 font-mono text-[10px] uppercase tracking-wider text-bone-500">{verdictFor(evaluation.score)}</div>
+            <div className="mt-1 font-mono text-xs uppercase tracking-wider text-bone-500">{verdictFor(evaluation.score)}</div>
           </div>
         </div>
 
@@ -64,9 +64,9 @@ export default function SharedReport() {
           <section className="border border-bone-600/20 bg-ink-900/60 p-6">
             <SystemLabel>OUTCOMES</SystemLabel>
             <div className="mt-6 grid grid-cols-3 gap-3 text-center">
-              <div className="border border-flux-500/25 p-4"><strong className="massive text-3xl text-flux-400">{evaluation.passed}</strong><p className="mt-1 font-mono text-[9px] text-bone-500">PASSED</p></div>
-              <div className="border border-fault-500/25 p-4"><strong className="massive text-3xl text-fault-400">{evaluation.failed}</strong><p className="mt-1 font-mono text-[9px] text-bone-500">FAILED</p></div>
-              <div className="border border-warn-500/25 p-4"><strong className="massive text-3xl text-warn-400">{evaluation.warnings}</strong><p className="mt-1 font-mono text-[9px] text-bone-500">WARNINGS</p></div>
+              <div className="border border-flux-500/25 p-4"><strong className="massive text-3xl text-flux-400">{evaluation.passed}</strong><p className="mt-1 font-mono text-xs text-bone-500">PASSED</p></div>
+              <div className="border border-fault-500/25 p-4"><strong className="massive text-3xl text-fault-400">{evaluation.failed}</strong><p className="mt-1 font-mono text-xs text-bone-500">FAILED</p></div>
+              <div className="border border-warn-500/25 p-4"><strong className="massive text-3xl text-warn-400">{evaluation.warnings}</strong><p className="mt-1 font-mono text-xs text-bone-500">WARNINGS</p></div>
             </div>
             <div className="mt-5 space-y-2">
               {evaluation.failureBreakdown.filter((item) => item.count > 0).map((item) => (
@@ -84,9 +84,9 @@ export default function SharedReport() {
             {evaluation.tests.map((test) => (
               <details key={test.id} className="group border border-bone-600/20 bg-ink-900/55">
                 <summary className="flex min-h-14 cursor-pointer list-none flex-wrap items-center gap-3 px-5 py-4">
-                  <span className={`font-mono text-[10px] uppercase tracking-wider ${test.status === 'passed' ? 'text-flux-400' : test.status === 'warning' ? 'text-warn-400' : 'text-fault-400'}`}>{test.status}</span>
+                  <span className={`font-mono text-xs uppercase tracking-wider ${test.status === 'passed' ? 'text-flux-400' : test.status === 'warning' ? 'text-warn-400' : 'text-fault-400'}`}>{test.status}</span>
                   <strong className="text-sm text-bone-100">{test.title}</strong>
-                  <span className="ml-auto font-mono text-[9px] uppercase tracking-wider text-bone-600">{test.category} · OPEN TRACE</span>
+                  <span className="ml-auto font-mono text-xs uppercase tracking-wider text-bone-600">{test.category} · OPEN TRACE</span>
                 </summary>
                 <div className="border-t border-bone-600/20 p-5">
                   <div className="grid gap-4 md:grid-cols-2">

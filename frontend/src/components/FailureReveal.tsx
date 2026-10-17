@@ -46,7 +46,7 @@ export function FailureReveal({ items, tests = [], evaluationId }: FailureReveal
                   </span>
                   <div>
                     <div className="break-words font-display text-base font-semibold text-bone-100 sm:text-lg">
-                      {item.category.toUpperCase()}
+                      {item.category}
                     </div>
                     <span className={`tech-label border-l pl-2 ${severityTone[item.severity]}`}>
                       {item.severity} severity
@@ -90,22 +90,22 @@ export function FailureReveal({ items, tests = [], evaluationId }: FailureReveal
                             <div className="space-y-3">
                               <div className="border-l-2 border-fault-500/50 pl-3">
                                 <SystemLabel className="text-fault-400">Agent response</SystemLabel>
-                                <p className="mt-1 whitespace-pre-wrap break-words font-mono text-xs text-bone-300">
+                                <p className="mt-1 whitespace-pre-wrap break-words font-mono text-sm text-bone-300">
                                   {test.agentResponse || '(no final answer)'}
                                 </p>
                               </div>
                               <div className="border-l-2 border-flux-500/50 pl-3">
                                 <SystemLabel className="text-flux-400">Expected behavior</SystemLabel>
-                                <p className="mt-1 font-mono text-xs text-bone-300">
+                                <p className="mt-1 font-mono text-sm text-bone-300">
                                   {test.expectedBehavior}
                                 </p>
                               </div>
                               {evaluationId && (
                                 <Link
                                   to={`/app/evaluations/${evaluationId}/tests/${test.id}`}
-                                  className="inline-flex min-h-11 items-center font-mono text-[11px] uppercase tracking-wider text-signal-400 hover:text-signal-300"
+                                  className="inline-flex min-h-11 items-center font-mono text-xs tracking-wider text-signal-400 hover:text-signal-300"
                                 >
-                                  FULL TRACE →
+                                  Full trace →
                                 </Link>
                               )}
                             </div>

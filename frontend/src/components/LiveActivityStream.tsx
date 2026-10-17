@@ -16,9 +16,9 @@ export function LiveActivityStream({ events }: { events: string[] }) {
   }, [events]);
 
   return (
-    <div className="h-64 min-w-0 overflow-y-auto overflow-x-hidden border border-bone-600/20 bg-ink-900/80 p-3 font-mono text-[11px] sm:p-4 sm:text-xs">
+    <div className="h-64 min-w-0 overflow-y-auto overflow-x-hidden border border-bone-600/20 bg-ink-900/80 p-3 font-mono text-xs sm:p-4 sm:text-xs">
       {events.length === 0 ? (
-        <span className="text-bone-600">Waiting for the first scenario to finish…</span>
+        <span className="text-bone-400">Waiting for the first scenario to finish…</span>
       ) : (
         <AnimatePresence initial={false}>
           {events.map((event, i) => {
@@ -32,7 +32,7 @@ export function LiveActivityStream({ events }: { events: string[] }) {
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.25 }}
               >
-                <span className="shrink-0 text-bone-600">
+                <span className="shrink-0 text-bone-400">
                   {String(i + 1).padStart(2, '0')}
                 </span>
                 <span

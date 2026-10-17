@@ -1,11 +1,9 @@
 import { useState } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
-import { PageHeader } from '@/components/PageHeader';
+import { NextSteps, PageHeader } from '@/components/PageHeader';
 import { ReliabilityScore } from '@/components/ReliabilityScore';
 import { MetricLine } from '@/components/MetricLine';
 import { VersionEvolution } from '@/components/VersionEvolution';
-import { ScrollReveal } from '@/components/ScrollReveal';
-import { SystemLabel } from '@/components/SystemLabel';
 import { ErrorState, LoadingState } from '@/components/AsyncState';
 import { useResource } from '@/hooks/useResource';
 import { METRIC_COLORS } from '@/lib/palette';
@@ -14,7 +12,7 @@ import { useToast } from '@/components/Toaster';
 import { agentStatusLabel, agentStatusTone, evaluationPath, formatDate, hasAgentScore } from '@/lib/format';
 import { Play, ArrowRight, Clock, GitCompareArrows, Loader2, Pencil, Trash2 } from 'lucide-react';
 import { useWorkspace } from '@/contexts/WorkspaceContext';
-import { buttonPrimary, buttonSecondary } from '@/lib/ui';
+import { buttonDanger, buttonPrimary, buttonSecondary, card, sectionTitle } from '@/lib/ui';
 
 export default function AgentDetail() {
   const { id } = useParams<{ id: string }>();
@@ -48,7 +46,7 @@ export default function AgentDetail() {
 
   if (loading) {
     return (
-      <LoadingState label="LOADING AGENT" />
+      <LoadingState label="Loading agent" />
     );
   }
 
@@ -65,221 +63,187 @@ export default function AgentDetail() {
 
   const latestVersion = agent.versions[agent.versions.length - 1];
   const hasRun = hasAgentScore(agent) && Boolean(latestVersion);
+  const nextSteps = [
+    ...(latestVersion
+      ? [{ to: evaluationPath(latestVersion), label: 'Read the latest report', hint: `${latestVersion.version} · ${formatDate(latestVersion.createdAt)}` }]
+      : []),
+    ...(agent.versions.length > 1
+      ? [{ to: `/app/compare?agent=${agent.id}`, label: 'Compare versions', hint: 'See what changed between two runs.' }]
+      : []),
+    ...(canMutate
+      ? [{ to: `/app/agents/${agent.id}/review`, label: hasRun ? 'Run it again' : 'Review the suite and run it', hint: 'Check the scenarios, then start an evaluation.' }]
+      : []),
+  ];
 
   return (
     <>
-        <PageHeader
-          crumbs={[{ label: 'Agents', to: '/app/agents' }, { label: agent.name }]}
-          meta={(
-            <>
-              <span className="tech-label">{agent.domain.toUpperCase()}</span>
-              <span className={`tech-label ${agentStatusTone[agent.status]}`}>
-                {agentStatusLabel[agent.status]}
-              </span>
-            </>
-          )}
-          title={agent.name}
-          description={agent.description}
-          actions={canMutate && (
-            <>
-              <Link to={`/app/agents/${agent.id}/edit`} className={buttonSecondary}>
-                <Pencil className="h-4 w-4" aria-hidden /> Edit
+      <PageHeader
+        crumbs={[{ label: 'Agents', to: '/app/agents' }, { label: agent.name }]}
+        meta={(
+          <>
+            <span className="text-sm text-bone-300">{agent.domain}</span>
+            <span className={`text-sm font-medium capitalize ${agentStatusTone[agent.status]}`}>
+              {agentStatusLabel[agent.status]}
+            </span>
+          </>
+        )}
+        title={agent.name}
+        description={agent.description}
+        actions={canMutate && (
+          <>
+            <Link to={`/app/agents/${agent.id}/edit`} className={buttonSecondary}>
+              <Pencil className="h-4 w-4" aria-hidden /> Edit
+            </Link>
+            {agent.versions.length > 1 && (
+              <Link to={`/app/compare?agent=${agent.id}`} className={buttonSecondary}>
+                <GitCompareArrows className="h-4 w-4" aria-hidden /> Compare
               </Link>
-              {agent.versions.length > 1 && (
-                <Link to={`/app/compare?agent=${agent.id}`} className={buttonSecondary}>
-                  <GitCompareArrows className="h-4 w-4" aria-hidden /> Compare
-                </Link>
-              )}
-              <Link to={`/app/agents/${agent.id}/review`} className={buttonPrimary}>
-                <Play className="h-4 w-4" aria-hidden /> Review & run
-              </Link>
-            </>
-          )}
-        />
-        {startError && <p role="alert" className="mt-4 font-mono text-xs text-fault-400">{startError}</p>}
+            )}
+            <Link to={`/app/agents/${agent.id}/review`} className={buttonPrimary}>
+              <Play className="h-4 w-4" aria-hidden /> Review & run
+            </Link>
+          </>
+        )}
+      />
+      {startError && <p role="alert" className="mb-6 border border-fault-500/40 bg-fault-500/5 px-4 py-3 text-sm text-fault-300">{startError}</p>}
 
-        <div className="mt-8 grid min-w-0 gap-6 lg:grid-cols-3">
-          <ScrollReveal className="min-w-0 lg:col-span-1">
-            <div className="flex min-h-[240px] min-w-0 flex-col items-center justify-center border border-bone-600/20 bg-ink-900/60 p-5 sm:min-h-[320px] sm:p-8">
-              {hasRun ? (
-                <>
-                  <ReliabilityScore score={agent.reliability} size="lg" />
-                  <div className="mt-6 flex items-center gap-2">
-                    <Clock className="h-3 w-3 text-bone-600" />
-                    <SystemLabel className="text-bone-600">
-                      {formatDate(agent.lastEvaluated)}
-                    </SystemLabel>
-                  </div>
-                </>
-              ) : (
-                <div className="text-center">
-                  <div className="massive text-6xl text-bone-600">—</div>
-                  <SystemLabel className="mt-4 block text-bone-500">{agentStatusLabel[agent.status]}</SystemLabel>
-                  <p className="mt-3 max-w-[16rem] text-sm text-bone-400">
-                    {latestVersion ? 'Open the latest evaluation to follow progress or inspect its execution error.' : 'Run an evaluation to see this agent’s reliability score.'}
-                  </p>
-                </div>
-              )}
-            </div>
-          </ScrollReveal>
-
-          <ScrollReveal delay={0.1} className="min-w-0 lg:col-span-2">
-            <div className="min-w-0 border border-bone-600/20 bg-ink-900/60 p-5 sm:p-8">
-              <SystemLabel>RELIABILITY DIMENSIONS</SystemLabel>
-              {hasRun ? (
-                <>
-                  <div className="mt-6 grid gap-6">
-                    <MetricLine label="TASK SUCCESS" value={latestVersion.metrics.taskSuccess} color={METRIC_COLORS.taskSuccess} />
-                    <MetricLine label="TOOL ACCURACY" value={latestVersion.metrics.toolAccuracy} color={METRIC_COLORS.toolAccuracy} delay={0.1} />
-                    <MetricLine label="SAFETY" value={latestVersion.metrics.safety} color={METRIC_COLORS.safety} delay={0.15} />
-                    <MetricLine label="LOOP RESISTANCE" value={latestVersion.metrics.consistency} color={METRIC_COLORS.consistency} delay={0.2} />
-                    <MetricLine label="GROUNDEDNESS" value={latestVersion.metrics.groundedness} color={METRIC_COLORS.groundedness} delay={0.25} />
-                  </div>
-
-                  <div className="mt-8 grid grid-cols-3 gap-px border-t border-bone-600/20 pt-6">
-                    <div className="text-center">
-                      <div className="font-mono text-2xl font-bold text-bone-50">
-                        {agent.versions.length}
-                      </div>
-                      <SystemLabel className="mt-1 block">VERSIONS</SystemLabel>
-                    </div>
-                    <div className="text-center">
-                      <div className="font-mono text-2xl font-bold text-flux-400">
-                        {latestVersion.passRate.toFixed(1)}%
-                      </div>
-                      <SystemLabel className="mt-1 block">PASS RATE</SystemLabel>
-                    </div>
-                    <div className="text-center">
-                      <div className="font-mono text-2xl font-bold text-fault-400">
-                        {Object.values(latestVersion.failures ?? {}).reduce((a, b) => a + b, 0)}
-                      </div>
-                      <SystemLabel className="mt-1 block">FINDINGS</SystemLabel>
-                    </div>
-                  </div>
-                </>
-              ) : (
-                <p className="mt-6 text-sm text-bone-400">
-                  Dimensions are measured from scenario runs. Run an evaluation to populate them.
+      <div className="space-y-6">
+        <div className="grid min-w-0 gap-6 lg:grid-cols-3">
+          <section className={`${card} flex min-w-0 flex-col items-center justify-center text-center lg:col-span-1`}>
+            {hasRun ? (
+              <>
+                <ReliabilityScore score={agent.reliability} size="md" />
+                <p className="mt-4 flex items-center gap-2 text-sm text-bone-300">
+                  <Clock className="h-4 w-4" aria-hidden /> {formatDate(agent.lastEvaluated)}
                 </p>
-              )}
-            </div>
-          </ScrollReveal>
+              </>
+            ) : (
+              <div className="py-6">
+                <p className="font-mono text-5xl text-bone-300">—</p>
+                <p className="mt-3 text-sm font-medium capitalize text-bone-200">{agentStatusLabel[agent.status]}</p>
+                <p className="mx-auto mt-2 max-w-xs text-sm text-bone-300">
+                  {latestVersion ? 'Open the latest run to follow progress or inspect its error.' : 'Run an evaluation to see this agent’s reliability score.'}
+                </p>
+              </div>
+            )}
+          </section>
+
+          <section className={`${card} min-w-0 lg:col-span-2`}>
+            <h2 className={sectionTitle}>Reliability dimensions</h2>
+            {hasRun ? (
+              <>
+                <div className="mt-5 grid gap-5">
+                  <MetricLine label="Task success" value={latestVersion.metrics.taskSuccess} color={METRIC_COLORS.taskSuccess} />
+                  <MetricLine label="Tool accuracy" value={latestVersion.metrics.toolAccuracy} color={METRIC_COLORS.toolAccuracy} />
+                  <MetricLine label="Safety" value={latestVersion.metrics.safety} color={METRIC_COLORS.safety} />
+                  <MetricLine label="Loop resistance" value={latestVersion.metrics.consistency} color={METRIC_COLORS.consistency} />
+                  <MetricLine label="Groundedness" value={latestVersion.metrics.groundedness} color={METRIC_COLORS.groundedness} />
+                </div>
+
+                <dl className="mt-6 grid grid-cols-3 gap-4 border-t border-bone-600/25 pt-5 text-center">
+                  <div>
+                    <dd className="font-mono text-2xl font-semibold text-bone-50">{agent.versions.length}</dd>
+                    <dt className="mt-1 text-sm text-bone-300">Versions</dt>
+                  </div>
+                  <div>
+                    <dd className="font-mono text-2xl font-semibold text-flux-400">{latestVersion.passRate.toFixed(1)}%</dd>
+                    <dt className="mt-1 text-sm text-bone-300">Pass rate</dt>
+                  </div>
+                  <div>
+                    <dd className="font-mono text-2xl font-semibold text-fault-400">
+                      {Object.values(latestVersion.failures ?? {}).reduce((a, b) => a + b, 0)}
+                    </dd>
+                    <dt className="mt-1 text-sm text-bone-300">Findings</dt>
+                  </div>
+                </dl>
+              </>
+            ) : (
+              <p className="mt-4 text-sm text-bone-300">
+                Dimensions are measured from scenario runs. Run an evaluation to populate them.
+              </p>
+            )}
+          </section>
         </div>
 
-        <ScrollReveal className="mt-6">
-          <div className="border border-bone-600/20 bg-ink-900/60 p-6">
-            <SystemLabel>AVAILABLE TOOLS — {agent.tools.length}</SystemLabel>
-            <div className="mt-4 grid min-w-0 gap-3 md:grid-cols-3">
-              {agent.tools.map((tool) => (
-                <div key={tool.id} className="min-w-0 border border-bone-600/20 bg-ink-850/40 p-4">
-                  <div className="flex items-center justify-between gap-2">
-                    <span className="truncate font-mono text-sm text-signal-400">{tool.name}</span>
-                    <span
-                      className={`shrink-0 border px-2 py-0.5 font-mono text-[9px] uppercase tracking-wider ${
-                        tool.risk === 'high'
-                          ? 'border-fault-500/40 text-fault-400'
-                          : tool.risk === 'medium'
-                            ? 'border-warn-500/40 text-warn-400'
-                            : 'border-flux-500/40 text-flux-400'
-                      }`}
-                    >
-                      {tool.risk}
-                    </span>
-                  </div>
-                  <p className="mt-2 text-xs text-bone-400">{tool.description}</p>
+        <section className={card}>
+          <h2 className={sectionTitle}>Available tools ({agent.tools.length})</h2>
+          <ul className="mt-4 grid min-w-0 gap-3 md:grid-cols-2 lg:grid-cols-3">
+            {agent.tools.map((tool) => (
+              <li key={tool.id} className="min-w-0 border border-bone-600/30 bg-ink-850/40 p-4">
+                <div className="flex items-center justify-between gap-2">
+                  <span className="truncate font-mono text-sm text-signal-300">{tool.name}</span>
+                  <span
+                    className={`shrink-0 border px-2 py-0.5 text-sm ${
+                      tool.risk === 'high'
+                        ? 'border-fault-500/50 text-fault-400'
+                        : tool.risk === 'medium'
+                          ? 'border-warn-500/50 text-warn-400'
+                          : 'border-flux-500/50 text-flux-400'
+                    }`}
+                  >
+                    {tool.risk}
+                  </span>
                 </div>
-              ))}
-            </div>
+                <p className="mt-2 text-sm text-bone-300">{tool.description}</p>
+              </li>
+            ))}
+          </ul>
+        </section>
+
+        <section className={card}>
+          <h2 className={sectionTitle}>System prompt</h2>
+          <pre className="mt-4 whitespace-pre-wrap break-words font-mono text-sm leading-relaxed text-bone-200">
+            {agent.systemPrompt}
+          </pre>
+        </section>
+
+        <section className={card}>
+          <div className="flex items-center justify-between gap-3">
+            <h2 className={sectionTitle}>Version history</h2>
+            {agent.versions.length > 1 && (
+              <Link
+                to={`/app/compare?agent=${agent.id}`}
+                className="group inline-flex min-h-11 items-center gap-1 text-sm font-medium text-signal-300 hover:text-signal-400"
+              >
+                Compare versions <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-1" aria-hidden />
+              </Link>
+            )}
           </div>
-        </ScrollReveal>
-
-        <ScrollReveal className="mt-6">
-          <div className="border border-bone-600/20 bg-ink-900/60 p-6">
-            <SystemLabel>SYSTEM PROMPT</SystemLabel>
-            <pre className="mt-4 whitespace-pre-wrap break-words font-mono text-sm leading-relaxed text-bone-200">
-              {agent.systemPrompt}
-            </pre>
+          <div className="mt-5">
+            <VersionEvolution versions={agent.versions} />
           </div>
-        </ScrollReveal>
+        </section>
+      </div>
 
-        <ScrollReveal className="mt-6">
-          <div className="border border-bone-600/20 bg-ink-900/60 p-6">
-            <div className="flex items-center justify-between">
-              <SystemLabel>VERSION HISTORY</SystemLabel>
-              {agent.versions.length > 1 && (
-                <Link
-                  to={`/app/compare?agent=${agent.id}`}
-                  className="group flex min-h-11 items-center gap-1 font-mono text-[11px] uppercase tracking-wider text-signal-400 hover:text-signal-300"
-                >
-                  COMPARE VERSIONS{' '}
-                  <ArrowRight className="h-3 w-3 transition-transform group-hover:translate-x-1" />
-                </Link>
-              )}
-            </div>
-            <div className="mt-6">
-              <VersionEvolution versions={agent.versions} />
-            </div>
-          </div>
-        </ScrollReveal>
+      <NextSteps steps={nextSteps} />
 
-        {latestVersion && (
-          <ScrollReveal className="mt-6">
-            <Link
-              to={evaluationPath(latestVersion)}
-              className="group flex items-center justify-between gap-4 border border-signal-500/30 bg-signal-500/5 p-6 transition-colors hover:bg-signal-500/10"
-            >
-              <div>
-                <SystemLabel className="text-signal-400">LATEST EVALUATION</SystemLabel>
-                <div className="mt-1 text-sm text-bone-200">
-                  {latestVersion.version} — {formatDate(latestVersion.createdAt)} —{' '}
-                  {hasRun ? `reliability ${latestVersion.reliability.toFixed(1)}/100` : agentStatusLabel[agent.status]}
-                </div>
-              </div>
-              <ArrowRight className="h-5 w-5 shrink-0 text-signal-400 transition-transform group-hover:translate-x-1" />
-            </Link>
-          </ScrollReveal>
-        )}
-
-        {canMutate && <ScrollReveal className="mt-10 border-t border-bone-600/20 pt-6">
-          <div className="flex flex-wrap items-center justify-between gap-4">
+      {canMutate && (
+        <section className="mt-10 border-t border-bone-600/20 pt-6">
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
             <div>
-              <SystemLabel className="text-bone-600">DELETE AGENT</SystemLabel>
-              <p className="mt-1 max-w-lg text-xs text-bone-500">
-                Removes the agent and every evaluation recorded against it. This cannot be
-                undone.
+              <h2 className="text-base font-medium text-bone-100">Delete agent</h2>
+              <p className="mt-1 max-w-lg text-sm text-bone-300">
+                Removes the agent and every run recorded against it. This cannot be undone.
               </p>
             </div>
             {confirmingDelete ? (
-              <div className="flex items-center gap-3">
-                <button
-                  type="button"
-                  onClick={remove}
-                  disabled={deleting}
-                  className="flex min-h-11 items-center gap-2 border border-fault-500/50 bg-fault-500/10 px-4 font-mono text-[11px] uppercase tracking-wider text-fault-300 transition-colors enabled:hover:bg-fault-500/20 disabled:opacity-50"
-                >
-                  {deleting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
-                  DELETE PERMANENTLY
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+                <button type="button" onClick={() => setConfirmingDelete(false)} disabled={deleting} className={buttonSecondary}>
+                  Cancel
                 </button>
-                <button
-                  type="button"
-                  onClick={() => setConfirmingDelete(false)}
-                  disabled={deleting}
-                  className="min-h-11 px-2 font-mono text-[11px] uppercase tracking-wider text-bone-400 hover:text-bone-100"
-                >
-                  CANCEL
+                <button type="button" onClick={remove} disabled={deleting} className={buttonDanger}>
+                  {deleting ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> : <Trash2 className="h-4 w-4" aria-hidden />}
+                  Delete permanently
                 </button>
               </div>
             ) : (
-              <button
-                type="button"
-                onClick={() => setConfirmingDelete(true)}
-                className="flex min-h-11 items-center gap-2 border border-bone-600/30 px-4 font-mono text-[11px] uppercase tracking-wider text-bone-400 transition-colors hover:border-fault-500/40 hover:text-fault-300"
-              >
-                <Trash2 className="h-3.5 w-3.5" /> DELETE
+              <button type="button" onClick={() => setConfirmingDelete(true)} className={buttonDanger}>
+                <Trash2 className="h-4 w-4" aria-hidden /> Delete
               </button>
             )}
           </div>
-        </ScrollReveal>}
+        </section>
+      )}
     </>
   );
 }

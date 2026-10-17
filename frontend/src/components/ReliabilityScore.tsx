@@ -17,14 +17,14 @@ const sizeMap = {
   sm: 'text-4xl sm:text-5xl',
   md: 'text-5xl sm:text-6xl md:text-7xl',
   lg: 'text-6xl sm:text-7xl md:text-8xl',
-  xl: 'text-[4.5rem] sm:text-[7rem] md:text-[12rem] lg:text-[16rem]',
+  xl: 'text-7xl sm:text-8xl md:text-9xl',
 };
 
 export function ReliabilityScore({
   score,
   max = 100,
   size = 'lg',
-  label = 'RELIABILITY SCORE',
+  label = 'Reliability score',
   sublabel,
 }: ReliabilityScoreProps) {
   // The count-up lives in CountUp, which treats it as decoration over a value
@@ -35,9 +35,9 @@ export function ReliabilityScore({
   // of every agent, reported as zero, by an animation.
 
   // These thresholds used to be 85/70 with their own wording, so the same score
-  // read "NEEDS IMPROVEMENT" on the control centre and "Needs Attention" on its
+  // read "Needs improvement" on the control centre and "Needs Attention" on its
   // own report. One score, one published set of bands.
-  const tier = verdictFor(score).toUpperCase();
+  const tier = verdictFor(score);
   const tierColor =
     score >= 90 ? 'text-flux-400' : score >= 75 ? 'text-warn-400' : 'text-fault-400';
 
@@ -59,14 +59,14 @@ export function ReliabilityScore({
         </motion.span>
         <span
           className={`font-mono mt-2 ${
-            size === 'xl' ? 'text-lg sm:text-2xl md:text-3xl' : 'text-base sm:text-lg'
+            size === 'xl' ? 'text-xl sm:text-2xl' : 'text-base sm:text-lg'
           } text-bone-500`}
         >
           /{max}
         </span>
       </div>
       {label && <span className="tech-label mt-2 break-words">{label}</span>}
-      {sublabel && <span className="tech-label mt-1 text-bone-600">{sublabel}</span>}
+      {sublabel && <span className="tech-label mt-1 text-bone-400">{sublabel}</span>}
       <span className={`tech-label mt-3 ${tierColor}`}>{tier}</span>
     </div>
   );

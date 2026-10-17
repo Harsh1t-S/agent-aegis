@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
+import { buttonPrimary, buttonSecondary, fieldInput } from '@/lib/ui';
 import { motion, AnimatePresence } from 'framer-motion';
 import { PageHeader } from '@/components/PageHeader';
 import { SystemLabel } from '@/components/SystemLabel';
@@ -200,14 +201,13 @@ export default function NewAgent() {
 
   // 16px on phones on purpose: iOS Safari zooms the whole page in when a focused
   // input has a font-size below 16px, and the zoom does not come back out.
-  const inputClass =
-    'w-full border border-bone-300/35 bg-ink-900/60 px-4 py-3 font-mono text-base sm:text-sm text-bone-50 placeholder:text-bone-300 focus:border-signal-400/70 focus:outline-none transition-colors';
+  const inputClass = `${fieldInput} py-3`;
 
   return (
     <div className="new-agent-page">
         <PageHeader
           crumbs={[{ label: 'Agents', to: '/app/agents' }, { label: 'New agent' }]}
-          title="NEW AGENT"
+          title="New agent"
           description="Describe the agent, how Aegis should reach it, and the tools it can call. Nothing runs until you review the suite."
         />
 
@@ -230,7 +230,7 @@ export default function NewAgent() {
                 }`}
               >
                 <span
-                  className={`flex h-6 w-6 items-center justify-center rounded-full border text-[10px] ${
+                  className={`flex h-6 w-6 items-center justify-center rounded-full border text-xs ${
                     i === step
                       ? 'border-signal-400 bg-signal-500/15 shadow-[0_0_14px_rgba(91,200,232,0.18)]'
                       : i < step
@@ -240,7 +240,7 @@ export default function NewAgent() {
                 >
                   {i < step ? '✓' : i + 1}
                 </span>
-                <span className="hidden font-mono text-[11px] uppercase tracking-wider md:inline">
+                <span className="hidden font-mono text-xs tracking-wider md:inline">
                   {s}
                 </span>
               </button>
@@ -273,7 +273,7 @@ export default function NewAgent() {
               {step === 0 && (
                 <div className="space-y-6">
                   <div>
-                    <SystemLabel className="block !text-bone-300">HOW SHOULD AEGIS TEST IT?</SystemLabel>
+                    <SystemLabel className="block !text-bone-300">How should Aegis test it?</SystemLabel>
                     <div className="mt-3 grid gap-3 sm:grid-cols-2">
                       {([
                         { mode: 'simulation' as const, icon: FlaskConical, title: 'Prompt simulation', detail: 'Aegis runs the prompt and tools through the evaluator model. Fastest way to establish a low-cost baseline.' },
@@ -284,8 +284,8 @@ export default function NewAgent() {
                           onClick={() => update('connectionMode', option.mode)}
                           className={`border p-4 text-left transition-colors ${form.connectionMode === option.mode ? 'border-signal-500/55 bg-signal-500/10' : 'border-bone-600/30 bg-ink-900/40 hover:border-bone-400/50'}`}>
                           <option.icon className={`h-5 w-5 ${form.connectionMode === option.mode ? 'text-signal-300' : 'text-bone-400'}`} />
-                          <span className="mt-3 block font-mono text-xs uppercase tracking-wider text-bone-100">{option.title}</span>
-                          <span className="mt-2 block text-xs leading-relaxed text-bone-400">{option.detail}</span>
+                          <span className="mt-3 block font-mono text-xs tracking-wider text-bone-100">{option.title}</span>
+                          <span className="mt-2 block text-sm leading-relaxed text-bone-400">{option.detail}</span>
                         </button>
                       ))}
                     </div>
@@ -293,28 +293,27 @@ export default function NewAgent() {
                   {form.connectionMode === 'connected' && (
                     <div className="space-y-4">
                       <div>
-                      <label htmlFor="agent-endpoint" className="tech-label mb-2 block text-bone-300">RUNNER ENDPOINT</label>
+                      <label htmlFor="agent-endpoint" className="text-sm font-medium text-bone-100 mb-2 block">Runner endpoint</label>
                       <input id="agent-endpoint" type="url" className={inputClass}
                         placeholder="https://agent.example.com/aegis/action"
                         value={form.endpointUrl} onChange={(event) => update('endpointUrl', event.target.value)} />
-                      <p className="mt-2 text-xs leading-relaxed text-bone-400">
+                      <p className="mt-2 text-sm leading-relaxed text-bone-400">
                         Use a dedicated HTTPS endpoint implementing the Aegis runner contract. Do not put a token in this URL; authenticate at your gateway or private network boundary.
                       </p>
                       </div>
                       <div>
-                        <label htmlFor="agent-runner-token" className="tech-label mb-2 block text-bone-300">BEARER TOKEN <span className="text-bone-600">(OPTIONAL)</span></label>
+                        <label htmlFor="agent-runner-token" className="text-sm font-medium text-bone-100 mb-2 block">Bearer token <span className="text-bone-400">(optional)</span></label>
                         <input id="agent-runner-token" type="password" autoComplete="new-password"
                           className={inputClass} placeholder="Stored encrypted; never returned"
                           value={runnerToken} onChange={(event) => setRunnerToken(event.target.value)} />
-                        <p className="mt-2 text-xs leading-relaxed text-bone-400">
+                        <p className="mt-2 text-sm leading-relaxed text-bone-400">
                           The token is encrypted by the API and injected only by the worker. It is excluded from reports, version snapshots and browser drafts.
                         </p>
                       </div>
                     </div>
                   )}
                   <div>
-                    <label htmlFor="agent-name" className="tech-label mb-2 block text-bone-300">
-                      AGENT NAME
+                    <label htmlFor="agent-name" className="text-sm font-medium text-bone-100 mb-2 block">Agent name
                     </label>
                     <input
                       id="agent-name"
@@ -326,8 +325,7 @@ export default function NewAgent() {
                     />
                   </div>
                   <div>
-                    <label htmlFor="agent-desc" className="tech-label mb-2 block text-bone-300">
-                      DESCRIPTION
+                    <label htmlFor="agent-desc" className="text-sm font-medium text-bone-100 mb-2 block">Description
                     </label>
                     <textarea
                       id="agent-desc"
@@ -338,8 +336,7 @@ export default function NewAgent() {
                     />
                   </div>
                   <div>
-                    <label htmlFor="agent-domain" className="tech-label mb-2 block text-bone-300">
-                      DOMAIN
+                    <label htmlFor="agent-domain" className="text-sm font-medium text-bone-100 mb-2 block">Domain
                     </label>
                     <input
                       id="agent-domain"
@@ -348,7 +345,7 @@ export default function NewAgent() {
                       value={form.domain}
                       onChange={(e) => update('domain', e.target.value)}
                     />
-                    <p className="mt-2 font-mono text-[10px] text-bone-300">
+                    <p className="mt-2 font-mono text-sm text-bone-300">
                       Aegis infers the domain from the system prompt. This is only a hint for
                       you — it is not stored on the agent.
                     </p>
@@ -358,8 +355,7 @@ export default function NewAgent() {
 
               {step === 1 && (
                 <div>
-                  <label htmlFor="agent-prompt" className="tech-label mb-2 block text-bone-300">
-                    SYSTEM PROMPT
+                  <label htmlFor="agent-prompt" className="text-sm font-medium text-bone-100 mb-2 block">System prompt
                   </label>
                   <textarea
                     id="agent-prompt"
@@ -368,7 +364,7 @@ export default function NewAgent() {
                     value={form.systemPrompt}
                     onChange={(e) => update('systemPrompt', e.target.value)}
                   />
-                  <p className="mt-2 font-mono text-[10px] text-bone-300">
+                  <p className="mt-2 font-mono text-sm text-bone-300">
                     {form.systemPrompt.length} characters · adversarial coverage improves with
                     explicit constraints. State hard rules ("never refund above $500 without
                     approval") and escalation paths, so safety scenarios have a correct answer.
@@ -378,14 +374,14 @@ export default function NewAgent() {
 
               {step === 2 && (
                 <div className="space-y-4">
-                  <SystemLabel className="block !text-bone-300">AVAILABLE TOOLS</SystemLabel>
+                  <SystemLabel className="block !text-bone-300">Available tools</SystemLabel>
 
                   {/* Nobody has their tools as a form. They have a schema. */}
                   <div className="border border-dashed border-bone-600/35 bg-ink-900/40 p-4">
-                    <p className="font-mono text-[11px] uppercase tracking-wider text-bone-200">
+                    <p className="font-mono text-sm tracking-wider text-bone-200">
                       Import a tool schema
                     </p>
-                    <p className="mt-1 text-xs leading-relaxed text-bone-400">
+                    <p className="mt-1 text-sm leading-relaxed text-bone-400">
                       Paste an OpenAI <code className="text-signal-300">tools</code> array, an
                       Anthropic/MCP tool list, or a name-to-definition map — or upload the .json
                       file. Argument schemas are kept, so generated scenarios call your tools with
@@ -422,24 +418,23 @@ export default function NewAgent() {
                       <button
                         type="button"
                         onClick={() => fileInput.current?.click()}
-                        className="flex min-h-11 items-center gap-2 border border-bone-600/35 px-3 font-mono text-[11px] uppercase tracking-wider text-bone-200 transition-colors hover:border-signal-400/50 hover:text-signal-300"
+                        className={buttonSecondary}
                       >
-                        <Upload className="h-3.5 w-3.5" /> UPLOAD .JSON
+                        <Upload className="h-3.5 w-3.5" />Upload .JSON
                       </button>
                       <button
                         type="button"
                         onClick={() => setShowSchema((v) => !v)}
-                        className="flex min-h-11 items-center gap-2 border border-bone-600/35 px-3 font-mono text-[11px] uppercase tracking-wider text-bone-200 transition-colors hover:border-signal-400/50 hover:text-signal-300"
+                        className={buttonSecondary}
                       >
                         <ClipboardPaste className="h-3.5 w-3.5" />
-                        {showSchema ? 'HIDE' : 'PASTE SCHEMA'}
+                        {showSchema ? 'Hide' : 'Paste schema'}
                       </button>
                       <button
                         type="button"
                         onClick={copyToolsOut}
-                        className="flex min-h-11 items-center px-2 font-mono text-[11px] uppercase tracking-wider text-bone-400 transition-colors hover:text-bone-100"
-                      >
-                        COPY CURRENT TOOLS OUT
+                        className="flex min-h-11 items-center px-2 font-mono text-xs tracking-wider text-bone-400 transition-colors hover:text-bone-100"
+                      >Copy current tools out
                       </button>
                     </div>
 
@@ -457,12 +452,11 @@ export default function NewAgent() {
                           <button
                             type="button"
                             onClick={() => importSchema(schemaText)}
-                            className="flex min-h-11 items-center border border-signal-500/40 bg-signal-500/10 px-4 font-mono text-[11px] uppercase tracking-wider text-signal-300 transition-colors hover:bg-signal-500/20"
-                          >
-                            IMPORT TOOLS
+                            className={buttonPrimary}
+                          >Import tools
                           </button>
                           {schemaErrors.length > 0 && (
-                            <span className="font-mono text-[10px] text-fault-400">
+                            <span className="font-mono text-xs text-fault-400">
                               {schemaErrors.slice(0, 2).join(' ')}
                             </span>
                           )}
@@ -472,7 +466,7 @@ export default function NewAgent() {
                   </div>
 
                   {form.tools.map((tool, i) => (
-                    <div key={i} className="border border-bone-300/25 bg-ink-900/60 p-4">
+                    <div key={i} className="border border-bone-300/25 bg-ink-900 p-4">
                       <div className="flex items-center justify-between">
                         <span className="font-mono text-xs text-bone-300">
                           TOOL {String(i + 1).padStart(2, '0')}
@@ -508,13 +502,13 @@ export default function NewAgent() {
                         onChange={(e) => updateTool(i, 'description', e.target.value)}
                       />
                       <div className="mt-3 flex flex-wrap items-center gap-2 sm:gap-3">
-                        <SystemLabel className="!text-bone-300">RISK LEVEL</SystemLabel>
+                        <SystemLabel className="!text-bone-300">Risk level</SystemLabel>
                         <button
                           type="button"
                           aria-pressed={!tool.risk}
                           title="Aegis infers the risk from the tool's name and description"
                           onClick={() => setToolRisk(i, undefined)}
-                          className={`flex min-h-9 items-center border px-3 font-mono text-[10px] uppercase tracking-wider transition-colors ${
+                          className={`flex min-h-9 items-center border px-3 font-mono text-xs tracking-wider transition-colors ${
                             !tool.risk ? 'border-signal-500/50 text-signal-300' : 'border-bone-300/35 text-bone-300'
                           }`}
                         >
@@ -526,7 +520,7 @@ export default function NewAgent() {
                             type="button"
                             aria-pressed={tool.risk === r}
                             onClick={() => setToolRisk(i, r)}
-                            className={`flex min-h-9 items-center border px-3 font-mono text-[10px] uppercase tracking-wider transition-colors ${
+                            className={`flex min-h-9 items-center border px-3 font-mono text-xs tracking-wider transition-colors ${
                               tool.risk === r
                                 ? r === 'high'
                                   ? 'border-fault-500/50 text-fault-400'
@@ -545,9 +539,9 @@ export default function NewAgent() {
                   <button
                     type="button"
                     onClick={addTool}
-                    className="flex w-full items-center justify-center gap-2 border border-dashed border-bone-600/30 py-3 font-mono text-xs uppercase tracking-wider text-bone-300 transition-colors hover:border-signal-400/50 hover:text-signal-300"
+                    className={`${buttonSecondary} w-full`}
                   >
-                    <Plus className="h-4 w-4" /> ADD TOOL
+                    <Plus className="h-4 w-4" />Add tool
                   </button>
                   {toolsError && <p role="alert" className="font-mono text-xs text-warn-400">{toolsError}</p>}
                 </div>
@@ -555,16 +549,16 @@ export default function NewAgent() {
 
               {step === 3 && (
                 <div className="space-y-6">
-                  <div className="border border-bone-300/25 bg-ink-900/60 p-4 sm:p-6">
+                  <div className="border border-bone-300/25 bg-ink-900 p-4 sm:p-6">
                     {[
-                      { label: 'AGENT NAME', value: form.name || '—' },
-                      { label: 'TEST PATH', value: form.connectionMode === 'connected' ? `Connected runner · ${form.endpointUrl}` : 'Prompt simulation' },
-                      ...(form.connectionMode === 'connected' ? [{ label: 'RUNNER AUTH', value: runnerToken ? 'Encrypted bearer token' : 'Gateway / network boundary' }] : []),
-                      { label: 'DESCRIPTION', value: form.description || '—' },
-                      { label: 'DOMAIN', value: form.domain || '—' },
-                      { label: 'SYSTEM PROMPT', value: form.systemPrompt || '—' },
+                      { label: 'Agent name', value: form.name || '—' },
+                      { label: 'Test path', value: form.connectionMode === 'connected' ? `Connected runner · ${form.endpointUrl}` : 'Prompt simulation' },
+                      ...(form.connectionMode === 'connected' ? [{ label: 'Runner auth', value: runnerToken ? 'Encrypted bearer token' : 'Gateway / network boundary' }] : []),
+                      { label: 'Description', value: form.description || '—' },
+                      { label: 'Domain', value: form.domain || '—' },
+                      { label: 'System prompt', value: form.systemPrompt || '—' },
                       {
-                        label: 'TOOLS',
+                        label: 'Tools',
                         value:
                           form.tools
                             .filter((t) => t.name)
@@ -583,12 +577,12 @@ export default function NewAgent() {
                       </div>
                     ))}
                   </div>
-                  <p className="font-mono text-[10px] text-bone-300">
+                  <p className="font-mono text-sm text-bone-300">
                     On create, Aegis profiles the system prompt and tool schema and derives a
                     scenario suite from it. No evaluation runs until you start one.
                   </p>
                   {submitError && (
-                    <p className="border border-fault-500/40 bg-fault-500/5 px-4 py-3 font-mono text-[11px] text-fault-300">
+                    <p className="border border-fault-500/40 bg-fault-500/5 px-4 py-3 font-mono text-sm text-fault-300">
                       {submitError}
                     </p>
                   )}
@@ -598,54 +592,39 @@ export default function NewAgent() {
           </AnimatePresence>
         </div>
 
-        {/* Navigation */}
-        <div className="mt-12 flex flex-wrap items-center justify-between gap-3">
+        {/* Navigation: Back on the left, everything that moves forward on the right. */}
+        <div className="mt-10 flex flex-col-reverse gap-3 border-t border-bone-600/20 pt-6 sm:flex-row sm:items-center sm:justify-between">
           {step > 0 ? (
-            <button
-              type="button"
-              onClick={() => setStep(step - 1)}
-              className="flex min-h-11 items-center gap-2 font-mono text-xs uppercase tracking-wider text-bone-300 transition-colors hover:text-bone-50"
-            >
-              <ArrowLeft className="h-4 w-4" /> BACK
+            <button type="button" onClick={() => setStep(step - 1)} className={buttonSecondary}>
+              <ArrowLeft className="h-4 w-4" aria-hidden /> Back
             </button>
           ) : (
-            <div />
+            <Link to="/app/agents" className={buttonSecondary}>Cancel</Link>
           )}
 
-          <div className="flex flex-wrap items-center gap-3">
-            <button
-              type="button"
-              onClick={saveDraft}
-              className="flex min-h-11 items-center gap-2 border border-bone-600/35 px-4 font-mono text-xs uppercase tracking-wider text-bone-300 transition-colors hover:border-bone-400 hover:text-bone-100"
-            >
-              <Save className="h-3.5 w-3.5" /> SAVE DRAFT
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+            <button type="button" onClick={saveDraft} className={buttonSecondary}>
+              <Save className="h-4 w-4" aria-hidden /> Save draft
             </button>
 
             {step < 3 ? (
-              <button
-                type="button"
-                disabled={!canProceed()}
-                onClick={() => setStep(step + 1)}
-                className="group flex min-h-11 items-center gap-2 border border-signal-500/40 bg-signal-500/10 px-6 font-mono text-xs uppercase tracking-wider text-signal-400 transition-colors enabled:hover:bg-signal-500/20 disabled:cursor-not-allowed disabled:opacity-30"
-              >
-                CONTINUE{' '}
-                <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-1" />
+              <button type="button" disabled={!canProceed()} onClick={() => setStep(step + 1)} className={buttonPrimary}>
+                Continue <ArrowRight className="h-4 w-4" aria-hidden />
               </button>
             ) : (
               <button
                 type="button"
                 onClick={handleSubmit}
                 disabled={submitting || Boolean(toolsError) || !form.name.trim() || !form.systemPrompt.trim()}
-                className="group flex min-h-11 items-center gap-2 border border-signal-500 bg-signal-500/20 px-6 font-mono text-xs uppercase tracking-wider text-signal-300 transition-colors enabled:hover:bg-signal-500/30 disabled:cursor-not-allowed disabled:opacity-40"
+                className={buttonPrimary}
               >
                 {submitting ? (
                   <>
-                    <Loader2 className="h-4 w-4 animate-spin" /> CREATING…
+                    <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> Creating…
                   </>
                 ) : (
                   <>
-                    CREATE AGENT{' '}
-                    <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-1" />
+                    Create agent <ArrowRight className="h-4 w-4" aria-hidden />
                   </>
                 )}
               </button>

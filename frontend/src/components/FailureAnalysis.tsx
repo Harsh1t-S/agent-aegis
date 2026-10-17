@@ -14,7 +14,7 @@ export function FailureAnalysis({ why, recommendation }: FailureAnalysisProps) {
         <div className="border border-fault-500/20 bg-fault-500/5 p-5">
           <div className="flex items-center gap-2">
             <ShieldAlert className="h-4 w-4 text-fault-400" />
-            <SystemLabel className="text-fault-400">WHY IT FAILED</SystemLabel>
+            <SystemLabel className="text-fault-400">Why it failed</SystemLabel>
           </div>
           <p className="mt-3 text-sm leading-relaxed text-bone-200">{why}</p>
         </div>
@@ -23,7 +23,7 @@ export function FailureAnalysis({ why, recommendation }: FailureAnalysisProps) {
         <div className="border border-signal-500/20 bg-signal-500/5 p-5">
           <div className="flex items-center gap-2">
             <Lightbulb className="h-4 w-4 text-signal-400" />
-            <SystemLabel className="text-signal-400">RECOMMENDATION</SystemLabel>
+            <SystemLabel className="text-signal-400">Recommendation</SystemLabel>
           </div>
           <p className="mt-3 text-sm leading-relaxed text-bone-200">{recommendation}</p>
         </div>

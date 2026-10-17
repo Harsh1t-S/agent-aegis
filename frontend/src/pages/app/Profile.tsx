@@ -1,7 +1,6 @@
 import { Link } from 'react-router-dom';
 import { Check, Copy, CreditCard, KeyRound, LogOut } from 'lucide-react';
 import { PageHeader } from '@/components/PageHeader';
-import { SystemLabel } from '@/components/SystemLabel';
 import { useToast } from '@/components/Toaster';
 import { useAuth } from '@/contexts/AuthContext';
 import { useWorkspace } from '@/contexts/WorkspaceContext';
@@ -59,7 +58,7 @@ export default function Profile() {
     <>
       <PageHeader
         crumbs={[{ label: 'Account' }, { label: 'Profile' }]}
-        title="PROFILE"
+        title="Profile"
         description="The account you sign in with and the workspaces it can open. Aegis never shows or stores your password in the dashboard."
         actions={(
           <button type="button" onClick={() => void auth.signOut()} className={buttonSecondary}>
@@ -69,13 +68,13 @@ export default function Profile() {
       />
 
       <div className="mt-8 grid min-w-0 gap-6 lg:grid-cols-3">
-        <section className="min-w-0 border border-bone-600/20 bg-ink-900/60 p-5 sm:p-6 lg:col-span-2">
-          <SystemLabel>Sign-in details</SystemLabel>
+        <section className="min-w-0 border border-bone-600/30 bg-ink-900 p-4 sm:p-6 lg:col-span-2">
+          <h2 className="font-display text-lg font-semibold text-bone-50">Sign-in details</h2>
           <dl className="mt-2">
             <Row label="Name">{name}</Row>
             <Row label="Email">
               <span className="mr-3">{email || '—'}</span>
-              <span className={`inline-flex items-center gap-1 font-mono text-[11px] uppercase tracking-wider ${verified ? 'text-flux-400' : 'text-warn-400'}`}>
+              <span className={`inline-flex items-center gap-1 font-mono text-xs tracking-wider ${verified ? 'text-flux-400' : 'text-warn-400'}`}>
                 {verified && <Check className="h-3.5 w-3.5" aria-hidden />}
                 {verified ? 'Verified' : 'Not verified'}
               </span>
@@ -100,8 +99,8 @@ export default function Profile() {
         </section>
 
         <div className="grid min-w-0 content-start gap-6">
-          <section className="border border-bone-600/20 bg-ink-900/60 p-5 sm:p-6">
-            <SystemLabel>Plan</SystemLabel>
+          <section className="border border-bone-600/30 bg-ink-900 p-4 sm:p-6">
+            <h2 className="font-display text-lg font-semibold text-bone-50">Plan</h2>
             <p className="massive mt-3 text-2xl text-bone-50">{usage?.plan.name ?? '—'}</p>
             {usage && (
               <p className="mt-2 text-sm text-bone-400">
@@ -113,8 +112,8 @@ export default function Profile() {
             </Link>
           </section>
           {canAdminister && (
-            <section className="border border-bone-600/20 bg-ink-900/60 p-5 sm:p-6">
-              <SystemLabel>API keys</SystemLabel>
+            <section className="border border-bone-600/30 bg-ink-900 p-4 sm:p-6">
+              <h2 className="font-display text-lg font-semibold text-bone-50">API keys</h2>
               <p className="mt-3 text-sm leading-relaxed text-bone-400">
                 Keys for CI and scripts belong to the workspace, not to your account.
               </p>
@@ -125,8 +124,8 @@ export default function Profile() {
           )}
         </div>
 
-        <section className="min-w-0 border border-bone-600/20 bg-ink-900/60 p-5 sm:p-6 lg:col-span-3">
-          <SystemLabel>Workspaces</SystemLabel>
+        <section className="min-w-0 border border-bone-600/30 bg-ink-900 p-4 sm:p-6 lg:col-span-3">
+          <h2 className="font-display text-lg font-semibold text-bone-50">Workspaces</h2>
           <ul className="mt-2">
             {workspace.workspaces.map((item) => {
               const current = item.id === workspace.current?.id;
@@ -134,10 +133,10 @@ export default function Profile() {
                 <li key={item.id} className="flex flex-wrap items-center justify-between gap-3 border-b border-bone-600/15 py-4 last:border-b-0">
                   <div className="min-w-0">
                     <p className="break-words text-sm text-bone-100">{item.name}</p>
-                    <p className="mt-0.5 text-xs capitalize text-bone-500">{item.role}</p>
+                    <p className="mt-0.5 text-sm capitalize text-bone-300">{item.role}</p>
                   </div>
                   {current ? (
-                    <span className="font-mono text-[11px] uppercase tracking-wider text-signal-300">Current</span>
+                    <span className="font-mono text-xs tracking-wider text-signal-300">Current</span>
                   ) : (
                     <button type="button"
                       onClick={() => { workspace.select(item.id); window.location.assign('/app'); }}

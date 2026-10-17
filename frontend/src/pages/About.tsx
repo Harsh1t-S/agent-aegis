@@ -88,7 +88,7 @@ export default function About() {
         />
         <Link
           to="/app"
-          className="group mt-12 border border-signal-500/40 bg-signal-500/10 px-10 py-4 font-mono text-sm uppercase tracking-[0.2em] text-signal-400 transition-all hover:bg-signal-500/20"
+          className="group mt-12 border border-signal-500/40 bg-signal-500/10 px-10 py-4 font-mono text-sm uppercase tracking-[0.12em] text-signal-400 transition-all hover:bg-signal-500/20"
         >
           LAUNCH AEGIS →
         </Link>

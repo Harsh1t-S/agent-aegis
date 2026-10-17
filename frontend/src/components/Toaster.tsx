@@ -98,11 +98,11 @@ export function ToastProvider({ children }: { children: ReactNode }) {
               >
                 <Icon className={`mt-0.5 h-4 w-4 shrink-0 ${tone.text}`} strokeWidth={1.5} />
                 <div className="min-w-0 flex-1">
-                  <p className="break-words font-mono text-[11px] uppercase tracking-wider text-bone-100">
+                  <p className="break-words font-mono text-sm tracking-wider text-bone-100">
                     {toast.message}
                   </p>
                   {toast.detail && (
-                    <p className="mt-1 break-words text-xs leading-relaxed text-bone-400">
+                    <p className="mt-1 break-words text-sm leading-relaxed text-bone-400">
                       {toast.detail}
                     </p>
                   )}

@@ -19,7 +19,7 @@ export function ProtectedRoute({
   if (auth.loading || (auth.user && workspace.loading)) {
     return (
       <div className="min-h-screen bg-ink-950 px-6 py-20">
-        <LoadingState label="OPENING WORKSPACE" />
+        <LoadingState label="Opening workspace" />
       </div>
     );
   }
@@ -35,8 +35,7 @@ export function ProtectedRoute({
           type="button"
           onClick={() => void workspace.refresh()}
           className="mt-6 border border-signal-500/40 px-5 py-3 font-mono text-xs text-signal-300"
-        >
-          TRY AGAIN
+        >Try again
         </button>
       </div>
     );
@@ -44,7 +43,7 @@ export function ProtectedRoute({
   if (!workspace.current) {
     return (
       <div className="min-h-screen bg-ink-950 px-6 py-20">
-        <LoadingState label="CREATING WORKSPACE" />
+        <LoadingState label="Creating workspace" />
       </div>
     );
   }

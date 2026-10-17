@@ -40,27 +40,27 @@ export function ExecutionTrace({ events, compact = false }: ExecutionTraceProps)
               onClick={() => setSelected(selected === event.id ? null : event.id)}
             >
               <span
-                className={`mt-0.5 flex h-3.5 w-3.5 shrink-0 items-center justify-center rounded-full border text-[8px] ${statusColor[event.status]}`}
+                className={`mt-0.5 flex h-3.5 w-3.5 shrink-0 items-center justify-center rounded-full border text-xs ${statusColor[event.status]}`}
               >
                 {statusSymbol[event.status]}
               </span>
               <div className="flex-1">
                 <div className="flex items-baseline gap-2">
-                  <span className="font-mono text-[10px] text-bone-500">
+                  <span className="font-mono text-xs text-bone-500">
                     {String(event.id).padStart(2, '0')}
                   </span>
-                  <span className="font-mono text-xs uppercase tracking-wider text-bone-200 group-hover:text-signal-400 transition-colors">
+                  <span className="font-mono text-xs tracking-wider text-bone-200 group-hover:text-signal-400 transition-colors">
                     {event.label}
                   </span>
                 </div>
                 {event.detail && !compact && (
-                  <div className="mt-1 font-mono text-[10px] text-bone-400">{event.detail}</div>
+                  <div className="mt-1 font-mono text-xs text-bone-400">{event.detail}</div>
                 )}
                 {selected === event.id && event.detail && (
                   <motion.div
                     initial={{ opacity: 0, height: 0 }}
                     animate={{ opacity: 1, height: 'auto' }}
-                    className="mt-2 border-l border-signal-500/30 pl-3 font-mono text-[10px] text-bone-300"
+                    className="mt-2 border-l border-signal-500/30 pl-3 font-mono text-xs text-bone-300"
                   >
                     {event.detail}
                   </motion.div>

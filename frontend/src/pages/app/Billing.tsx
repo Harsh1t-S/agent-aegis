@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { ExternalLink, Loader2 } from 'lucide-react';
+import { buttonPrimary } from '@/lib/ui';
 import { AsyncBoundary } from '@/components/AsyncState';
 import { PageHeader } from '@/components/PageHeader';
 import { SystemLabel } from '@/components/SystemLabel';
@@ -43,51 +44,51 @@ export default function Billing() {
     <>
         <PageHeader
           crumbs={[{ label: 'Workspace' }, { label: 'Billing' }]}
-          title="USAGE & PLAN"
+          title="Billing"
           description="Scenario credits and model spend for this organization, and the plan that sets them."
         />
-        <AsyncBoundary loading={billing.loading} error={billing.error} onRetry={billing.reload} label="LOADING BILLING">
+        <AsyncBoundary loading={billing.loading} error={billing.error} onRetry={billing.reload} label="Loading billing">
           {data && (
             <>
               <div className="mt-8 grid gap-5 lg:grid-cols-4">
-                <section className="border border-bone-600/20 bg-ink-900/60 p-6 lg:col-span-2">
+                <section className="border border-bone-600/30 bg-ink-900 p-4 sm:p-6 lg:col-span-2">
                   <div className="flex items-end justify-between gap-4">
                     <div>
-                      <SystemLabel>SCENARIO CREDITS</SystemLabel>
+                      <SystemLabel>Scenario credits</SystemLabel>
                       <p className="mt-3 font-mono text-3xl text-bone-50">{data.used + data.reserved} / {data.included}</p>
                     </div>
-                    <p className="font-mono text-xs text-bone-500">{data.remaining} remaining</p>
+                    <p className="font-mono text-sm text-bone-300">{data.remaining} remaining</p>
                   </div>
                   <div className="mt-5 h-2 bg-ink-950">
                     <div className="h-full bg-signal-500" style={{ width: `${percent}%` }} />
                   </div>
-                  <p className="mt-3 text-xs text-bone-500">
+                  <p className="mt-3 text-sm text-bone-300">
                     {data.used} settled · {data.reserved} reserved by queued evaluations
                   </p>
                 </section>
-                <section className="border border-bone-600/20 bg-ink-900/60 p-6">
-                  <SystemLabel>CURRENT PLAN</SystemLabel>
+                <section className="border border-bone-600/30 bg-ink-900 p-4 sm:p-6">
+                  <h2 className="font-display text-lg font-semibold text-bone-50">Current plan</h2>
                   <p className="massive mt-3 text-3xl text-signal-400">{data.plan.name}</p>
-                  <p className="mt-2 font-mono text-xs uppercase text-bone-500">{data.subscriptionStatus.replace(/_/g, ' ')}</p>
+                  <p className="mt-2 font-mono text-sm text-bone-300">{data.subscriptionStatus.replace(/_/g, ' ')}</p>
                   {data.customerConfigured && data.billingMode === 'subscription' && canManage && (
                     <button type="button" onClick={() => void redirect('portal')} disabled={busy !== null}
-                      className="mt-5 flex min-h-10 items-center gap-2 font-mono text-[10px] uppercase tracking-wider text-signal-300">
+                      className="mt-5 flex min-h-10 items-center gap-2 font-mono text-xs tracking-wider text-signal-300">
                       {busy === 'portal' ? <Loader2 className="h-4 w-4 animate-spin" /> : <ExternalLink className="h-4 w-4" />}
-                      MANAGE SUBSCRIPTION
+                      Manage subscription
                     </button>
                   )}
                   {data.customerConfigured && data.billingMode === 'one_time' && (
-                    <p className="mt-5 font-mono text-[10px] uppercase tracking-wider text-flux-300">
-                      ACCESS THROUGH {new Date(data.periodEnd).toLocaleDateString()}
+                    <p className="mt-5 font-mono text-sm tracking-wider text-flux-300">
+                      Access through {new Date(data.periodEnd).toLocaleDateString()}
                     </p>
                   )}
                 </section>
-                <section className="border border-bone-600/20 bg-ink-900/60 p-6">
-                  <SystemLabel>MODEL SPEND CAP</SystemLabel>
+                <section className="border border-bone-600/30 bg-ink-900 p-4 sm:p-6">
+                  <h2 className="font-display text-lg font-semibold text-bone-50">Model spend cap</h2>
                   <p className="mt-3 font-mono text-2xl text-bone-50">
                     ${(data.estimatedCostUsd + data.reservedCostUsd).toFixed(2)} / ${data.spendCapUsd.toFixed(2)}
                   </p>
-                  <p className="mt-2 text-xs leading-relaxed text-bone-500">
+                  <p className="mt-2 text-sm leading-relaxed text-bone-300">
                     ${data.estimatedCostUsd.toFixed(4)} settled · ${data.reservedCostUsd.toFixed(4)} reserved. Provider cost is estimated from configured rates.
                   </p>
                 </section>
@@ -105,7 +106,7 @@ export default function Billing() {
                     <div className="flex items-start justify-between gap-3">
                       <SystemLabel className={active ? 'text-bone-100' : ''}>{plan.name}</SystemLabel>
                       {active && (
-                        <span className="bg-bone-50 px-2 py-0.5 font-mono text-[10px] font-bold uppercase tracking-wider text-ink-950">
+                        <span className="bg-bone-50 px-2 py-0.5 font-mono text-xs font-bold tracking-wider text-ink-950">
                           Current plan
                         </span>
                       )}
@@ -123,12 +124,12 @@ export default function Billing() {
                         onClick={() => void redirect(data.customerConfigured
                           ? 'portal'
                           : plan.key as 'starter' | 'team')}
-                        className="mt-6 min-h-11 w-full border border-signal-500/40 bg-signal-500/10 font-mono text-[11px] uppercase tracking-wider text-signal-300 disabled:opacity-40">
+                        className={`${buttonPrimary} mt-6 w-full`}>
                         {busy === plan.key || (busy === 'portal' && data.customerConfigured)
                           ? 'OPENING…'
                           : data.customerConfigured
-                            ? plan.key === data.plan.key ? 'CURRENT PLAN' : 'PLAN ACTIVE'
-                            : 'SELECT PLAN'}
+                            ? plan.key === data.plan.key ? 'Current plan' : 'Plan active'
+                            : 'Select plan'}
                       </button>
                     )}
                   </section>

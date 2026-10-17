@@ -1,8 +1,8 @@
 import { useState, type FormEvent } from 'react';
 import { Building2, Copy, Loader2, Trash2, UserPlus } from 'lucide-react';
+import { buttonPrimary, buttonSecondary } from '@/lib/ui';
 import { PageHeader } from '@/components/PageHeader';
 import { AsyncBoundary } from '@/components/AsyncState';
-import { SystemLabel } from '@/components/SystemLabel';
 import { useToast } from '@/components/Toaster';
 import { useResource } from '@/hooks/useResource';
 import { api, ApiError } from '@/lib/api';
@@ -46,12 +46,51 @@ export default function Team() {
     <>
         <PageHeader
           crumbs={[{ label: 'Workspace' }, { label: 'Team' }]}
-          title="PEOPLE & ACCESS"
+          title="Team"
           description="Members inherit access to this organization’s workspaces. Roles are enforced by the API."
+          actions={canManage && (
+            <button type="button" className={buttonPrimary}
+              onClick={() => {
+                const field = document.getElementById('invite-email');
+                field?.scrollIntoView({ block: 'center' });
+                field?.focus();
+              }}>
+              <UserPlus className="h-4 w-4" aria-hidden /> Invite teammate
+            </button>
+          )}
         />
 
         {canManage && (
-          <form className="mt-8 flex max-w-2xl flex-col gap-3 border border-bone-600/20 bg-ink-900/40 p-5 sm:flex-row"
+          <form onSubmit={invite} className="mb-6 border border-bone-600/30 bg-ink-900 p-4 sm:p-6">
+            <h2 className="font-display text-lg font-semibold text-bone-50">Invite a teammate</h2>
+            <div className="mt-4 grid gap-4 md:grid-cols-[1fr_12rem_auto] md:items-end">
+              <div>
+                <label className="mb-2 block text-sm font-medium text-bone-100" htmlFor="invite-email">Email address</label>
+                <input id="invite-email" type="email" required value={email}
+                  onChange={(event) => setEmail(event.target.value)}
+                  placeholder="teammate@company.com"
+                  className="min-h-11 w-full border border-bone-600/40 bg-ink-950 px-3 text-sm text-bone-50 placeholder:text-bone-500 focus-visible:border-signal-400" />
+              </div>
+              <div>
+                <label className="mb-2 block text-sm font-medium text-bone-100" htmlFor="invite-role">Role</label>
+                <select id="invite-role" value={role}
+                  onChange={(event) => setRole(event.target.value as typeof role)}
+                  className="min-h-11 w-full border border-bone-600/40 bg-ink-950 px-3 text-sm text-bone-50 placeholder:text-bone-500 focus-visible:border-signal-400">
+                  <option value="admin">Admin</option>
+                  <option value="member">Member</option>
+                  <option value="viewer">Viewer</option>
+                </select>
+              </div>
+              <button type="submit" disabled={busy} className={buttonSecondary}>
+                {busy ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> : <UserPlus className="h-4 w-4" aria-hidden />}
+                Send invite
+              </button>
+            </div>
+          </form>
+        )}
+
+        {canManage && (
+          <form className="mb-6 border border-bone-600/30 bg-ink-900 p-4 sm:p-6"
             onSubmit={async (event) => {
               event.preventDefault();
               setCreatingWorkspace(true);
@@ -66,60 +105,44 @@ export default function Team() {
                 setCreatingWorkspace(false);
               }
             }}>
-            <input required maxLength={120} value={workspaceName}
+            <h2 className="font-display text-lg font-semibold text-bone-50">Create a workspace</h2>
+            <div className="mt-4 flex flex-col gap-3 sm:flex-row">
+              <label className="sr-only" htmlFor="workspace-name">Workspace name</label>
+                          <input id="workspace-name" required maxLength={120} value={workspaceName}
               onChange={(event) => setWorkspaceName(event.target.value)}
               placeholder="New workspace name"
-              className="min-h-11 flex-1 border border-bone-600/35 bg-ink-950 px-4 text-sm text-bone-50 outline-none focus:border-signal-400" />
+              className="min-h-11 w-full border border-bone-600/40 bg-ink-950 px-3 text-sm text-bone-50 placeholder:text-bone-500 focus-visible:border-signal-400 sm:flex-1" />
             <button type="submit" disabled={creatingWorkspace}
-              className="flex min-h-11 items-center justify-center gap-2 border border-bone-600/35 px-5 font-mono text-[11px] uppercase tracking-wider text-bone-300 disabled:opacity-50">
-              {creatingWorkspace ? <Loader2 className="h-4 w-4 animate-spin" /> : <Building2 className="h-4 w-4" />} NEW WORKSPACE
+              className={buttonSecondary}>
+              {creatingWorkspace ? <Loader2 className="h-4 w-4 animate-spin" /> : <Building2 className="h-4 w-4" />} New workspace
             </button>
-          </form>
-        )}
-
-        {canManage && (
-          <form onSubmit={invite} className="mt-10 grid gap-3 border border-bone-600/20 bg-ink-900/60 p-5 md:grid-cols-[1fr_160px_auto]">
-            <label className="sr-only" htmlFor="invite-email">Email address</label>
-            <input id="invite-email" type="email" required value={email}
-              onChange={(event) => setEmail(event.target.value)}
-              placeholder="teammate@company.com"
-              className="min-h-11 border border-bone-600/35 bg-ink-950 px-4 text-sm text-bone-50 outline-none focus:border-signal-400" />
-            <label className="sr-only" htmlFor="invite-role">Role</label>
-            <select id="invite-role" value={role}
-              onChange={(event) => setRole(event.target.value as typeof role)}
-              className="min-h-11 border border-bone-600/35 bg-ink-950 px-3 font-mono text-xs text-bone-200">
-              <option value="admin">Admin</option>
-              <option value="member">Member</option>
-              <option value="viewer">Viewer</option>
-            </select>
-            <button type="submit" disabled={busy}
-              className="flex min-h-11 items-center justify-center gap-2 border border-signal-500/45 bg-signal-500/10 px-5 font-mono text-xs text-signal-300 disabled:opacity-50">
-              {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <UserPlus className="h-4 w-4" />}
-              INVITE
-            </button>
+            </div>
           </form>
         )}
 
         {inviteUrl && (
-          <div className="mt-4 flex flex-col gap-3 border border-flux-500/30 bg-flux-500/5 p-4 sm:flex-row sm:items-center">
-            <code className="min-w-0 flex-1 break-all text-xs text-flux-300">{inviteUrl}</code>
+          <div className="mb-6 flex flex-col gap-3 border border-flux-500/40 bg-flux-500/5 p-4 sm:flex-row sm:items-center">
+            <code className="min-w-0 flex-1 break-all text-sm text-flux-300">{inviteUrl}</code>
             <button type="button" onClick={() => {
               void navigator.clipboard.writeText(inviteUrl);
               toast.success('Copied', 'Invitation link copied to your clipboard.');
-            }} className="flex min-h-10 items-center justify-center gap-2 border border-flux-500/30 px-4 font-mono text-[10px] text-flux-300">
-              <Copy className="h-3.5 w-3.5" /> COPY LINK
+            }} className={buttonSecondary}>
+              <Copy className="h-3.5 w-3.5" />Copy link
             </button>
           </div>
         )}
 
-        <section className="mt-8 border border-bone-600/20 bg-ink-900/50">
-          <AsyncBoundary loading={members.loading} error={members.error} onRetry={members.reload} label="LOADING MEMBERS">
-            <div className="divide-y divide-bone-600/15">
+        <section className="mb-6 border border-bone-600/30 bg-ink-900">
+          <div className="border-b border-bone-600/25 p-4 sm:p-6">
+            <h2 className="font-display text-lg font-semibold text-bone-50">Members</h2>
+          </div>
+          <AsyncBoundary loading={members.loading} error={members.error} onRetry={members.reload} label="Loading members">
+            <div className="divide-y divide-bone-600/25">
               {(members.data ?? []).map((member) => (
-                <div key={member.id} className="flex flex-col gap-2 p-5 sm:flex-row sm:items-center sm:justify-between">
+                <div key={member.id} className="flex flex-col gap-2 p-4 sm:p-6 sm:flex-row sm:items-center sm:justify-between">
                   <div>
-                    <p className="text-sm text-bone-100">{member.displayName || member.email || member.id}</p>
-                    {member.displayName && <p className="mt-1 text-xs text-bone-500">{member.email}</p>}
+                    <p className="text-sm font-medium text-bone-50">{member.displayName || member.email || member.id}</p>
+                    {member.displayName && <p className="mt-1 text-sm text-bone-300">{member.email}</p>}
                   </div>
                   {canManage && member.role !== 'owner'
                     && (workspace.current?.role === 'owner' || member.role !== 'admin') ? (
@@ -134,7 +157,7 @@ export default function Team() {
                             toast.error('Role not changed', cause instanceof ApiError ? cause.message : 'Try again.');
                           }
                         }}
-                        className="min-h-10 border border-bone-600/30 bg-ink-950 px-2 font-mono text-[10px] uppercase text-bone-300">
+                        className="min-h-11 border border-bone-600/40 bg-ink-950 px-2 text-sm text-bone-100">
                         <option value="admin">Admin</option>
                         <option value="member">Member</option>
                         <option value="viewer">Viewer</option>
@@ -150,13 +173,13 @@ export default function Team() {
                               toast.error('Member not removed', cause instanceof ApiError ? cause.message : 'Try again.');
                             }
                           }}
-                          className="flex h-10 w-10 items-center justify-center text-bone-500 hover:text-fault-400">
+                          className="flex h-11 w-11 items-center justify-center text-bone-300 hover:text-fault-400">
                           <Trash2 className="h-4 w-4" />
                         </button>
                       )}
                     </div>
                   ) : (
-                    <span className="w-fit border border-bone-600/30 px-2 py-1 font-mono text-[10px] uppercase tracking-wider text-bone-300">
+                    <span className="w-fit border border-bone-600/40 px-2 py-1 text-sm capitalize text-bone-200">
                       {member.role}
                     </span>
                   )}
@@ -167,18 +190,18 @@ export default function Team() {
         </section>
 
         {canManage && (
-          <section className="mt-8 border border-bone-600/20 bg-ink-900/50">
-            <div className="border-b border-bone-600/15 p-5">
-              <SystemLabel>PENDING INVITATIONS</SystemLabel>
+          <section className="border border-bone-600/30 bg-ink-900">
+            <div className="border-b border-bone-600/25 p-4 sm:p-6">
+              <h2 className="font-display text-lg font-semibold text-bone-50">Pending invitations</h2>
             </div>
             <AsyncBoundary loading={invitations.loading} error={invitations.error}
-              onRetry={invitations.reload} label="LOADING INVITATIONS">
-              <div className="divide-y divide-bone-600/15">
+              onRetry={invitations.reload} label="Loading invitations">
+              <div className="divide-y divide-bone-600/25">
                 {(invitations.data ?? []).map((invitation) => (
-                  <div key={invitation.id} className="flex flex-col gap-3 p-5 sm:flex-row sm:items-center sm:justify-between">
+                  <div key={invitation.id} className="flex flex-col gap-3 p-4 sm:p-6 sm:flex-row sm:items-center sm:justify-between">
                     <div>
                       <p className="text-sm text-bone-100">{invitation.email}</p>
-                      <p className="mt-1 font-mono text-[10px] uppercase text-bone-500">
+                      <p className="mt-1 text-sm text-bone-300">
                         {invitation.role} · expires {new Date(invitation.expiresAt).toLocaleDateString()}
                       </p>
                     </div>
@@ -192,13 +215,13 @@ export default function Team() {
                           toast.error('Invitation not revoked', cause instanceof ApiError ? cause.message : 'Try again.');
                         }
                       }}
-                      className="flex min-h-10 items-center gap-2 self-start px-2 font-mono text-[10px] uppercase text-bone-500 hover:text-fault-400 sm:self-auto">
-                      <Trash2 className="h-4 w-4" /> REVOKE
+                      className="flex min-h-11 items-center gap-2 self-start px-2 text-sm text-bone-300 hover:text-fault-300 sm:self-auto">
+                      <Trash2 className="h-4 w-4" />Revoke
                     </button>
                   </div>
                 ))}
                 {invitations.data?.length === 0 && (
-                  <p className="p-5 text-sm text-bone-500">No pending invitations.</p>
+                  <p className="p-5 text-sm text-bone-300">No pending invitations.</p>
                 )}
               </div>
             </AsyncBoundary>

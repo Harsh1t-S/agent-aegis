@@ -61,7 +61,7 @@ export default function Pricing() {
       <SiteNav />
       <main className="px-5 pb-24 pt-32 sm:px-8">
         <div className="mx-auto max-w-5xl text-center">
-          <p className="font-mono text-xs uppercase tracking-[0.24em] text-signal-400">PLANS</p>
+          <p className="font-mono text-xs uppercase tracking-[0.12em] text-signal-400">PLANS</p>
           <h1 className="massive mt-4 text-[clamp(3rem,8vw,6rem)] text-bone-50">PAY FOR EVIDENCE.</h1>
           <p className="mx-auto mt-5 max-w-2xl text-base leading-relaxed text-bone-400">
             Start with a bounded design-partner pilot. Every plan includes private evidence,
@@ -71,7 +71,7 @@ export default function Pricing() {
         <div className="mx-auto mt-14 grid max-w-5xl gap-5 md:grid-cols-2">
           {plans.map((plan) => (
             <section key={plan.key} className="border border-bone-600/25 bg-ink-900/70 p-7">
-              <p className="font-mono text-xs tracking-[0.2em] text-signal-400">{plan.name}</p>
+              <p className="font-mono text-xs tracking-[0.12em] text-signal-400">{plan.name}</p>
               <p className="mt-3 font-mono text-2xl text-bone-50">{plan.price}</p>
               <h2 className="massive mt-4 text-3xl text-bone-50">{plan.credits}</h2>
               <p className="mt-3 min-h-12 text-sm leading-relaxed text-bone-400">{plan.description}</p>

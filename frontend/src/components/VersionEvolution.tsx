@@ -5,11 +5,11 @@ import { ScrollReveal } from './ScrollReveal';
 import { SystemLabel } from './SystemLabel';
 
 const metricLabels: { key: keyof AgentVersion['metrics']; label: string }[] = [
-  { key: 'taskSuccess', label: 'TASK SUCCESS' },
-  { key: 'toolAccuracy', label: 'TOOL ACCURACY' },
-  { key: 'safety', label: 'SAFETY' },
-  { key: 'consistency', label: 'LOOP RESISTANCE' },
-  { key: 'groundedness', label: 'GROUNDEDNESS' },
+  { key: 'taskSuccess', label: 'Task success' },
+  { key: 'toolAccuracy', label: 'Tool accuracy' },
+  { key: 'safety', label: 'Safety' },
+  { key: 'consistency', label: 'Loop resistance' },
+  { key: 'groundedness', label: 'Groundedness' },
 ];
 
 export function VersionEvolution({ versions }: { versions: AgentVersion[] }) {
@@ -48,7 +48,7 @@ export function VersionEvolution({ versions }: { versions: AgentVersion[] }) {
                 />}
                 <div className="absolute bottom-0 left-0 h-px w-full bg-bone-600/30" />
               </div>
-              <span className="mt-2 text-center font-mono text-[10px] text-bone-500">
+              <span className="mt-2 text-center font-mono text-xs text-bone-500">
                 {!v.status || v.status === 'completed' ? `${v.passRate.toFixed(0)}% pass` : v.status === 'failed' ? 'Execution error' : 'In progress'}
               </span>
             </div>
@@ -73,7 +73,7 @@ export function VersionEvolution({ versions }: { versions: AgentVersion[] }) {
             );
           })}
           <div className="flex items-center justify-between border border-bone-600/20 px-4 py-3">
-            <SystemLabel>RELIABILITY</SystemLabel>
+            <SystemLabel>Reliability</SystemLabel>
             <span
               className={`font-mono text-sm font-semibold ${deltaTone(last.reliability - first.reliability)}`}
             >
@@ -84,7 +84,7 @@ export function VersionEvolution({ versions }: { versions: AgentVersion[] }) {
       )}
 
       {scored.length > 1 && (
-        <p className="mt-4 font-mono text-[10px] uppercase tracking-wider text-bone-600">
+        <p className="mt-4 font-mono text-sm tracking-wider text-bone-400">
           Deltas measured from {first.version} to {last.version}.
         </p>
       )}

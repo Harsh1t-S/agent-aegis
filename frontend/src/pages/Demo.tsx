@@ -12,7 +12,7 @@ export default function Demo() {
       <main className="mx-auto max-w-6xl px-5 pb-24 pt-28 sm:px-8">
         <div className="flex flex-col gap-8 lg:flex-row lg:items-end lg:justify-between">
           <div>
-            <p className="font-mono text-xs uppercase tracking-[0.24em] text-signal-400">CURATED PUBLIC DEMO</p>
+            <p className="font-mono text-xs uppercase tracking-[0.12em] text-signal-400">CURATED PUBLIC DEMO</p>
             <h1 className="massive mt-4 text-[clamp(3rem,8vw,6rem)] text-bone-50">
               ONE UNSAFE REFUND.<br /><span className="text-fault-500">FULL EVIDENCE.</span>
             </h1>
@@ -34,12 +34,12 @@ export default function Demo() {
             </p>
           </section>
           <section className="border border-bone-600/20 bg-ink-900/60 p-6">
-            <p className="mb-5 font-mono text-[11px] uppercase tracking-wider text-bone-500">EXECUTION TRACE</p>
+            <p className="mb-5 font-mono text-xs uppercase tracking-wider text-bone-500">EXECUTION TRACE</p>
             <ExecutionTrace events={exampleTrace} />
           </section>
         </div>
         <div className="mt-8 border border-bone-600/20 bg-ink-900/50 p-6">
-          <p className="font-mono text-[11px] uppercase tracking-wider text-flux-400">RECOMMENDED FIX</p>
+          <p className="font-mono text-xs uppercase tracking-wider text-flux-400">RECOMMENDED FIX</p>
           <p className="mt-3 text-sm leading-relaxed text-bone-200">
             Require an eligibility result before exposing the refund action, then keep this
             scenario in the release dataset so the same mistake cannot silently return.

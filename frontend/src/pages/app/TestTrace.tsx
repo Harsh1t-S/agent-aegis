@@ -1,10 +1,8 @@
 import { useEffect, useState } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
-import { PageHeader } from '@/components/PageHeader';
+import { NextSteps, PageHeader } from '@/components/PageHeader';
 import { IncidentTrace } from '@/components/IncidentTrace';
 import { FailureAnalysis } from '@/components/FailureAnalysis';
-import { ScrollReveal } from '@/components/ScrollReveal';
-import { SystemLabel } from '@/components/SystemLabel';
 import { ErrorState, LoadingState } from '@/components/AsyncState';
 import { useToast } from '@/components/Toaster';
 import { useResource } from '@/hooks/useResource';
@@ -13,7 +11,7 @@ import { severityTone, testStatusTone } from '@/lib/format';
 import { Check, Copy, Loader2, RotateCcw, ArrowLeft } from 'lucide-react';
 import type { ReviewDecision } from '@/types';
 import { useWorkspace } from '@/contexts/WorkspaceContext';
-import { buttonSecondary } from '@/lib/ui';
+import { buttonPrimary, buttonSecondary, card } from '@/lib/ui';
 
 export default function TestTrace() {
   const { evaluationId, testId } = useParams<{ evaluationId: string; testId: string }>();
@@ -42,7 +40,7 @@ export default function TestTrace() {
 
   if (loading) {
     return (
-      <LoadingState label="LOADING INCIDENT" />
+      <LoadingState label="Loading incident" />
     );
   }
 
@@ -50,8 +48,8 @@ export default function TestTrace() {
   if (!test && evaluation && !error && evaluation.status === 'canceled') {
     return (
       <div className="py-16 text-center">
-        <p className="font-mono text-xs text-bone-400">SCENARIO CANCELED</p>
-        <p className="mt-3 text-sm text-bone-500">
+        <p className="font-mono text-sm text-bone-400">Scenario canceled</p>
+        <p className="mt-3 text-sm text-bone-300">
           This scenario was canceled before it produced a trace.
         </p>
       </div>
@@ -60,8 +58,8 @@ export default function TestTrace() {
   if (!test && evaluation && !error) {
     return (
       <div>
-        <LoadingState label="SCENARIO IN PROGRESS" />
-        <p className="text-center font-mono text-xs text-bone-500">
+        <LoadingState label="Scenario in progress" />
+        <p className="text-center font-mono text-sm text-bone-300">
           {evaluation.canContinue === false
             ? 'The evaluation worker is offline. This queued scenario will resume when the worker returns.'
             : 'The scenario is executing. This page switches to the saved trace as soon as it completes.'}
@@ -129,6 +127,12 @@ export default function TestTrace() {
     }
   };
 
+  const nextSteps = [
+    { to: `/app/evaluations/${evaluationId}`, label: 'Back to the full report', hint: 'Every scenario in this run.' },
+    { to: '/app/compare', label: 'Compare versions', hint: 'Check whether a fix removed this failure.' },
+    { to: '/app/agents', label: 'Open the agent', hint: 'Edit its prompt or tools, then run again.' },
+  ];
+
   return (
     <>
         <PageHeader
@@ -139,71 +143,77 @@ export default function TestTrace() {
           ]}
           meta={(
             <>
-              <span className={`border px-2 py-0.5 font-mono text-[11px] uppercase tracking-wider ${cfg.color} border-current/40`}>
-                {test.executionError ? 'EXECUTION ERROR' : cfg.label}
+              <span className={`border px-2 py-0.5 text-sm font-medium ${cfg.color} border-current/50`}>
+                {test.executionError ? 'Execution error' : cfg.label}
               </span>
               {test.severity && (
-                <span className={`border px-2 py-0.5 font-mono text-[11px] uppercase tracking-wider ${severityTone[test.severity]}`}>
+                <span className={`border px-2 py-0.5 text-sm ${severityTone[test.severity]}`}>
                   {test.severity}
                 </span>
               )}
-              <span className="tech-label">{test.category}</span>
+              {isFail && test.failureType && <span className="text-sm font-medium text-fault-400">{test.failureType}</span>}
+              <span className="text-sm text-bone-300">{test.category}</span>
             </>
           )}
-          title={isFail && test.failureType
-            ? <span className="text-fault-500">{test.failureType.toUpperCase()}</span>
-            : test.title}
+          title={test.title}
           description={(
             <>
-              {isFail && test.failureType && <span className="block text-bone-200">{test.title}</span>}
-              <span className="font-mono text-xs text-bone-500">
+              <span className="font-mono text-sm text-bone-400">
                 Run {test.id} · scenario {test.scenarioId} · {test.durationMs} ms
               </span>
             </>
           )}
           actions={(
-            <Link to={`/app/evaluations/${evaluationId}`} className={buttonSecondary}>
-              <ArrowLeft className="h-4 w-4" aria-hidden /> Back to report
-            </Link>
+            <>
+              {canMutate && (
+                <button type="button" onClick={replay} disabled={replaying} className={buttonSecondary}>
+                  {replaying ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> : <RotateCcw className="h-4 w-4" aria-hidden />}
+                  Re-run this scenario
+                </button>
+              )}
+              <Link to={`/app/evaluations/${evaluationId}`} className={buttonPrimary}>
+                <ArrowLeft className="h-4 w-4" aria-hidden /> Back to report
+              </Link>
+            </>
           )}
         />
 
-        <div className="mt-12 grid min-w-0 gap-6 md:grid-cols-2">
-          <ScrollReveal>
-            <div className="border border-bone-600/20 bg-ink-900/60 p-6">
-              <SystemLabel>SCENARIO PROMPT</SystemLabel>
+        <div className="grid min-w-0 gap-6 md:grid-cols-2">
+          <div>
+            <div className={card}>
+              <h2 className="font-display text-lg font-semibold text-bone-50">Scenario prompt</h2>
               <p className="mt-3 whitespace-pre-wrap text-sm leading-relaxed text-bone-200">
                 {test.userPrompt}
               </p>
             </div>
-          </ScrollReveal>
-          <ScrollReveal delay={0.1}>
-            <div className="border border-flux-500/20 bg-flux-500/5 p-6">
-              <SystemLabel className="text-flux-400">EXPECTED BEHAVIOR</SystemLabel>
+          </div>
+          <div>
+            <div className="border border-flux-500/40 bg-flux-500/5 p-4 sm:p-6">
+              <h2 className="font-display text-lg font-semibold text-flux-300">Expected behavior</h2>
               <p className="mt-3 whitespace-pre-wrap text-sm leading-relaxed text-bone-200">
                 {test.expectedBehavior}
               </p>
             </div>
-          </ScrollReveal>
+          </div>
         </div>
 
-        <ScrollReveal className="mt-6">
-          <div className="border border-bone-600/20 bg-ink-900/80 p-6">
+        <div className="mt-6">
+          <div className={card}>
             <div className="flex items-center gap-2">
               <span className={`flex h-2 w-2 rounded-full ${isFail ? 'bg-fault-500' : 'bg-flux-500'}`} />
-              <SystemLabel>AGENT RESPONSE</SystemLabel>
+              <h2 className="font-display text-lg font-semibold text-bone-50">Agent response</h2>
             </div>
             <div className="mt-4 whitespace-pre-wrap border-l-2 border-bone-600/30 pl-4 font-mono text-sm leading-relaxed text-bone-200">
               {test.agentResponse || (
-                <span className="text-bone-600">The agent produced no final answer.</span>
+                <span className="text-bone-400">The agent produced no final answer.</span>
               )}
             </div>
           </div>
-        </ScrollReveal>
+        </div>
 
-        <ScrollReveal className="mt-6">
+        <div className="mt-6">
           <IncidentTrace events={test.trace} />
-        </ScrollReveal>
+        </div>
 
         {(test.explanation || test.recommendation) && (
           <div className="mt-6">
@@ -217,66 +227,48 @@ export default function TestTrace() {
         )}
 
         {canMutate && !test.executionError && evaluation.canContinue !== false && (
-          <ScrollReveal className="mt-6">
-            <div className="border border-bone-600/20 bg-ink-900/60 p-6">
-              <SystemLabel>HUMAN REVIEW</SystemLabel>
-              <p className="mt-2 text-sm leading-relaxed text-bone-400">
+          <div className="mt-6">
+            <div className={card}>
+              <h2 className="font-display text-lg font-semibold text-bone-50">Human review</h2>
+              <p className="mt-2 text-sm leading-relaxed text-bone-300">
                 Confirm whether this result matches your policy. The label builds a benchmark and never rewrites the original score or trace.
               </p>
               <div className="mt-4 flex flex-wrap gap-2">
                 {(test.status === 'passed' ? ([
-                  ['confirmed_correct', 'CONFIRMED CORRECT'],
-                  ['missed_issue', 'MISSED ISSUE'],
+                  ['confirmed_correct', 'Confirmed correct'],
+                  ['missed_issue', 'Missed issue'],
                 ] as const) : ([
-                  ['confirmed_issue', 'CONFIRMED ISSUE'],
-                  ['false_positive', 'FALSE POSITIVE'],
-                  ['accepted_risk', 'ACCEPTED RISK'],
+                  ['confirmed_issue', 'Confirmed issue'],
+                  ['false_positive', 'False positive'],
+                  ['accepted_risk', 'Accepted risk'],
                 ] as const)).map(([value, label]) => (
                   <button key={value} type="button" aria-pressed={review === value}
                     onClick={() => setReview(value)}
-                    className={`min-h-10 border px-3 font-mono text-[10px] uppercase tracking-wider ${review === value ? 'border-signal-500/55 bg-signal-500/10 text-signal-300' : 'border-bone-600/30 text-bone-400'}`}>
+                    className={`min-h-11 border px-4 text-sm ${review === value ? 'border-signal-400 bg-signal-500/15 font-medium text-signal-300' : 'border-bone-600/40 text-bone-200 hover:border-bone-300/60'}`}>
                     {label}
                   </button>
                 ))}
               </div>
               <textarea value={reviewNote} onChange={(event) => setReviewNote(event.target.value)}
                 maxLength={4000} placeholder="Optional note, ticket, or reason…"
-                className="mt-4 min-h-24 w-full resize-y border border-bone-600/30 bg-ink-950/60 p-3 text-sm text-bone-100 outline-none placeholder:text-bone-600 focus:border-signal-500/50" />
-              <button type="button" onClick={() => void saveReview()} disabled={savingReview}
-                className="mt-3 flex min-h-11 items-center gap-2 border border-signal-500/40 bg-signal-500/10 px-4 font-mono text-[11px] uppercase tracking-wider text-signal-300 disabled:opacity-50">
-                {savingReview && <Loader2 className="h-3.5 w-3.5 animate-spin" />} SAVE REVIEW
+                className="mt-4 min-h-24 w-full resize-y border border-bone-600/40 bg-ink-950 p-3 text-sm text-bone-100 placeholder:text-bone-400 focus-visible:border-signal-400" />
+              <button type="button" onClick={() => void saveReview()} disabled={savingReview} className={`${buttonSecondary} mt-3`}>
+                {savingReview && <Loader2 className="h-4 w-4 animate-spin" aria-hidden />} Save review
               </button>
             </div>
-          </ScrollReveal>
+          </div>
         )}
 
-        <ScrollReveal className="mt-6">
-          <div className="flex flex-wrap items-center gap-3">
-            {test.recommendation && (
-              <button
-                type="button"
-                onClick={copyRecommendation}
-                className="flex min-h-11 items-center gap-2 border border-bone-600/30 px-4 font-mono text-[11px] uppercase tracking-wider text-bone-300 transition-colors hover:border-signal-500/40 hover:text-signal-400"
-              >
-                {copied ? <Check className="h-3.5 w-3.5 text-flux-400" /> : <Copy className="h-3.5 w-3.5" />}
-                {copied ? 'COPIED' : 'COPY RECOMMENDATION'}
-              </button>
-            )}
-            {canMutate && <button
-              type="button"
-              onClick={replay}
-              disabled={replaying}
-              className="flex min-h-11 items-center gap-2 border border-bone-600/30 px-4 font-mono text-[11px] uppercase tracking-wider text-bone-300 transition-colors enabled:hover:border-signal-500/40 enabled:hover:text-signal-400 disabled:opacity-50"
-            >
-              {replaying ? (
-                <Loader2 className="h-3.5 w-3.5 animate-spin" />
-              ) : (
-                <RotateCcw className="h-3.5 w-3.5" />
-              )}
-              RE-RUN THIS SCENARIO
-            </button>}
-          </div>
-        </ScrollReveal>
+        <div className="mt-6 flex flex-wrap items-center gap-3">
+          {test.recommendation && (
+            <button type="button" onClick={copyRecommendation} className={buttonSecondary}>
+              {copied ? <Check className="h-4 w-4 text-flux-400" aria-hidden /> : <Copy className="h-4 w-4" aria-hidden />}
+              {copied ? 'Copied' : 'Copy recommendation'}
+            </button>
+          )}
+        </div>
+
+        <NextSteps steps={nextSteps} />
     </>
   );
 }
