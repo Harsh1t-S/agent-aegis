@@ -19,10 +19,15 @@ interface AuthState {
   /** False until Supabase confirms the provider is enabled, so a dead button never shows. */
   googleEnabled: boolean;
   error: string | null;
+  /** True once a password-reset link has signed the visitor in, until they choose a new password. */
+  passwordRecovery: boolean;
   signIn(email: string, password: string): Promise<void>;
   signUp(email: string, password: string): Promise<{ confirmationRequired: boolean }>;
   sendMagicLink(email: string): Promise<void>;
   signInWithGoogle(): Promise<void>;
+  /** Emails a link that signs the visitor in on /auth/reset to choose a new password. */
+  requestPasswordReset(email: string): Promise<void>;
+  updatePassword(password: string): Promise<void>;
   signOut(): Promise<void>;
 }
 
@@ -50,6 +55,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       : 'Authentication is not configured for this deployment.',
   );
   const [googleEnabled, setGoogleEnabled] = useState(false);
+  const [passwordRecovery, setPasswordRecovery] = useState(false);
   const token = useRef<string | null>(null);
 
   useEffect(() => {
@@ -74,7 +80,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setSession(data.session);
       setLoading(false);
     });
-    const { data: listener } = supabase.auth.onAuthStateChange((_event, next) => {
+    const { data: listener } = supabase.auth.onAuthStateChange((event, next) => {
+      if (event === 'PASSWORD_RECOVERY') setPasswordRecovery(true);
+      if (event === 'SIGNED_OUT') setPasswordRecovery(false);
       token.current = next?.access_token ?? null;
       setSession(next);
       setLoading(false);
@@ -134,6 +142,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
+  const requestPasswordReset = useCallback(async (email: string) => {
+    if (!supabase) throw new Error('Authentication is not configured.');
+    const { error: resetError } = await supabase.auth.resetPasswordForEmail(email, {
+      redirectTo: `${window.location.origin}/auth/reset`,
+    });
+    if (resetError) throw resetError;
+  }, []);
+
+  const updatePassword = useCallback(async (password: string) => {
+    if (!supabase) throw new Error('Authentication is not configured.');
+    const { error: updateError } = await supabase.auth.updateUser({ password });
+    if (updateError) throw updateError;
+    setPasswordRecovery(false);
+  }, []);
+
   const signOut = useCallback(async () => {
     if (supabase) {
       const { error: signOutError } = await supabase.auth.signOut();
@@ -149,6 +172,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     configured: authConfigured || localAuthEnabled,
     googleEnabled,
     error,
+    passwordRecovery,
     signIn: async (email, password) => {
       try {
         await signIn(email, password);
@@ -162,8 +186,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     signUp,
     sendMagicLink,
     signInWithGoogle,
+    requestPasswordReset,
+    updatePassword,
     signOut,
-  }), [error, googleEnabled, loading, sendMagicLink, session, signIn, signInWithGoogle, signOut, signUp]);
+  }), [error, googleEnabled, loading, passwordRecovery, requestPasswordReset, sendMagicLink, session, signIn,
+    signInWithGoogle, signOut, signUp, updatePassword]);
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }

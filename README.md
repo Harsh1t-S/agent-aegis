@@ -109,6 +109,13 @@ redirect URI, then keep `https://agent-aegis.vercel.app/auth/callback` in Supaba
 allowed redirect URLs. The provider cannot be enabled without the client ID and secret
 from the Google Cloud project.
 
+Password reset emails link to `/auth/reset`, where the visitor chooses a new password.
+Add `https://agent-aegis.vercel.app/auth/reset` to the allowed redirect URLs too. If it
+is missing, Supabase sends the link to the Site URL instead and the dashboard forwards
+the visitor to the form. Supabase's built-in mailer only delivers to members of the
+Supabase organization, so configure custom SMTP before public users rely on reset or
+confirmation emails.
+
 ## Billing
 
 Plans are server-owned entitlements: scenario credits, concurrency, retention, members, workspaces, CI access and an estimated model-spend ceiling. Quota and a conservative provider-cost estimate are reserved atomically before scenarios are created and settled once per completed run. Failed or canceled runs refund their reserved unit. Workspace administrators can lower the plan spend ceiling to zero or another amount. Token counts and estimated provider cost remain visible in Billing alongside the simpler scenario-credit allowance.

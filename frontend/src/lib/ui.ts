@@ -26,8 +26,17 @@ export const card = 'border border-bone-600/25 bg-ink-900 p-4 sm:p-6';
 /** The heading inside a card or a page section. */
 export const sectionTitle = 'font-display text-lg font-semibold text-bone-50';
 
-/** Form field label, input and helper text. */
+/**
+ * Form field label, input and helper text. Inputs are 16px on a phone because iOS
+ * zooms the page into any field set smaller than that.
+ */
 export const fieldLabel = 'block text-sm font-medium text-bone-200';
 export const fieldInput =
-  'min-h-11 w-full border border-bone-600/40 bg-ink-950 px-3 text-sm text-bone-50 placeholder:text-bone-500 focus-visible:border-signal-400';
+  'min-h-11 w-full border border-bone-600/40 bg-ink-950 px-3 text-base text-bone-50 placeholder:text-bone-500 focus-visible:border-signal-400 sm:text-sm';
 export const fieldHint = 'mt-1.5 text-sm text-bone-400';
+
+/** The outcome of a form, shown under it: what went wrong, or what happens next. */
+export const noticeError =
+  'flex items-start gap-2 border border-fault-500/40 bg-fault-500/10 p-3 text-sm leading-relaxed text-fault-300';
+export const noticeSuccess =
+  'flex items-start gap-2 border border-flux-500/40 bg-flux-500/10 p-3 text-sm leading-relaxed text-flux-300';

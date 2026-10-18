@@ -1,5 +1,5 @@
 import { Link } from 'react-router-dom';
-import { Check, Copy, CreditCard, KeyRound, LogOut } from 'lucide-react';
+import { Check, Copy, CreditCard, KeyRound, LockKeyhole, LogOut } from 'lucide-react';
 import { PageHeader } from '@/components/PageHeader';
 import { useToast } from '@/components/Toaster';
 import { useAuth } from '@/contexts/AuthContext';
@@ -110,6 +110,17 @@ export default function Profile() {
               <CreditCard className="h-4 w-4" aria-hidden /> Billing
             </Link>
           </section>
+          {providers.includes('email') && (
+            <section className="border border-bone-600/30 bg-ink-900 p-4 sm:p-6">
+              <h2 className="font-display text-lg font-semibold text-bone-50">Password</h2>
+              <p className="mt-1 text-sm leading-relaxed text-bone-300">
+                Set or change the password you sign in with.
+              </p>
+              <Link to="/auth/reset" className={`${buttonSecondary} mt-5 w-full`}>
+                <LockKeyhole className="h-4 w-4" aria-hidden /> Change password
+              </Link>
+            </section>
+          )}
           {canAdminister && (
             <section className="border border-bone-600/30 bg-ink-900 p-4 sm:p-6">
               <h2 className="font-display text-lg font-semibold text-bone-50">API keys</h2>

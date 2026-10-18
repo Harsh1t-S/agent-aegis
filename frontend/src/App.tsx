@@ -1,5 +1,5 @@
 import { LoadingState } from '@/components/AsyncState';
-import { BrowserRouter, Routes, Route, useLocation } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, useLocation, useNavigate } from 'react-router-dom';
 import { AnimatePresence, MotionConfig, motion } from 'framer-motion';
 import { SiteNav } from '@/components/SiteNav';
 import { AppFrame } from '@/components/AppShell';
@@ -8,7 +8,7 @@ import { ToastProvider } from '@/components/Toaster';
 import { AuthProvider, useAuth } from '@/contexts/AuthContext';
 import { WorkspaceProvider, useWorkspace } from '@/contexts/WorkspaceContext';
 import { ProtectedRoute } from '@/components/ProtectedRoute';
-import { lazy, Suspense, useEffect, type ReactNode } from 'react';
+import { lazy, Suspense, useEffect, useRef, type ReactNode } from 'react';
 
 const LandingPage = lazy(() => import('@/pages/LandingPage'));
 const HowItWorks = lazy(() => import('@/pages/HowItWorks'));
@@ -27,6 +27,7 @@ const TestTrace = lazy(() => import('@/pages/app/TestTrace'));
 const Compare = lazy(() => import('@/pages/app/Compare'));
 const NotFound = lazy(() => import('@/pages/NotFound'));
 const AuthPage = lazy(() => import('@/pages/Auth'));
+const ResetPassword = lazy(() => import('@/pages/ResetPassword'));
 const AcceptInvite = lazy(() => import('@/pages/AcceptInvite'));
 const Pricing = lazy(() => import('@/pages/Pricing'));
 const Demo = lazy(() => import('@/pages/Demo'));
@@ -40,8 +41,10 @@ const publicRoutes = ['/', '/how-it-works', '/about'];
 
 function Layout({ children }: { children: ReactNode }) {
   const location = useLocation();
+  const navigate = useNavigate();
   const auth = useAuth();
   const workspace = useWorkspace();
+  const recoveryHandled = useRef(false);
   const isPublic = publicRoutes.includes(location.pathname)
     || location.pathname.startsWith('/shared-report/');
   // The console frame sits outside the page transition so the sidebar stays put
@@ -56,6 +59,15 @@ function Layout({ children }: { children: ReactNode }) {
   useEffect(() => {
     window.scrollTo({ top: 0, behavior: 'instant' as ScrollBehavior });
   }, [location.pathname]);
+
+  // A reset link signs the visitor in wherever Supabase lands them, which is the
+  // site root when the reset address is not on its allow list. Take them to the
+  // new-password form once; after that they are free to leave it.
+  useEffect(() => {
+    if (!auth.passwordRecovery || recoveryHandled.current) return;
+    recoveryHandled.current = true;
+    if (location.pathname !== '/auth/reset') navigate('/auth/reset', { replace: true });
+  }, [auth.passwordRecovery, location.pathname, navigate]);
 
   const page = (
     <AnimatePresence mode="wait">
@@ -103,6 +115,7 @@ function App() {
                     <Route path="/shared-report/:token" element={<SharedReport />} />
                     <Route path="/auth" element={<AuthPage />} />
                     <Route path="/auth/callback" element={<AuthPage />} />
+                    <Route path="/auth/reset" element={<ResetPassword />} />
                     <Route path="/accept-invite" element={<ProtectedRoute><AcceptInvite /></ProtectedRoute>} />
                     <Route path="/app" element={<ProtectedRoute><AppHome /></ProtectedRoute>} />
                     <Route path="/app/agents" element={<ProtectedRoute><AgentsList /></ProtectedRoute>} />
