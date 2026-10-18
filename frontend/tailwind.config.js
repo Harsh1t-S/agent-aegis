@@ -132,8 +132,26 @@ export default {
         'pulse-ring': 'pulse-ring 4s ease-in-out infinite',
         'drift': 'drift 18s ease-in-out infinite',
         'flicker': 'flicker 6s steps(4) infinite',
+        // Landing hero: the floor grid moving toward the viewer, the ticker of
+        // scenario families, the light running round the console, and the caret.
+        'grid-scroll': 'grid-scroll 2.4s linear infinite',
+        'marquee': 'marquee 48s linear infinite',
+        'beam': 'spin 6s linear infinite',
+        'caret': 'caret 1s steps(2) infinite',
       },
       keyframes: {
+        'grid-scroll': {
+          '0%': { backgroundPosition: '0 0' },
+          '100%': { backgroundPosition: '0 64px' },
+        },
+        marquee: {
+          '0%': { transform: 'translateX(0)' },
+          '100%': { transform: 'translateX(-50%)' },
+        },
+        caret: {
+          '0%, 100%': { opacity: '1' },
+          '50%': { opacity: '0' },
+        },
         'spin-rev': {
           '0%': { transform: 'rotate(360deg)' },
           '100%': { transform: 'rotate(0deg)' },
