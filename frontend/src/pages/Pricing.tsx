@@ -1,26 +1,29 @@
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Check } from 'lucide-react';
-import { SiteNav } from '@/components/SiteNav';
+import { ArrowRight, Check, Loader2, TriangleAlert } from 'lucide-react';
+import { ScrollReveal } from '@/components/ScrollReveal';
+import { SiteFooter } from '@/components/SiteNav';
+import { Accent, Glow, PageHero } from '@/components/SiteSection';
 import { useAuth } from '@/contexts/AuthContext';
 import { api, ApiError } from '@/lib/api';
 import { openRazorpayCheckout } from '@/lib/razorpay';
 import { useResource } from '@/hooks/useResource';
+import { buttonPrimary, ctaSecondary, noticeError, siteCard } from '@/lib/ui';
 
 const plans = [
   {
     key: 'starter' as const,
-    name: 'STARTER',
-    price: '₹1,999 / month',
-    credits: '500 scenarios / month',
+    name: 'Starter',
+    price: '₹1,999',
+    credits: '500 scenarios a month',
     description: 'For one team proving a support agent before release.',
     features: ['Private workspace', '2 concurrent scenarios', '90-day trace history', 'CI release gate', 'API keys and audit log', '3 team members'],
   },
   {
     key: 'team' as const,
-    name: 'TEAM',
-    price: '₹9,999 / month',
-    credits: '5,000 scenarios / month',
+    name: 'Team',
+    price: '₹9,999',
+    credits: '5,000 scenarios a month',
     description: 'For teams evaluating multiple agents and releases.',
     features: ['Up to 5 workspaces', '5 concurrent scenarios', 'One-year trace history', 'CI release gate', 'API keys and audit log', '20 team members'],
   },
@@ -56,44 +59,82 @@ export default function Pricing() {
     }
   };
 
+  const actionLabel = (name: string) => (
+    !config.data?.checkoutAvailable ? 'Request a pilot' : auth.user ? `Choose ${name}` : 'Sign in to choose'
+  );
+
   return (
-    <div className="min-h-screen bg-ink-950">
-      <SiteNav />
-      <main className="px-5 pb-24 pt-32 sm:px-8">
-        <div className="mx-auto max-w-5xl text-center">
-          <p className="font-mono text-xs uppercase tracking-[0.12em] text-signal-400">PLANS</p>
-          <h1 className="massive mt-4 text-[clamp(3rem,8vw,6rem)] text-bone-50">PAY FOR EVIDENCE.</h1>
-          <p className="mx-auto mt-5 max-w-2xl text-base leading-relaxed text-bone-400">
-            Start with a bounded design-partner pilot. Every plan includes private evidence,
-            scoped usage, and a release gate you can explain to your team.
+    <div className="overflow-hidden bg-ink-950 text-bone-100">
+      <PageHero
+        center
+        eyebrow="Pricing"
+        title={<>Pay for <Accent>evidence.</Accent></>}
+        lead="Start with a bounded design-partner pilot. Every plan includes private evidence, scoped usage, and a release gate you can explain to your team."
+      />
+
+      <section className="relative isolate px-5 pb-24 sm:px-8 lg:px-12">
+        <Glow at="top" />
+        <div className="mx-auto max-w-5xl">
+          <ScrollReveal>
+            <div className="flex flex-col gap-5 border border-signal-500/35 bg-signal-500/[0.06] p-6 sm:flex-row sm:items-center sm:justify-between sm:p-7">
+              <div>
+                <p className="text-sm font-medium text-signal-300">Pilot trial · Free</p>
+                <p className="mt-1 font-display text-2xl font-semibold text-bone-50">Start with 60 scenario credits.</p>
+                <p className="mt-1 text-base text-bone-300">One workspace and 14 days of trace history. No card needed.</p>
+              </div>
+              <Link to="/auth?mode=signup&next=/app/agents/new" className={`${ctaSecondary} shrink-0`}>
+                Start free <ArrowRight className="h-4 w-4" aria-hidden />
+              </Link>
+            </div>
+          </ScrollReveal>
+
+          <div className="mt-5 grid gap-5 md:grid-cols-2">
+            {plans.map((plan, index) => (
+              <ScrollReveal key={plan.key} delay={index * 0.08} className="h-full">
+                <section className={`flex h-full flex-col ${siteCard}`}>
+                  <h2 className="text-sm font-medium text-signal-300">{plan.name}</h2>
+                  <p className="mt-3 flex items-baseline gap-2">
+                    <span className="font-display text-5xl font-bold tracking-tightest text-bone-50">{plan.price}</span>
+                    <span className="text-base text-bone-300">/ month</span>
+                  </p>
+                  <p className="mt-4 font-display text-xl font-semibold text-bone-50">{plan.credits}</p>
+                  <p className="mt-2 text-base leading-relaxed text-bone-300">{plan.description}</p>
+                  <ul className="mt-6 space-y-3 border-t border-bone-600/25 pt-6">
+                    {plan.features.map((feature) => (
+                      <li key={feature} className="flex items-center gap-3 text-base text-bone-200">
+                        <Check className="h-4 w-4 shrink-0 text-flux-400" aria-hidden /> {feature}
+                      </li>
+                    ))}
+                  </ul>
+                  <div className="mt-auto pt-8">
+                    <button
+                      type="button"
+                      onClick={() => void choose(plan.key)}
+                      disabled={busy !== null || config.loading}
+                      className={`${buttonPrimary} min-h-12 w-full text-base`}
+                    >
+                      {busy === plan.key && <Loader2 className="h-4 w-4 animate-spin" aria-hidden />}
+                      {busy === plan.key ? 'Opening checkout…' : actionLabel(plan.name)}
+                    </button>
+                  </div>
+                </section>
+              </ScrollReveal>
+            ))}
+          </div>
+
+          {error && (
+            <p role="alert" className={`mx-auto mt-6 max-w-2xl ${noticeError}`}>
+              <TriangleAlert className="mt-0.5 h-4 w-4 shrink-0" aria-hidden /> {error}
+            </p>
+          )}
+          <p className="mt-10 text-center text-base text-bone-300">
+            Need a hands-on pilot?{' '}
+            <Link to="/about" className="text-signal-300 hover:text-signal-200 hover:underline">See what a pilot includes</Link>
           </p>
         </div>
-        <div className="mx-auto mt-14 grid max-w-5xl gap-5 md:grid-cols-2">
-          {plans.map((plan) => (
-            <section key={plan.key} className="border border-bone-600/25 bg-ink-900/70 p-7">
-              <p className="font-mono text-xs tracking-[0.12em] text-signal-400">{plan.name}</p>
-              <p className="mt-3 font-mono text-2xl text-bone-50">{plan.price}</p>
-              <h2 className="massive mt-4 text-3xl text-bone-50">{plan.credits}</h2>
-              <p className="mt-3 min-h-12 text-sm leading-relaxed text-bone-400">{plan.description}</p>
-              <ul className="mt-7 space-y-3">
-                {plan.features.map((feature) => (
-                  <li key={feature} className="flex items-center gap-3 text-sm text-bone-200">
-                    <Check className="h-4 w-4 text-flux-400" /> {feature}
-                  </li>
-                ))}
-              </ul>
-              <button type="button" onClick={() => void choose(plan.key)} disabled={busy !== null || config.loading}
-                className="mt-8 min-h-12 w-full border border-signal-500/45 bg-signal-500/10 font-mono text-xs uppercase tracking-wider text-signal-300 disabled:opacity-50">
-                {busy === plan.key ? 'OPENING CHECKOUT…' : !config.data?.checkoutAvailable ? 'REQUEST A PILOT' : auth.user ? 'CHOOSE PLAN' : 'SIGN IN TO CHOOSE'}
-              </button>
-            </section>
-          ))}
-        </div>
-        {error && <p role="alert" className="mx-auto mt-6 max-w-2xl text-center text-sm text-fault-400">{error}</p>}
-        <p className="mt-10 text-center text-sm text-bone-500">
-          Need a hands-on pilot? <Link to="/about" className="text-signal-400 hover:underline">See what a pilot includes</Link>.
-        </p>
-      </main>
+      </section>
+
+      <SiteFooter />
     </div>
   );
 }

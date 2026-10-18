@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { buttonPrimary } from '@/lib/ui';
+import { buttonPrimary, card } from '@/lib/ui';
 import { useNavigate, useParams } from 'react-router-dom';
 import { Loader2, Play, Trash2 } from 'lucide-react';
 import { PageHeader } from '@/components/PageHeader';
@@ -136,7 +136,7 @@ export default function ReviewSuite() {
           {rows.map((row, index) => {
             const expectedValid = Boolean(parseExpected(row.expectedJson));
             return (
-              <section key={`${row.fingerprint}-${index}`} className="border border-bone-600/30 bg-ink-900 p-4 sm:p-6">
+              <section key={`${row.fingerprint}-${index}`} className={card}>
                 <div className="flex flex-wrap items-center gap-3">
                   <span className="font-mono text-sm text-signal-300">{String(index + 1).padStart(2, '0')}</span>
                   <select value={row.category}

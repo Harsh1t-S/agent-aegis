@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { buttonPrimary, buttonSecondary, fieldInput } from '@/lib/ui';
+import { buttonPrimary, buttonSecondary, card, fieldInput } from '@/lib/ui';
 import { useNavigate, useParams, Link } from 'react-router-dom';
 import { PageHeader } from '@/components/PageHeader';
 import { AsyncBoundary } from '@/components/AsyncState';
@@ -159,7 +159,7 @@ export default function EditAgent() {
             onRetry={agent.reload}
             label="Loading agent"
           >
-            <div className="space-y-6 border border-bone-600/30 bg-ink-900 p-4 sm:p-6">
+            <div className={`space-y-6 ${card}`}>
               <div>
                 <label htmlFor="edit-name" className="text-sm font-medium text-bone-100 mb-2 block">Agent name
                 </label>

@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { AnimatePresence, motion, useInView, useReducedMotion } from 'framer-motion';
 import { ArrowRight, CheckCircle2, LockKeyhole, PlayCircle, ShieldCheck, ShieldX, TerminalSquare } from 'lucide-react';
 import { Backdrop } from '@/components/Backdrop';
+import { ctaPrimary, ctaSecondary } from '@/lib/ui';
 
 /*
  * The landing hero shows the product doing its one job instead of describing it:
@@ -408,17 +409,11 @@ export function Hero() {
           </motion.p>
 
           <motion.div {...rise(0.24)} className="mt-9 flex flex-col gap-3 sm:flex-row">
-            <Link
-              to="/auth?next=/app/agents/new"
-              className="group inline-flex min-h-12 items-center justify-center gap-2 border border-signal-400 bg-signal-500 px-6 text-base font-semibold text-ink-950 shadow-[0_0_44px_-10px_rgba(38,169,208,0.85)] transition-colors hover:bg-signal-400"
-            >
+            <Link to="/auth?mode=signup&next=/app/agents/new" className={ctaPrimary}>
               Connect your agent
               <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-1" aria-hidden />
             </Link>
-            <Link
-              to="/demo"
-              className="inline-flex min-h-12 items-center justify-center gap-2 border border-bone-600/50 bg-ink-900/40 px-6 text-base font-medium text-bone-100 backdrop-blur transition-colors hover:border-bone-300/70 hover:text-bone-50"
-            >
+            <Link to="/demo" className={ctaSecondary}>
               <PlayCircle className="h-5 w-5" aria-hidden /> Watch a full run
             </Link>
           </motion.div>

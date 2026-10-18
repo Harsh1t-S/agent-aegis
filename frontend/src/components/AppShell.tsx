@@ -273,7 +273,9 @@ export function AppFrame({ children }: { children: ReactNode }) {
         )}
       </AnimatePresence>
 
-      <div className="lg:pl-64">
+      {/* The landing page's horizon glow, faint, behind the top of every screen. A
+          background rather than a layer, so nothing inside gains a stacking context. */}
+      <div className="bg-[radial-gradient(ellipse_70%_100%_at_50%_0%,rgba(38,169,208,0.09),transparent_70%)] bg-[length:100%_26rem] bg-no-repeat bg-origin-content lg:pl-64">
         <main id="app-main" className="mx-auto w-full max-w-6xl px-4 py-6 sm:px-6 lg:px-8 lg:py-8">
           {children}
         </main>

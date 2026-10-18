@@ -37,7 +37,7 @@ const Developer = lazy(() => import('@/pages/app/Developer'));
 const SharedReport = lazy(() => import('@/pages/SharedReport'));
 const Profile = lazy(() => import('@/pages/app/Profile'));
 
-const publicRoutes = ['/', '/how-it-works', '/about'];
+const publicRoutes = ['/', '/how-it-works', '/about', '/pricing', '/demo'];
 
 function Layout({ children }: { children: ReactNode }) {
   const location = useLocation();

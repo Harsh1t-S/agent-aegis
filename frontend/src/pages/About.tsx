@@ -1,8 +1,10 @@
 import { Link } from 'react-router-dom';
-import { MassiveHeading } from '@/components/MassiveHeading';
+import { Activity, AlertTriangle, ArrowRight, Gauge, GitBranch, Shield, Target } from 'lucide-react';
+import { Backdrop } from '@/components/Backdrop';
 import { ScrollReveal } from '@/components/ScrollReveal';
-import { SystemLabel } from '@/components/SystemLabel';
-import { Shield, Target, Activity, GitBranch, AlertTriangle, Gauge } from 'lucide-react';
+import { SiteFooter } from '@/components/SiteNav';
+import { Accent, ConsoleFrame, Eyebrow, Glow, PageHero } from '@/components/SiteSection';
+import { ctaPrimary, ctaSecondary, siteCard, siteHeading, siteLead } from '@/lib/ui';
 
 const principles = [
   { icon: Shield, title: 'Reliability is measurable', desc: 'Trust is not a feeling. It is a number derived from evidence across five dimensions.' },
@@ -13,86 +15,91 @@ const principles = [
   { icon: Gauge, title: 'Built for production', desc: 'Designed for teams deploying AI agents at scale — where reliability is not optional.' },
 ];
 
+// Each figure matches what the engine enforces: the failure taxonomy, the scored
+// dimensions, the scenario categories and the per-run limit the API accepts.
+const stats = [
+  { value: '6', label: 'Failure modes' },
+  { value: '5', label: 'Reliability dimensions' },
+  { value: '4', label: 'Scenario categories' },
+  { value: '40', label: 'Scenarios per run, at most' },
+];
+
+function StatsPanel() {
+  return (
+    <ConsoleFrame label="aegis · what every run measures">
+      <dl className="grid grid-cols-2 gap-px bg-bone-600/25">
+        {stats.map((stat) => (
+          <div key={stat.label} className="bg-ink-950 p-5">
+            <dt className="text-sm text-bone-300">{stat.label}</dt>
+            <dd className="mt-2 font-display text-5xl font-bold tracking-tightest">
+              <Accent>{stat.value}</Accent>
+            </dd>
+          </div>
+        ))}
+      </dl>
+    </ConsoleFrame>
+  );
+}
+
 export default function About() {
   return (
-    <div className="relative min-h-screen bg-ink-950 pt-16">
-      <div className="absolute inset-0 grid-bg opacity-20" />
+    <div className="overflow-hidden bg-ink-950 text-bone-100">
+      <PageHero
+        eyebrow="About Aegis"
+        title={<>The reliability engine <Accent>for AI agents.</Accent></>}
+        lead="Aegis is an evaluation and reliability engine for AI agents. We stress-test agents with adversarial scenarios, detect failure modes, and measure reliability, so you deploy with confidence instead of hope."
+        aside={<StatsPanel />}
+      >
+        <div className="flex flex-col gap-3 sm:flex-row">
+          <Link to="/auth?mode=signup&next=/app/agents/new" className={ctaPrimary}>
+            Start free <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-1" aria-hidden />
+          </Link>
+          <Link to="/how-it-works" className={ctaSecondary}>How it works</Link>
+        </div>
+      </PageHero>
 
-      {/* Hero */}
-      <section className="relative flex min-h-[70vh] flex-col items-center justify-center px-6 text-center">
-        <SystemLabel className="mb-8">AEGIS / PRODUCT</SystemLabel>
-        <MassiveHeading
-          lines={['THE AGENT', 'RELIABILITY', 'ENGINE.']}
-          className="text-[clamp(2.5rem,9vw,7rem)] text-bone-50"
-        />
-        <ScrollReveal delay={0.4} className="mt-8 max-w-xl">
-          <p className="text-sm text-bone-300 md:text-base">
-            Aegis is an evaluation and reliability engine for AI agents. We stress-test agents
-            with adversarial scenarios, detect failure modes, and measure reliability — so you
-            deploy confidence, not hope.
+      <section className="relative isolate px-5 py-20 sm:px-8 sm:py-28 lg:px-12">
+        <Glow at="top" />
+        <div className="mx-auto max-w-7xl">
+          <ScrollReveal className="max-w-3xl">
+            <Eyebrow>Design principles</Eyebrow>
+            <h2 className={`mt-5 ${siteHeading}`}>What we <Accent>will not compromise on.</Accent></h2>
+          </ScrollReveal>
+          <div className="mt-12 grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+            {principles.map((principle, index) => (
+              <ScrollReveal key={principle.title} delay={index * 0.06} className="h-full">
+                <article className={`h-full ${siteCard}`}>
+                  <span className="flex h-11 w-11 items-center justify-center border border-signal-500/40 bg-signal-500/10 text-signal-300">
+                    <principle.icon className="h-5 w-5" strokeWidth={1.75} aria-hidden />
+                  </span>
+                  <h3 className="mt-6 font-display text-xl font-semibold text-bone-50">{principle.title}</h3>
+                  <p className="mt-3 text-base leading-relaxed text-bone-300">{principle.desc}</p>
+                </article>
+              </ScrollReveal>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      <section className="relative isolate overflow-hidden px-5 py-28 text-center sm:px-8 lg:px-12 lg:py-36">
+        <Backdrop />
+        <ScrollReveal className="relative mx-auto max-w-3xl">
+          <h2 className="font-display text-[clamp(2.5rem,6vw,4.5rem)] font-bold leading-[0.98] tracking-ultraTight text-bone-50">
+            Deploy with <Accent>confidence.</Accent>
+          </h2>
+          <p className={`mx-auto mt-6 max-w-xl ${siteLead}`}>
+            New accounts start with 60 free scenario credits. No card needed.
           </p>
+          <div className="mt-10 flex flex-col justify-center gap-3 sm:flex-row">
+            <Link to="/auth?mode=signup&next=/app/agents/new" className={ctaPrimary}>
+              Start free <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-1" aria-hidden />
+            </Link>
+            <Link to="/pricing" className={ctaSecondary}>View plans</Link>
+          </div>
         </ScrollReveal>
       </section>
 
-      {/* Principles */}
-      <section className="relative px-6 py-20">
-        <div className="mx-auto max-w-5xl">
-          <SystemLabel className="mb-12 block text-center">DESIGN PRINCIPLES</SystemLabel>
-          <div className="grid gap-px bg-bone-600/20 md:grid-cols-2 lg:grid-cols-3">
-            {principles.map((p, i) => (
-              // The card was already h-full; without it on the wrapper too, h-full
-              // resolves against a box that is only as tall as its own content.
-              <ScrollReveal key={p.title} delay={i * 0.08} className="h-full">
-                <div className="h-full bg-ink-900/60 p-8 transition-colors hover:bg-ink-850/60">
-                  <p.icon className="h-6 w-6 text-signal-400" strokeWidth={1.5} />
-                  <h3 className="mt-4 font-display text-lg font-semibold text-bone-50">{p.title}</h3>
-                  <p className="mt-2 text-sm leading-relaxed text-bone-400">{p.desc}</p>
-                </div>
-              </ScrollReveal>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      {/* Stats */}
-      <section className="relative px-6 py-20">
-        <div className="mx-auto max-w-4xl">
-          <div className="grid grid-cols-2 gap-px bg-bone-600/20 md:grid-cols-4">
-            {[
-              { value: '6', label: 'FAILURE MODES' },
-              { value: '5', label: 'RELIABILITY DIMENSIONS' },
-              { value: '50', label: 'SCENARIOS PER RUN' },
-              { value: '7', label: 'SCENARIO CATEGORIES' },
-            ].map((stat, i) => (
-              // h-full on both the reveal wrapper and the card, because the grid
-              // draws its hairlines with `gap-px` over a background: a cell that
-              // does not fill its track leaves that background showing as a grey
-              // bar under the card. "RELIABILITY DIMENSIONS" wraps to two lines,
-              // so it set the row height and the other three sat short of it.
-              <ScrollReveal key={stat.label} delay={i * 0.1} className="h-full">
-                <div className="flex h-full flex-col items-center justify-center bg-ink-900/60 p-6 text-center">
-                  <div className="massive text-4xl text-signal-400 md:text-5xl">{stat.value}</div>
-                  <SystemLabel className="mt-2 block">{stat.label}</SystemLabel>
-                </div>
-              </ScrollReveal>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      {/* CTA */}
-      <section className="relative flex min-h-[50vh] flex-col items-center justify-center px-6 text-center">
-        <MassiveHeading
-          lines={['DEPLOY', 'CONFIDENCE.']}
-          className="text-[clamp(2rem,8vw,6rem)] text-signal-400"
-        />
-        <Link
-          to="/app"
-          className="group mt-12 border border-signal-500/40 bg-signal-500/10 px-10 py-4 font-mono text-sm uppercase tracking-[0.12em] text-signal-400 transition-all hover:bg-signal-500/20"
-        >
-          LAUNCH AEGIS →
-        </Link>
-      </section>
+      <SiteFooter />
     </div>
   );
 }

@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Check, Copy, Link2, Loader2, Trash2 } from 'lucide-react';
-import { buttonDanger, buttonSecondary } from '@/lib/ui';
+import { buttonDanger, buttonSecondary, card } from '@/lib/ui';
 import { useResource } from '@/hooks/useResource';
 import { api, ApiError } from '@/lib/api';
 import { formatDate } from '@/lib/format';
@@ -56,7 +56,7 @@ export function ReportSharing({ evaluationId }: { evaluationId: string }) {
   const active = (shares.data ?? []).filter((share) => share.active);
 
   return (
-    <section className="border border-bone-600/30 bg-ink-900 p-4 sm:p-6">
+    <section className={card}>
       <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div>
           <h3 className="font-display text-lg font-semibold text-bone-50">Private report sharing</h3>

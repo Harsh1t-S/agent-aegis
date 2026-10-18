@@ -4,7 +4,7 @@ import { PageHeader } from '@/components/PageHeader';
 import { useToast } from '@/components/Toaster';
 import { useAuth } from '@/contexts/AuthContext';
 import { useWorkspace } from '@/contexts/WorkspaceContext';
-import { buttonSecondary } from '@/lib/ui';
+import { buttonSecondary, card } from '@/lib/ui';
 
 const PROVIDER_LABELS: Record<string, string> = {
   email: 'Email and password',
@@ -68,7 +68,7 @@ export default function Profile() {
       />
 
       <div className="grid min-w-0 gap-6 lg:grid-cols-3">
-        <section className="min-w-0 border border-bone-600/30 bg-ink-900 p-4 sm:p-6 lg:col-span-2">
+        <section className={`min-w-0 ${card} lg:col-span-2`}>
           <h2 className="font-display text-lg font-semibold text-bone-50">Sign-in details</h2>
           <dl className="mt-2">
             <Row label="Name">{name}</Row>
@@ -98,7 +98,7 @@ export default function Profile() {
         </section>
 
         <div className="grid min-w-0 content-start gap-6">
-          <section className="border border-bone-600/30 bg-ink-900 p-4 sm:p-6">
+          <section className={card}>
             <h2 className="font-display text-lg font-semibold text-bone-50">Plan</h2>
             <p className="mt-3 font-display text-2xl font-semibold text-bone-50">{usage?.plan.name ?? '—'}</p>
             {usage && (
@@ -111,7 +111,7 @@ export default function Profile() {
             </Link>
           </section>
           {providers.includes('email') && (
-            <section className="border border-bone-600/30 bg-ink-900 p-4 sm:p-6">
+            <section className={card}>
               <h2 className="font-display text-lg font-semibold text-bone-50">Password</h2>
               <p className="mt-1 text-sm leading-relaxed text-bone-300">
                 Set or change the password you sign in with.
@@ -122,7 +122,7 @@ export default function Profile() {
             </section>
           )}
           {canAdminister && (
-            <section className="border border-bone-600/30 bg-ink-900 p-4 sm:p-6">
+            <section className={card}>
               <h2 className="font-display text-lg font-semibold text-bone-50">API keys</h2>
               <p className="mt-1 text-sm leading-relaxed text-bone-300">
                 Keys for CI and scripts belong to the workspace, not to your account.
@@ -134,7 +134,7 @@ export default function Profile() {
           )}
         </div>
 
-        <section className="min-w-0 border border-bone-600/30 bg-ink-900 p-4 sm:p-6 lg:col-span-3">
+        <section className={`min-w-0 ${card} lg:col-span-3`}>
           <h2 className="font-display text-lg font-semibold text-bone-50">Workspaces</h2>
           <ul className="mt-2">
             {workspace.workspaces.map((item) => {

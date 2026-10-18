@@ -1,6 +1,6 @@
 import { useState, type FormEvent } from 'react';
 import { Building2, Copy, Loader2, Trash2, UserPlus } from 'lucide-react';
-import { buttonPrimary, buttonSecondary } from '@/lib/ui';
+import { buttonPrimary, buttonSecondary, card } from '@/lib/ui';
 import { PageHeader } from '@/components/PageHeader';
 import { AsyncBoundary } from '@/components/AsyncState';
 import { useToast } from '@/components/Toaster';
@@ -61,7 +61,7 @@ export default function Team() {
         />
 
         {canManage && (
-          <form onSubmit={invite} className="mb-6 border border-bone-600/30 bg-ink-900 p-4 sm:p-6">
+          <form onSubmit={invite} className={`mb-6 ${card}`}>
             <h2 className="font-display text-lg font-semibold text-bone-50">Invite a teammate</h2>
             <div className="mt-4 grid gap-4 md:grid-cols-[1fr_12rem_auto] md:items-end">
               <div>
@@ -90,7 +90,7 @@ export default function Team() {
         )}
 
         {canManage && (
-          <form className="mb-6 border border-bone-600/30 bg-ink-900 p-4 sm:p-6"
+          <form className={`mb-6 ${card}`}
             onSubmit={async (event) => {
               event.preventDefault();
               setCreatingWorkspace(true);

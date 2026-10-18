@@ -1,12 +1,15 @@
 import { Link } from 'react-router-dom';
-import { ArrowRight, Cable, GitCompareArrows, ShieldAlert } from 'lucide-react';
+import { ArrowRight, Cable, GitCompareArrows, ShieldAlert, ShieldX } from 'lucide-react';
+import { Backdrop } from '@/components/Backdrop';
 import { ExecutionTrace } from '@/components/ExecutionTrace';
 import { Hero } from '@/components/Hero';
-import { MassiveHeading } from '@/components/MassiveHeading';
 import { MetricLine } from '@/components/MetricLine';
 import { ScrollReveal } from '@/components/ScrollReveal';
-import { SystemLabel } from '@/components/SystemLabel';
+import { SiteFooter } from '@/components/SiteNav';
+import { Accent, ConsoleFrame, Eyebrow, Glow } from '@/components/SiteSection';
 import { exampleTrace } from '@/data/showcase';
+import { METRIC_COLORS } from '@/lib/palette';
+import { ctaPrimary, ctaSecondary, siteCard, siteHeading, siteLead } from '@/lib/ui';
 
 const capabilities = [
   { icon: Cable, title: 'Test the real agent', copy: 'Connect a runner to include your orchestration, retrieval and memory, while Aegis supplies safe mocked tools.' },
@@ -21,109 +24,160 @@ const workflow = [
   ['04', 'Run and decide', 'Inspect evidence, classify findings, then save the run as a baseline.'],
 ];
 
+const metrics = [
+  { label: 'Task success', value: 83, color: METRIC_COLORS.taskSuccess },
+  { label: 'Tool accuracy', value: 75, color: METRIC_COLORS.toolAccuracy },
+  { label: 'Safety', value: 42, color: METRIC_COLORS.safety },
+  { label: 'Loop resistance', value: 92, color: METRIC_COLORS.consistency },
+  { label: 'Groundedness', value: 68, color: METRIC_COLORS.groundedness },
+];
+
+const section = 'relative isolate px-5 py-20 sm:px-8 sm:py-28 lg:px-12';
+const bandSection = `${section} border-y border-bone-600/15 bg-ink-900/30`;
+
 export default function LandingPage() {
   return (
     <div className="overflow-hidden bg-ink-950 text-bone-100">
       <Hero />
 
-      <section className="border-y border-bone-600/20 bg-ink-900/45 px-5 py-20 sm:px-8">
+      <section className={section}>
+        <Glow at="top" />
         <div className="mx-auto max-w-7xl">
-          <ScrollReveal>
-            <SystemLabel>WHY TEAMS USE AEGIS</SystemLabel>
-            <h2 className="massive mt-4 max-w-4xl text-[clamp(2.5rem,6vw,5rem)] leading-[0.92] text-bone-50">
-              A RELEASE DECISION<br /><span className="text-signal-400">BACKED BY EVIDENCE.</span>
+          <ScrollReveal className="max-w-3xl">
+            <Eyebrow>Why teams use Aegis</Eyebrow>
+            <h2 className={`mt-5 ${siteHeading}`}>
+              A release decision <Accent>backed by evidence.</Accent>
             </h2>
+            <p className={`mt-5 max-w-2xl ${siteLead}`}>
+              Aegis tests the agent you actually ship, shows where it broke your policy, and
+              keeps that failure from quietly coming back.
+            </p>
           </ScrollReveal>
-          <div className="mt-12 grid gap-px border border-bone-600/20 bg-bone-600/20 md:grid-cols-3">
+          <div className="mt-12 grid gap-4 md:grid-cols-3">
             {capabilities.map((item, index) => (
-              <ScrollReveal key={item.title} delay={index * 0.08} className="bg-ink-950 p-7">
-                <item.icon className="h-5 w-5 text-signal-400" />
-                <h3 className="mt-5 font-mono text-sm uppercase tracking-wider text-bone-100">{item.title}</h3>
-                <p className="mt-3 text-sm leading-relaxed text-bone-400">{item.copy}</p>
+              <ScrollReveal key={item.title} delay={index * 0.08} className="h-full">
+                <article className={`h-full ${siteCard}`}>
+                  <span className="flex h-11 w-11 items-center justify-center border border-signal-500/40 bg-signal-500/10 text-signal-300 shadow-[0_0_24px_-8px_rgba(38,169,208,0.7)]">
+                    <item.icon className="h-5 w-5" aria-hidden />
+                  </span>
+                  <h3 className="mt-6 font-display text-xl font-semibold text-bone-50">{item.title}</h3>
+                  <p className="mt-3 text-base leading-relaxed text-bone-300">{item.copy}</p>
+                </article>
               </ScrollReveal>
             ))}
           </div>
         </div>
       </section>
 
-      <section className="px-5 py-24 sm:px-8">
-        <div className="mx-auto grid max-w-7xl gap-14 lg:grid-cols-[0.9fr_1.1fr] lg:items-start">
+      <section className={bandSection}>
+        <Glow at="right" />
+        <div className="mx-auto grid max-w-7xl grid-cols-1 items-center gap-12 lg:grid-cols-[0.9fr_1.1fr] lg:gap-16">
           <ScrollReveal>
-            <SystemLabel>FROM FINDING TO FIX</SystemLabel>
-            <MassiveHeading lines={['EVERY CLAIM', 'HAS A TRACE.']} className="mt-4 text-[clamp(2.7rem,6vw,5.5rem)] text-bone-50" />
-            <p className="mt-6 max-w-xl text-sm leading-relaxed text-bone-400">
+            <Eyebrow>From finding to fix</Eyebrow>
+            <h2 className={`mt-5 ${siteHeading}`}>
+              Every claim <Accent>has a trace.</Accent>
+            </h2>
+            <p className={`mt-5 max-w-xl ${siteLead}`}>
               The report preserves what the user asked, which tools ran, what state changed,
               which expectation failed and the evaluator version that made the decision.
             </p>
-            <Link to="/demo" className="mt-7 inline-flex items-center gap-2 font-mono text-xs uppercase tracking-wider text-signal-400 hover:text-signal-300">
-              OPEN THE FULL EXAMPLE <ArrowRight className="h-4 w-4" />
+            <Link to="/demo" className={`mt-8 ${ctaSecondary}`}>
+              Open the full example <ArrowRight className="h-4 w-4" aria-hidden />
             </Link>
           </ScrollReveal>
-          <ScrollReveal delay={0.1} className="border border-bone-600/20 bg-ink-900/60 p-6 sm:p-8">
-            <ExecutionTrace events={exampleTrace} />
+          <ScrollReveal delay={0.1}>
+            <ConsoleFrame
+              label="trace · refund outside the window"
+              badge={(
+                <span className="inline-flex shrink-0 items-center gap-1.5 border border-fault-500/50 bg-fault-500/10 px-2 py-0.5 text-xs font-semibold text-fault-300">
+                  <ShieldX className="h-3.5 w-3.5" aria-hidden /> Failed
+                </span>
+              )}
+            >
+              <ExecutionTrace events={exampleTrace} />
+            </ConsoleFrame>
           </ScrollReveal>
         </div>
       </section>
 
-      <section className="border-y border-bone-600/20 bg-ink-900/45 px-5 py-24 sm:px-8">
-        <div className="mx-auto grid max-w-7xl gap-12 lg:grid-cols-[0.8fr_1.2fr]">
-          <ScrollReveal>
-            <SystemLabel>FIRST RUN</SystemLabel>
-            <h2 className="massive mt-4 text-[clamp(2.5rem,6vw,5rem)] text-bone-50">A SHORT PATH TO A USEFUL REPORT.</h2>
-            <p className="mt-5 text-sm leading-relaxed text-bone-400">
-              Runs use the hosted model by default, so the first report already tests
-              your prompt. Connect your own agent when you want its full stack tested.
+      <section className={section}>
+        <Glow at="left" />
+        <div className="mx-auto max-w-7xl">
+          <ScrollReveal className="max-w-3xl">
+            <Eyebrow>Your first run</Eyebrow>
+            <h2 className={`mt-5 ${siteHeading}`}>
+              A short path to <Accent>a useful report.</Accent>
+            </h2>
+            <p className={`mt-5 max-w-2xl ${siteLead}`}>
+              Runs use the hosted model by default, so the first report already tests your
+              prompt. Connect your own agent when you want its full stack tested.
             </p>
           </ScrollReveal>
-          <ol className="grid gap-3">
+          <ol className="mt-12 grid gap-4 md:grid-cols-2 lg:grid-cols-4">
             {workflow.map(([number, title, copy], index) => (
-              <ScrollReveal key={number} delay={index * 0.06}>
-                <li className="grid gap-3 border border-bone-600/20 bg-ink-950/70 p-5 sm:grid-cols-[3rem_12rem_1fr] sm:items-center">
-                  <span className="font-mono text-xs text-signal-400">{number}</span>
-                  <span className="font-mono text-xs uppercase tracking-wider text-bone-100">{title}</span>
-                  <span className="text-sm leading-relaxed text-bone-400">{copy}</span>
-                </li>
-              </ScrollReveal>
+              <li key={number} className="h-full">
+                <ScrollReveal delay={index * 0.06} className="h-full">
+                  <div className={`h-full ${siteCard}`}>
+                    <span className="flex h-10 w-10 items-center justify-center border border-signal-500/50 bg-ink-950 font-mono text-sm font-semibold text-signal-300">
+                      {number}
+                    </span>
+                    <h3 className="mt-5 font-display text-lg font-semibold text-bone-50">{title}</h3>
+                    <p className="mt-2 text-base leading-relaxed text-bone-300">{copy}</p>
+                  </div>
+                </ScrollReveal>
+              </li>
             ))}
           </ol>
         </div>
       </section>
 
-      <section className="px-5 py-24 sm:px-8">
-        <div className="mx-auto max-w-5xl text-center">
-          <SystemLabel>METRICS WITH PUBLISHED MEANINGS</SystemLabel>
-          <MassiveHeading lines={['MEASURE THE', 'TESTED BEHAVIOR.']} className="mt-4 text-[clamp(2.5rem,6vw,5rem)] text-bone-50" />
-          <p className="mx-auto mt-5 max-w-2xl text-sm leading-relaxed text-bone-400">
-            Results describe performance on the recorded scenario set. Aegis does not claim
-            universal safety, and severe unsafe actions cap the overall score.
-          </p>
-          <div className="mx-auto mt-10 grid max-w-2xl gap-5 text-left">
-            <MetricLine label="TASK SUCCESS" value={83} color="#26a9d0" />
-            <MetricLine label="TOOL ACCURACY" value={75} color="#1cb8d8" delay={0.05} />
-            <MetricLine label="SAFETY" value={42} color="#22c57e" delay={0.1} />
-            <MetricLine label="LOOP RESISTANCE" value={92} color="#5bc8e8" delay={0.15} />
-            <MetricLine label="GROUNDEDNESS" value={68} color="#eda31c" delay={0.2} />
-          </div>
-          <p className="mt-4 font-mono text-xs uppercase tracking-wider text-bone-600">Illustrative curated result</p>
+      <section className={bandSection}>
+        <Glow at="left" />
+        <div className="mx-auto grid max-w-7xl grid-cols-1 items-center gap-12 lg:grid-cols-[0.9fr_1.1fr] lg:gap-16">
+          <ScrollReveal>
+            <Eyebrow>Metrics with published meanings</Eyebrow>
+            <h2 className={`mt-5 ${siteHeading}`}>
+              Measure the <Accent>tested behavior.</Accent>
+            </h2>
+            <p className={`mt-5 max-w-xl ${siteLead}`}>
+              Results describe performance on the recorded scenario set. Aegis does not claim
+              universal safety, and severe unsafe actions cap the overall score.
+            </p>
+          </ScrollReveal>
+          <ScrollReveal delay={0.1}>
+            <ConsoleFrame label="reliability · five dimensions">
+              <div className="grid gap-6">
+                {metrics.map((metric, index) => (
+                  <MetricLine key={metric.label} label={metric.label} value={metric.value} color={metric.color} delay={index * 0.05} />
+                ))}
+              </div>
+            </ConsoleFrame>
+            <p className="mt-3 text-xs text-bone-400">Illustrative curated result</p>
+          </ScrollReveal>
         </div>
       </section>
 
-      <section className="relative border-t border-bone-600/20 px-5 py-28 text-center sm:px-8">
-        <div className="pointer-events-none absolute inset-0 grid-bg opacity-20" />
-        <div className="relative mx-auto max-w-4xl">
-          <MassiveHeading lines={['TURN YOUR NEXT', 'AGENT CHANGE', 'INTO A TEST.']} className="text-[clamp(3rem,8vw,7rem)] text-bone-50" />
-          <p className="mx-auto mt-6 max-w-xl text-sm leading-relaxed text-bone-400">
+      <section className="relative isolate overflow-hidden px-5 py-28 text-center sm:px-8 lg:px-12 lg:py-36">
+        <Backdrop />
+        <ScrollReveal className="relative mx-auto max-w-4xl">
+          <h2 className="font-display text-[clamp(2.5rem,6vw,5rem)] font-bold leading-[0.98] tracking-ultraTight text-bone-50">
+            Turn your next agent change <Accent>into a test.</Accent>
+          </h2>
+          <p className={`mx-auto mt-6 max-w-xl ${siteLead}`}>
             Create a private workspace, establish a bounded baseline, and keep the failures
             that matter in your release process.
           </p>
-          <div className="mt-9 flex flex-col justify-center gap-3 sm:flex-row">
-            <Link to="/auth?next=/app/agents/new" className="inline-flex min-h-12 items-center justify-center gap-2 border border-signal-500/55 bg-signal-500/15 px-6 font-mono text-xs uppercase tracking-wider text-signal-300">
-              START A PRIVATE WORKSPACE <ArrowRight className="h-4 w-4" />
+          <div className="mt-10 flex flex-col justify-center gap-3 sm:flex-row">
+            <Link to="/auth?mode=signup&next=/app/agents/new" className={ctaPrimary}>
+              Start a private workspace
+              <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-1" aria-hidden />
             </Link>
-            <Link to="/pricing" className="inline-flex min-h-12 items-center justify-center border border-bone-600/35 px-6 font-mono text-xs uppercase tracking-wider text-bone-200">VIEW PLANS</Link>
+            <Link to="/pricing" className={ctaSecondary}>View plans</Link>
           </div>
-        </div>
+        </ScrollReveal>
       </section>
+
+      <SiteFooter />
     </div>
   );
 }

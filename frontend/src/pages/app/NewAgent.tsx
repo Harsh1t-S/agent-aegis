@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { buttonPrimary, buttonSecondary, fieldInput } from '@/lib/ui';
+import { buttonPrimary, buttonSecondary, card, fieldInput } from '@/lib/ui';
 import { motion, AnimatePresence } from 'framer-motion';
 import { PageHeader } from '@/components/PageHeader';
 import { useToast } from '@/components/Toaster';
@@ -260,7 +260,7 @@ export default function NewAgent() {
             x:30, and letting a decorative transform widen the document put a
             15px horizontal scroll on every phone. Clip does not create a scroll
             container, so nothing inside loses position: sticky. */}
-        <div className="mt-6 overflow-x-clip border border-bone-600/30 bg-ink-900 p-4 sm:p-6">
+        <div className={`mt-6 overflow-x-clip ${card}`}>
           <AnimatePresence mode="wait">
             <motion.div
               key={step}

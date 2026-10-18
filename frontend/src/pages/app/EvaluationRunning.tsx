@@ -8,7 +8,7 @@ import { ErrorState, LoadingState } from '@/components/AsyncState';
 import { useResource } from '@/hooks/useResource';
 import { api } from '@/lib/api';
 import { FileText, Loader2, Square } from 'lucide-react';
-import { buttonPrimary, buttonSecondary, sectionTitle } from '@/lib/ui';
+import { buttonPrimary, buttonSecondary, card, sectionTitle } from '@/lib/ui';
 import { useWorkspace } from '@/contexts/WorkspaceContext';
 
 export default function EvaluationRunning() {
@@ -96,7 +96,7 @@ export default function EvaluationRunning() {
           The evaluation worker is not available. Your queued scenarios are safe; an administrator should restart the worker and this page will update automatically.
         </p>}
         <div className="grid min-w-0 gap-6 lg:grid-cols-2">
-          <div className="min-w-0 border border-bone-600/30 bg-ink-900 p-4 sm:p-6">
+          <div className={`min-w-0 ${card}`}>
             <div className="flex items-center gap-3">
               <motion.div
                 className={`h-3 w-3 rounded-full ${done ? 'bg-flux-500' : 'bg-signal-500'}`}
@@ -118,7 +118,7 @@ export default function EvaluationRunning() {
 
           </div>
 
-          <div className="min-w-0 border border-bone-600/30 bg-ink-900 p-4 sm:p-6">
+          <div className={`min-w-0 ${card}`}>
             <h2 className={sectionTitle}>Activity log</h2>
             <div className="mt-4">
               <LiveActivityStream events={data.events} />
