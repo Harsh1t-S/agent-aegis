@@ -49,7 +49,7 @@ export function ExecutionTrace({ events, compact = false }: ExecutionTraceProps)
                   <span className="font-mono text-xs text-bone-500">
                     {String(event.id).padStart(2, '0')}
                   </span>
-                  <span className="font-mono text-xs tracking-wider text-bone-200 group-hover:text-signal-400 transition-colors">
+                  <span className="text-sm text-bone-200 group-hover:text-signal-400 transition-colors">
                     {event.label}
                   </span>
                 </div>

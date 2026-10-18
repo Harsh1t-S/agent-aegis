@@ -5,7 +5,7 @@ import { AsyncBoundary, EmptyState } from '@/components/AsyncState';
 import { useResource } from '@/hooks/useResource';
 import { api } from '@/lib/api';
 import { evaluationPath, evaluationVerdict, formatDate, scoreTone } from '@/lib/format';
-import { ArrowRight, Plus, Search } from 'lucide-react';
+import { ArrowRight, Play, Plus, Search } from 'lucide-react';
 import { buttonPrimary, buttonSecondary, fieldInput } from '@/lib/ui';
 import { useWorkspace } from '@/contexts/WorkspaceContext';
 
@@ -47,6 +47,11 @@ export default function Evaluations() {
           crumbs={[{ label: 'Testing' }, { label: 'Runs' }]}
           title="Runs"
           description="Every evaluation in this workspace, newest first. Open a run for its scenarios and traces."
+          actions={workspace.current?.role !== 'viewer' && (
+            <Link to="/app/agents" className={buttonPrimary}>
+              <Play className="h-4 w-4" aria-hidden /> Start a run
+            </Link>
+          )}
         />
 
         <div className="mb-6 max-w-md">
@@ -81,7 +86,7 @@ export default function Evaluations() {
                   data?.length ? undefined : (
                     <Link
                       to="/app/agents/new"
-                      className={`${buttonPrimary} mt-2`}
+                      className={`${buttonSecondary} mt-2`}
                     >
                       <Plus className="h-4 w-4" aria-hidden /> New agent
                     </Link>

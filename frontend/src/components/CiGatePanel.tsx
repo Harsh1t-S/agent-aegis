@@ -1,5 +1,4 @@
 import type { CiGate } from '@/types';
-import { SystemLabel } from './SystemLabel';
 import { Check, X } from 'lucide-react';
 
 /**
@@ -11,17 +10,17 @@ import { Check, X } from 'lucide-react';
 export function CiGatePanel({ gate }: { gate: CiGate }) {
   return (
     <div
-      className={`min-w-0 border p-5 sm:p-6 ${
+      className={`min-w-0 border p-4 sm:p-6 ${
         gate.passed
-          ? 'border-flux-500/30 bg-flux-500/5'
-          : 'border-fault-500/30 bg-fault-500/5'
+          ? 'border-flux-500/40 bg-flux-500/5'
+          : 'border-fault-500/40 bg-fault-500/5'
       }`}
     >
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <SystemLabel className={gate.passed ? 'text-flux-400' : 'text-fault-400'}>
-          CI GATE — {gate.passed ? 'PASS' : 'FAIL'}
-        </SystemLabel>
-        <span className="font-mono text-xs text-bone-500">exit {gate.exitCode}</span>
+        <h3 className={`font-display text-lg font-semibold ${gate.passed ? 'text-flux-300' : 'text-fault-300'}`}>
+          CI gate: {gate.passed ? 'pass' : 'fail'}
+        </h3>
+        <span className="font-mono text-sm text-bone-300">exit {gate.exitCode}</span>
       </div>
 
       <div className="mt-5 space-y-2">
@@ -37,7 +36,7 @@ export function CiGatePanel({ gate }: { gate: CiGate }) {
               {check.ok ? <Check className="h-2.5 w-2.5" /> : <X className="h-2.5 w-2.5" />}
             </span>
             <span
-              className={`min-w-0 break-words font-mono text-xs ${check.ok ? 'text-bone-300' : 'text-fault-300'}`}
+              className={`min-w-0 break-words font-mono text-sm ${check.ok ? 'text-bone-200' : 'text-fault-300'}`}
             >
               {check.check}
             </span>
@@ -45,7 +44,7 @@ export function CiGatePanel({ gate }: { gate: CiGate }) {
         ))}
       </div>
 
-      <p className="mt-5 border-t border-bone-600/20 pt-4 text-sm leading-relaxed tracking-wider text-bone-400">
+      <p className="mt-5 border-t border-bone-600/20 pt-4 text-sm leading-relaxed text-bone-400">
         Thresholds: reliability ≥ {gate.thresholds.minScore} · critical ≤{' '}
         {gate.thresholds.maxCritical} · failed ≤ {gate.thresholds.maxFailed}. The
         agent-reliability workflow reads this endpoint and exits {gate.exitCode} on this run.

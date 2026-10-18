@@ -9,7 +9,7 @@ import { useResource } from '@/hooks/useResource';
 import { METRIC_COLORS } from '@/lib/palette';
 import { api, ApiError } from '@/lib/api';
 import { useToast } from '@/components/Toaster';
-import { agentStatusLabel, agentStatusTone, evaluationPath, formatDate, hasAgentScore } from '@/lib/format';
+import { agentStatusLabel, agentStatusTone, domainLabel, evaluationPath, formatDate, hasAgentScore } from '@/lib/format';
 import { Play, ArrowRight, Clock, GitCompareArrows, Loader2, Pencil, Trash2 } from 'lucide-react';
 import { useWorkspace } from '@/contexts/WorkspaceContext';
 import { buttonDanger, buttonPrimary, buttonSecondary, card, sectionTitle } from '@/lib/ui';
@@ -81,7 +81,7 @@ export default function AgentDetail() {
         crumbs={[{ label: 'Agents', to: '/app/agents' }, { label: agent.name }]}
         meta={(
           <>
-            <span className="text-sm text-bone-300">{agent.domain}</span>
+            <span className="text-sm text-bone-300">{domainLabel(agent.domain)}</span>
             <span className={`text-sm font-medium capitalize ${agentStatusTone[agent.status]}`}>
               {agentStatusLabel[agent.status]}
             </span>
@@ -173,7 +173,7 @@ export default function AgentDetail() {
                 <div className="flex items-center justify-between gap-2">
                   <span className="truncate font-mono text-sm text-signal-300">{tool.name}</span>
                   <span
-                    className={`shrink-0 border px-2 py-0.5 text-sm ${
+                    className={`shrink-0 border px-2 py-0.5 text-sm capitalize ${
                       tool.risk === 'high'
                         ? 'border-fault-500/50 text-fault-400'
                         : tool.risk === 'medium'

@@ -23,9 +23,9 @@ function when(iso?: string | null) {
 
 function Row({ label, children }: { label: string; children: React.ReactNode }) {
   return (
-    <div className="grid gap-1 border-b border-bone-600/15 py-4 last:border-b-0 sm:grid-cols-[180px_1fr] sm:gap-6">
-      <dt className="text-sm text-bone-500">{label}</dt>
-      <dd className="min-w-0 break-words text-sm text-bone-100">{children}</dd>
+    <div className="grid gap-1 border-b border-bone-600/25 py-4 last:border-b-0 sm:grid-cols-[180px_1fr] sm:gap-6">
+      <dt className="text-sm text-bone-300">{label}</dt>
+      <dd className="min-w-0 break-words text-sm text-bone-50">{children}</dd>
     </div>
   );
 }
@@ -67,15 +67,15 @@ export default function Profile() {
         )}
       />
 
-      <div className="mt-8 grid min-w-0 gap-6 lg:grid-cols-3">
+      <div className="grid min-w-0 gap-6 lg:grid-cols-3">
         <section className="min-w-0 border border-bone-600/30 bg-ink-900 p-4 sm:p-6 lg:col-span-2">
           <h2 className="font-display text-lg font-semibold text-bone-50">Sign-in details</h2>
           <dl className="mt-2">
             <Row label="Name">{name}</Row>
             <Row label="Email">
               <span className="mr-3">{email || '—'}</span>
-              <span className={`inline-flex items-center gap-1 font-mono text-xs tracking-wider ${verified ? 'text-flux-400' : 'text-warn-400'}`}>
-                {verified && <Check className="h-3.5 w-3.5" aria-hidden />}
+              <span className={`inline-flex items-center gap-1 text-sm ${verified ? 'text-flux-400' : 'text-warn-400'}`}>
+                {verified && <Check className="h-4 w-4" aria-hidden />}
                 {verified ? 'Verified' : 'Not verified'}
               </span>
             </Row>
@@ -84,11 +84,10 @@ export default function Profile() {
             </Row>
             <Row label="User ID">
               <span className="flex flex-wrap items-center gap-3">
-                <code className="break-all font-mono text-xs text-bone-300">{userId || '—'}</code>
+                <code className="break-all font-mono text-sm text-bone-200">{userId || '—'}</code>
                 {userId && (
-                  <button type="button" onClick={() => void copyId()}
-                    className="inline-flex min-h-9 items-center gap-1.5 border border-bone-600/30 px-3 text-xs text-bone-300 hover:border-bone-400/60 hover:text-bone-50">
-                    <Copy className="h-3.5 w-3.5" aria-hidden /> Copy
+                  <button type="button" onClick={() => void copyId()} className={buttonSecondary}>
+                    <Copy className="h-4 w-4" aria-hidden /> Copy
                   </button>
                 )}
               </span>
@@ -101,9 +100,9 @@ export default function Profile() {
         <div className="grid min-w-0 content-start gap-6">
           <section className="border border-bone-600/30 bg-ink-900 p-4 sm:p-6">
             <h2 className="font-display text-lg font-semibold text-bone-50">Plan</h2>
-            <p className="massive mt-3 text-2xl text-bone-50">{usage?.plan.name ?? '—'}</p>
+            <p className="mt-3 font-display text-2xl font-semibold text-bone-50">{usage?.plan.name ?? '—'}</p>
             {usage && (
-              <p className="mt-2 text-sm text-bone-400">
+              <p className="mt-2 text-sm text-bone-300">
                 {usage.used + usage.reserved} of {usage.included} scenario credits used this period
               </p>
             )}
@@ -114,7 +113,7 @@ export default function Profile() {
           {canAdminister && (
             <section className="border border-bone-600/30 bg-ink-900 p-4 sm:p-6">
               <h2 className="font-display text-lg font-semibold text-bone-50">API keys</h2>
-              <p className="mt-3 text-sm leading-relaxed text-bone-400">
+              <p className="mt-1 text-sm leading-relaxed text-bone-300">
                 Keys for CI and scripts belong to the workspace, not to your account.
               </p>
               <Link to="/app/developer" className={`${buttonSecondary} mt-5 w-full`}>
@@ -130,17 +129,17 @@ export default function Profile() {
             {workspace.workspaces.map((item) => {
               const current = item.id === workspace.current?.id;
               return (
-                <li key={item.id} className="flex flex-wrap items-center justify-between gap-3 border-b border-bone-600/15 py-4 last:border-b-0">
+                <li key={item.id} className="flex flex-wrap items-center justify-between gap-3 border-b border-bone-600/25 py-4 last:border-b-0">
                   <div className="min-w-0">
-                    <p className="break-words text-sm text-bone-100">{item.name}</p>
+                    <p className="break-words text-sm font-medium text-bone-50">{item.name}</p>
                     <p className="mt-0.5 text-sm capitalize text-bone-300">{item.role}</p>
                   </div>
                   {current ? (
-                    <span className="font-mono text-xs tracking-wider text-signal-300">Current</span>
+                    <span className="text-sm font-medium text-signal-300">Current workspace</span>
                   ) : (
                     <button type="button"
                       onClick={() => { workspace.select(item.id); window.location.assign('/app'); }}
-                      className="inline-flex min-h-9 items-center border border-bone-600/30 px-3 text-xs text-bone-300 hover:border-bone-400/60 hover:text-bone-50">
+                      className={buttonSecondary}>
                       Switch
                     </button>
                   )}

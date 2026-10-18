@@ -1,6 +1,6 @@
 import { motion } from 'framer-motion';
 import type { GuardrailReport } from '@/types';
-import { buttonPrimary } from '@/lib/ui';
+import { buttonSecondary } from '@/lib/ui';
 import { SystemLabel } from './SystemLabel';
 import { Loader2, ShieldAlert } from 'lucide-react';
 
@@ -26,7 +26,7 @@ export function GuardrailLadder({ report, error, running, onRun, canRun = true }
           type="button"
           onClick={onRun}
           disabled={running}
-          className={buttonPrimary}
+          className={buttonSecondary}
         >
           {running && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
           {ran ? 'Re-run ladder' : 'Run ladder'}
@@ -61,7 +61,7 @@ export function GuardrailLadder({ report, error, running, onRun, canRun = true }
         <>
           <div className="mt-6 grid gap-3 sm:grid-cols-3">
             <div className="border border-bone-600/20 bg-ink-850/40 p-4">
-              <SystemLabel className="text-bone-400">Resistance</SystemLabel>
+              <h2 className="font-display text-lg font-semibold text-bone-50">Resistance</h2>
               <div className="mt-2 font-mono text-2xl font-bold text-bone-50">
                 {/* Withheld rather than estimated when a rung did not run — a
                     partial ladder cannot produce an honest resistance score. */}
@@ -74,7 +74,7 @@ export function GuardrailLadder({ report, error, running, onRun, canRun = true }
               </div>
             </div>
             <div className="border border-bone-600/20 bg-ink-850/40 p-4">
-              <SystemLabel className="text-bone-400">Coverage</SystemLabel>
+              <h2 className="font-display text-lg font-semibold text-bone-50">Coverage</h2>
               <div className="mt-2 font-mono text-2xl font-bold text-bone-50">
                 {report.coverage ?? 0}%
               </div>
@@ -84,7 +84,7 @@ export function GuardrailLadder({ report, error, running, onRun, canRun = true }
               </div>
             </div>
             <div className="min-w-0 border border-bone-600/20 bg-ink-850/40 p-4">
-              <SystemLabel className="text-bone-400">Weakest tool</SystemLabel>
+              <h2 className="font-display text-lg font-semibold text-bone-50">Weakest tool</h2>
               <div className="mt-2 truncate font-mono text-lg text-bone-50">
                 {report.weakestTool ?? '—'}
               </div>
@@ -106,17 +106,17 @@ export function GuardrailLadder({ report, error, running, onRun, canRun = true }
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <span className="min-w-0 break-all font-mono text-sm text-signal-400">{tool.tool}</span>
                   {tool.sourceAuthorityOnly && (
-                    <span className="border border-warn-500/40 px-2 py-0.5 font-mono text-xs tracking-wider text-warn-400">
+                    <span className="border border-warn-500/40 px-2 py-0.5 text-sm text-warn-400">
                       source authority only
                     </span>
                   )}
                   {tool.statedInScenario && (
-                    <span className="border border-spark-400/40 px-2 py-0.5 font-mono text-xs tracking-wider text-spark-400">
+                    <span className="border border-spark-400/40 px-2 py-0.5 text-sm text-spark-400">
                       rule stated in scenario
                     </span>
                   )}
                   <span
-                    className={`font-mono text-xs tracking-wider ${
+                    className={`text-sm ${
                       tool.breakingPoint ? 'text-fault-400' : 'text-flux-400'
                     }`}
                   >
@@ -140,7 +140,7 @@ export function GuardrailLadder({ report, error, running, onRun, canRun = true }
                       animate={{ opacity: 1, scale: 1 }}
                       transition={{ delay: Math.min(i, 8) * 0.04 }}
                       title={rung.technique}
-                      className={`border px-2 py-1 font-mono text-xs tracking-wider sm:text-xs ${
+                      className={`border px-2 py-1 text-sm sm:text-xs ${
                         rung.breached
                           ? 'border-fault-500/50 bg-fault-500/10 text-fault-300'
                           : 'border-flux-500/40 bg-flux-500/5 text-flux-400'
@@ -166,7 +166,7 @@ export function GuardrailLadder({ report, error, running, onRun, canRun = true }
                   </p>
                 )}
                 {tool.breachedTechniques.length > 0 && (
-                  <p className="mt-3 font-mono text-sm tracking-wider text-bone-400">
+                  <p className="mt-3 font-mono text-sm text-bone-400">
                     Complied under: {tool.breachedTechniques.join(', ').replace(/_/g, ' ')}
                   </p>
                 )}

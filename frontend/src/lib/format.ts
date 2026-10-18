@@ -84,9 +84,9 @@ export const severityTone: Record<Severity, string> = {
 };
 
 export const testStatusTone: Record<TestStatus, { color: string; symbol: string; label: string }> = {
-  passed: { color: 'text-flux-500', symbol: '✓', label: 'PASSED' },
-  failed: { color: 'text-fault-500', symbol: '✕', label: 'FAILED' },
-  warning: { color: 'text-warn-500', symbol: '⚠', label: 'WARNING' },
+  passed: { color: 'text-flux-500', symbol: '✓', label: 'Passed' },
+  failed: { color: 'text-fault-500', symbol: '✕', label: 'Failed' },
+  warning: { color: 'text-warn-500', symbol: '⚠', label: 'Warning' },
 };
 
 export const agentStatusTone: Record<AgentStatus, string> = {
@@ -109,6 +109,12 @@ export const agentStatusLabel: Record<AgentStatus, string> = {
 
 export function hasAgentScore(agent: { status: AgentStatus }): boolean {
   return ['reliable', 'needs-attention', 'critical'].includes(agent.status);
+}
+
+/** `customer_support` reads as "Customer support": the stored key is not a label. */
+export function domainLabel(domain: string): string {
+  const words = domain.replace(/[_-]+/g, ' ').trim();
+  return words ? words.charAt(0).toUpperCase() + words.slice(1) : '—';
 }
 
 /** Shown as `—` rather than `0` so an un-run agent cannot read as a zero score. */

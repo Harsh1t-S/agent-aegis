@@ -6,7 +6,7 @@ import { EmptyState, ErrorState, LoadingState } from '@/components/AsyncState';
 import { useResource } from '@/hooks/useResource';
 import { METRIC_COLORS } from '@/lib/palette';
 import { api } from '@/lib/api';
-import { deltaTone, evaluationPath, evaluationVerdict, formatDate, hasAgentScore, signed } from '@/lib/format';
+import { deltaTone, domainLabel, evaluationPath, evaluationVerdict, formatDate, hasAgentScore, signed } from '@/lib/format';
 import { Plus, ArrowRight, TrendingUp, AlertTriangle, Activity, Bot } from 'lucide-react';
 import { useWorkspace } from '@/contexts/WorkspaceContext';
 import { buttonPrimary, buttonSecondary, card, sectionTitle } from '@/lib/ui';
@@ -94,15 +94,15 @@ export default function AppHome() {
       {!loading && !error && (
         <div className="space-y-8">
           {stats.length > 0 && (
-            <ul className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            <ul className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
               {stats.map((stat) => (
-                <li key={stat.label} className={`${card} flex min-w-0 items-start gap-4`}>
-                  <stat.icon className={`mt-1 h-5 w-5 shrink-0 ${stat.color}`} strokeWidth={1.5} aria-hidden />
-                  <div className="min-w-0">
-                    <p className="text-sm text-bone-300">{stat.label}</p>
-                    <p className="mt-1 font-mono text-3xl font-semibold text-bone-50">{stat.value}</p>
-                    <p className="mt-1 text-sm text-bone-400">{stat.note}</p>
-                  </div>
+                <li key={stat.label} className={`${card} min-w-0`}>
+                  <p className="flex items-center gap-2 text-sm text-bone-300">
+                    <stat.icon className={`h-4 w-4 shrink-0 ${stat.color}`} strokeWidth={1.75} aria-hidden />
+                    <span className="min-w-0">{stat.label}</span>
+                  </p>
+                  <p className="mt-2 font-mono text-2xl font-semibold text-bone-50 sm:text-3xl">{stat.value}</p>
+                  <p className="mt-1 text-sm text-bone-400">{stat.note}</p>
                 </li>
               ))}
             </ul>
@@ -199,7 +199,7 @@ export default function AppHome() {
                     >
                       <div className="min-w-0">
                         <p className="break-words text-sm font-medium text-bone-50">{agent.name}</p>
-                        <p className="mt-0.5 text-sm text-bone-400">{agent.domain}</p>
+                        <p className="mt-0.5 text-sm text-bone-400">{domainLabel(agent.domain)}</p>
                       </div>
                       <div className="shrink-0 text-right">
                         <p className="font-mono text-2xl font-semibold text-bone-50">

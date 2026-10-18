@@ -1,6 +1,5 @@
 import { useState } from 'react';
-import { SystemLabel } from './SystemLabel';
-import { buttonPrimary } from '@/lib/ui';
+import { buttonSecondary } from '@/lib/ui';
 import { useToast } from './Toaster';
 import { api, ApiError } from '@/lib/api';
 import type { EvaluationProvenance } from '@/types';
@@ -77,16 +76,16 @@ export function ProvenancePanel({
           ) : (
             <History className="h-4 w-4 shrink-0 text-warn-400" strokeWidth={1.5} />
           )}
-          <SystemLabel className={current ? 'text-flux-400' : 'text-warn-400'}>
+          <h3 className={`font-display text-lg font-semibold ${current ? 'text-flux-300' : 'text-warn-300'}`}>
             {current ? 'Graded by the deployed evaluator' : 'Graded by an earlier evaluator'}
-          </SystemLabel>
+          </h3>
         </div>
         {detectorStale && canReanalyze && (
           <button
             type="button"
             onClick={reanalyze}
             disabled={busy}
-            className={buttonPrimary}
+            className={buttonSecondary}
           >
             {busy ? (
               <Loader2 className="h-3.5 w-3.5 animate-spin" />
@@ -117,16 +116,16 @@ export function ProvenancePanel({
           const drifted = recorded[key] !== provenance.expected[key];
           return (
             <div key={key} className="min-w-0 bg-ink-900/90 p-3">
-              <SystemLabel className="text-bone-400">{key}</SystemLabel>
+              <span className="text-sm text-bone-300">{key}</span>
               <div
-                className={`mt-1 truncate font-mono text-xs ${
+                className={`mt-1 truncate font-mono text-sm ${
                   drifted ? 'text-warn-300' : 'text-bone-200'
                 }`}
               >
                 {provenance.mixed ? 'mixed' : recorded[key]}
               </div>
               {drifted && !provenance.mixed && (
-                <div className="mt-0.5 truncate font-mono text-xs text-bone-500">
+                <div className="mt-0.5 truncate font-mono text-sm text-bone-400">
                   deployed: {provenance.expected[key]}
                 </div>
               )}
@@ -135,7 +134,7 @@ export function ProvenancePanel({
         })}
       </div>
 
-      <p className="mt-3 font-mono text-sm text-bone-400">
+      <p className="mt-3 font-mono text-sm text-bone-300">
         Evaluator commit{' '}
         <span className="text-bone-400">
           {(provenance.mixed ? provenance.expected.commit : recorded.commit).slice(0, 12)}

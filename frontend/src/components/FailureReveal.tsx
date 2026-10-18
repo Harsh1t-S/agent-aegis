@@ -41,14 +41,14 @@ export function FailureReveal({ items, tests = [], evaluationId }: FailureReveal
                 onClick={() => setActive(open ? null : item.category)}
               >
                 <div className="flex min-w-0 items-center gap-4 sm:gap-6">
-                  <span className="font-mono text-2xl font-bold text-bone-500">
+                  <span className="font-mono text-2xl font-bold text-bone-300">
                     {String(item.count).padStart(2, '0')}
                   </span>
                   <div>
                     <div className="break-words font-display text-base font-semibold text-bone-100 sm:text-lg">
                       {item.category}
                     </div>
-                    <span className={`tech-label border-l pl-2 ${severityTone[item.severity]}`}>
+                    <span className={`mt-0.5 block text-sm first-letter:uppercase ${severityTone[item.severity].split(' ')[0]}`}>
                       {item.severity} severity
                       {item.criticalCount ? ` · ${item.criticalCount} critical` : ''}
                     </span>
@@ -103,7 +103,7 @@ export function FailureReveal({ items, tests = [], evaluationId }: FailureReveal
                               {evaluationId && (
                                 <Link
                                   to={`/app/evaluations/${evaluationId}/tests/${test.id}`}
-                                  className="inline-flex min-h-11 items-center font-mono text-xs tracking-wider text-signal-400 hover:text-signal-300"
+                                  className="inline-flex min-h-11 items-center text-sm text-signal-400 hover:text-signal-300"
                                 >
                                   Full trace →
                                 </Link>

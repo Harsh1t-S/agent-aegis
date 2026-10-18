@@ -1,6 +1,6 @@
 import { Link } from 'react-router-dom';
 import type { Agent } from '@/types';
-import { agentStatusLabel, agentStatusTone, formatDate, hasAgentScore, scoreOrDash } from '@/lib/format';
+import { agentStatusLabel, agentStatusTone, domainLabel, formatDate, hasAgentScore, scoreOrDash } from '@/lib/format';
 import { ArrowRight } from 'lucide-react';
 
 /** One agent in the list: name and state on top, the three numbers that matter below. */
@@ -26,7 +26,7 @@ export function AgentModule({ agent }: { agent: Agent; index?: number }) {
           {agentStatusLabel[agent.status]}
         </span>
       </div>
-      <p className="mt-1 text-sm text-bone-400">{agent.domain}</p>
+      <p className="mt-1 text-sm text-bone-400">{domainLabel(agent.domain)}</p>
 
       <dl className="mt-5 grid grid-cols-3 gap-3 border-t border-bone-600/25 pt-4">
         <div>

@@ -51,7 +51,7 @@ export function IncidentTrace({ events }: { events: TraceEvent[] }) {
                   <span className="font-mono text-xs text-bone-400">
                     {String(i + 1).padStart(2, '0')}
                   </span>
-                  <span className="font-mono text-sm tracking-wider text-bone-100">
+                  <span className="font-mono text-sm text-bone-100">
                     {event.label}
                   </span>
                   <span className="tech-label text-bone-400">{kindLabel[event.kind] ?? event.kind}</span>

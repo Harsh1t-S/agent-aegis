@@ -57,7 +57,7 @@ export function EvaluationProgress({ complete, total, status }: EvaluationProgre
               {stage.done ? '✓' : stage.active ? '◉' : '○'}
             </span>
             <span
-              className={`font-mono text-xs tracking-wider ${
+              className={`text-sm ${
                 stage.done ? 'text-bone-300' : stage.active ? 'text-signal-400' : 'text-bone-400'
               }`}
             >

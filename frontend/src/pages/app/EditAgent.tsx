@@ -2,7 +2,6 @@ import { useEffect, useRef, useState } from 'react';
 import { buttonPrimary, buttonSecondary, fieldInput } from '@/lib/ui';
 import { useNavigate, useParams, Link } from 'react-router-dom';
 import { PageHeader } from '@/components/PageHeader';
-import { SystemLabel } from '@/components/SystemLabel';
 import { AsyncBoundary } from '@/components/AsyncState';
 import { useToast } from '@/components/Toaster';
 import { useResource } from '@/hooks/useResource';
@@ -153,14 +152,14 @@ export default function EditAgent() {
           description="Changing the prompt or the tools does not rewrite any evaluation that already ran. Save, then run a new evaluation; the comparison between the two is the regression report."
         />
 
-        <div className="mt-8 max-w-2xl">
+        <div className="max-w-3xl">
           <AsyncBoundary
             loading={agent.loading}
             error={agent.error}
             onRetry={agent.reload}
             label="Loading agent"
           >
-            <div className="space-y-6">
+            <div className="space-y-6 border border-bone-600/30 bg-ink-900 p-4 sm:p-6">
               <div>
                 <label htmlFor="edit-name" className="text-sm font-medium text-bone-100 mb-2 block">Agent name
                 </label>
@@ -185,24 +184,30 @@ export default function EditAgent() {
               </div>
 
               <div>
-                <SystemLabel className="!text-bone-300">Test path</SystemLabel>
-                <div className="mt-3 grid grid-cols-2 gap-2">
+                <h2 className="text-sm font-medium text-bone-100">Test path</h2>
+                <div className="mt-2 grid grid-cols-2 gap-2">
                   {(['simulation', 'connected'] as const).map((mode) => (
                     <button key={mode} type="button" aria-pressed={connectionMode === mode}
                       onClick={() => setConnectionMode(mode)}
-                      className={`min-h-11 border px-3 font-mono text-xs tracking-wider ${connectionMode === mode ? 'border-signal-500/50 bg-signal-500/10 text-signal-300' : 'border-bone-600/30 text-bone-400'}`}>
+                      className={`min-h-11 border px-3 text-sm ${connectionMode === mode ? 'border-signal-400 bg-signal-500/10 font-medium text-signal-300' : 'border-bone-600/50 text-bone-200 hover:border-bone-300/60'}`}>
                       {mode === 'simulation' ? 'Prompt simulation' : 'Connected agent'}
                     </button>
                   ))}
                 </div>
                 {connectionMode === 'connected' && (
-                  <div className="mt-3 space-y-3">
-                    <input type="url" required className={inputClass}
+                  <div className="mt-4 space-y-4">
+                    <div>
+                    <label htmlFor="edit-endpoint" className="mb-2 block text-sm font-medium text-bone-100">Runner endpoint</label>
+                    <input id="edit-endpoint" type="url" required className={inputClass}
                       placeholder="https://agent.example.com/aegis/action"
                       value={endpointUrl} onChange={(event) => setEndpointUrl(event.target.value)} />
-                    <input type="password" autoComplete="new-password" className={inputClass}
+                    </div>
+                    <div>
+                    <label htmlFor="edit-runner-token" className="mb-2 block text-sm font-medium text-bone-100">Bearer token <span className="text-bone-400">(optional)</span></label>
+                    <input id="edit-runner-token" type="password" autoComplete="new-password" className={inputClass}
                       placeholder={agent.data?.connection.authenticated ? 'Leave blank to keep the encrypted token' : 'Optional bearer token'}
                       value={runnerToken} onChange={(event) => setRunnerToken(event.target.value)} />
+                    </div>
                   </div>
                 )}
               </div>
@@ -216,7 +221,7 @@ export default function EditAgent() {
                   value={systemPrompt}
                   onChange={(e) => setSystemPrompt(e.target.value)}
                 />
-                <p className="mt-2 font-mono text-sm text-bone-300">
+                <p className="mt-2 text-sm leading-relaxed text-bone-300">
                   {systemPrompt.length} characters. Aegis re-profiles the prompt on save, so a
                   new constraint becomes a new executable policy predicate.
                 </p>
@@ -224,7 +229,7 @@ export default function EditAgent() {
 
               <div>
                 <div className="flex flex-wrap items-center justify-between gap-2">
-                  <SystemLabel className="!text-bone-300">Tools</SystemLabel>
+                  <h2 className="text-sm font-medium text-bone-100">Tools</h2>
                   <div className="flex flex-wrap items-center gap-2">
                     <input
                       ref={fileInput}
@@ -252,7 +257,7 @@ export default function EditAgent() {
                       onClick={() => fileInput.current?.click()}
                       className={buttonSecondary}
                     >
-                      <Upload className="h-3.5 w-3.5" />Upload
+                      <Upload className="h-4 w-4" aria-hidden /> Upload JSON file
                     </button>
                     <button
                       type="button"
@@ -260,10 +265,10 @@ export default function EditAgent() {
                         setSchemaText(toolsToJson(tools.filter((t) => t.name.trim())));
                         setShowSchema((v) => !v);
                       }}
-                      className="flex min-h-11 items-center gap-2 border border-bone-600/35 px-3 font-mono text-xs tracking-wider text-bone-300 transition-colors hover:border-signal-400/50 hover:text-signal-300"
+                      className={buttonSecondary}
                     >
-                      <ClipboardPaste className="h-3.5 w-3.5" />
-                      {showSchema ? 'HIDE' : 'Edit as JSON'}
+                      <ClipboardPaste className="h-4 w-4" aria-hidden />
+                      {showSchema ? 'Hide JSON' : 'Edit as JSON'}
                     </button>
                   </div>
                 </div>
@@ -275,12 +280,12 @@ export default function EditAgent() {
                       rows={10}
                       value={schemaText}
                       onChange={(e) => setSchemaText(e.target.value)}
-                      className={`${inputClass} resize-y text-xs`}
+                      className={`${inputClass} resize-y font-mono`}
                     />
                     <button
                       type="button"
                       onClick={() => importSchema(schemaText)}
-                      className={buttonPrimary}
+                      className={buttonSecondary}
                     >Apply JSON
                     </button>
                   </div>
@@ -288,12 +293,12 @@ export default function EditAgent() {
 
                 <div className="mt-3 space-y-3">
                   {tools.map((tool, i) => (
-                    <div key={i} className="border border-bone-300/25 bg-ink-900 p-4">
+                    <div key={i} className="border border-bone-600/40 bg-ink-950 p-4">
                       <div className="flex items-center justify-between">
-                        <span className="font-mono text-xs text-bone-300">
-                          TOOL {String(i + 1).padStart(2, '0')}
+                        <span className="text-sm font-medium text-bone-100">
+                          Tool {i + 1}
                           {tool.parameters && (
-                            <span className="ml-2 text-flux-400">· schema</span>
+                            <span className="ml-2 font-normal text-flux-400">· schema imported</span>
                           )}
                         </span>
                         <button
@@ -307,7 +312,7 @@ export default function EditAgent() {
                       </div>
                       <input
                         aria-label={`Tool ${i + 1} name`}
-                        className={`${inputClass} mt-3`}
+                        className={`${inputClass} mt-3 font-mono`}
                         value={tool.name}
                         onChange={(e) => updateTool(i, 'name', e.target.value)}
                       />
@@ -318,21 +323,21 @@ export default function EditAgent() {
                         onChange={(e) => updateTool(i, 'description', e.target.value)}
                       />
                       <div className="mt-3 flex flex-wrap items-center gap-2">
-                        <SystemLabel className="!text-bone-300">Risk</SystemLabel>
+                        <span className="text-sm text-bone-200">Risk level</span>
                         {(['low', 'medium', 'high'] as const).map((r) => (
                           <button
                             key={r}
                             type="button"
                             aria-pressed={tool.risk === r}
                             onClick={() => updateTool(i, 'risk', r)}
-                            className={`flex min-h-9 items-center border px-3 font-mono text-xs tracking-wider transition-colors ${
+                            className={`flex min-h-11 items-center border px-3 text-sm capitalize transition-colors ${
                               tool.risk === r
                                 ? r === 'high'
                                   ? 'border-fault-500/50 text-fault-400'
                                   : r === 'medium'
                                     ? 'border-warn-500/50 text-warn-400'
                                     : 'border-flux-500/50 text-flux-400'
-                                : 'border-bone-300/35 text-bone-300'
+                                : 'border-bone-600/50 text-bone-200'
                             }`}
                           >
                             {r}
@@ -346,20 +351,20 @@ export default function EditAgent() {
                     onClick={() =>
                       setTools((prev) => [...prev, { name: '', description: '' }])
                     }
-                    className="flex w-full items-center justify-center gap-2 border border-dashed border-bone-600/30 py-3 font-mono text-xs tracking-wider text-bone-300 transition-colors hover:border-signal-400/50 hover:text-signal-300"
+                    className={`${buttonSecondary} w-full border-dashed`}
                   >
-                    <Plus className="h-4 w-4" />Add tool
+                    <Plus className="h-4 w-4" aria-hidden /> Add tool
                   </button>
                 </div>
               </div>
 
               {saveError && (
-                <p className="border border-fault-500/40 bg-fault-500/5 px-4 py-3 font-mono text-sm text-fault-300">
+                <p role="alert" className="border border-fault-500/50 bg-fault-500/5 px-4 py-3 text-sm text-fault-300">
                   {saveError}
                 </p>
               )}
 
-              <div className="flex flex-col-reverse gap-3 border-t border-bone-600/20 pt-6 sm:flex-row sm:justify-end">
+              <div className="flex flex-col-reverse gap-3 border-t border-bone-600/30 pt-6 sm:flex-row sm:justify-end">
                 {cancelLink}
                 {saveButton}
               </div>

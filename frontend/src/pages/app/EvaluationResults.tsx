@@ -272,6 +272,8 @@ export default function EvaluationResults() {
           </div>
         )}
 
+        {ciGate.data && <CiGatePanel gate={ciGate.data} />}
+
         <div className="grid gap-6 lg:grid-cols-2">
           <section className={`${card} min-w-0`}>
             <h2 className={sectionTitle}>Reliability dimensions</h2>
@@ -375,7 +377,6 @@ export default function EvaluationResults() {
               canReanalyze={canMutate}
             />
           )}
-          {ciGate.data && <CiGatePanel gate={ciGate.data} />}
           <GuardrailLadder
             report={guardrail.data}
             error={guardrail.error}

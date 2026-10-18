@@ -3,7 +3,6 @@ import { Link, useNavigate } from 'react-router-dom';
 import { buttonPrimary, buttonSecondary, fieldInput } from '@/lib/ui';
 import { motion, AnimatePresence } from 'framer-motion';
 import { PageHeader } from '@/components/PageHeader';
-import { SystemLabel } from '@/components/SystemLabel';
 import { useToast } from '@/components/Toaster';
 import {
   ArrowRight,
@@ -211,57 +210,57 @@ export default function NewAgent() {
           description="Describe the agent, how Aegis should reach it, and the tools it can call. Nothing runs until you review the suite."
         />
 
+        <div className="max-w-3xl">
         {/* Progress */}
-        <div className="mt-8 flex flex-wrap items-center gap-x-3 gap-y-3 sm:gap-x-4">
+        <ol className="flex items-center gap-2 sm:gap-3" aria-label="Steps">
           {steps.map((s, i) => (
-            <div key={s} className="flex items-center gap-3 sm:gap-4">
+            <li key={s} className="flex min-w-0 items-center gap-2 sm:gap-3">
               {/* Steps already visited are reachable again: a four-step form that
                   only moves forwards makes a typo on step 1 a restart. */}
-              {/* 24px circles are not a tap target. The button carries the
-                  minimum touch size around them rather than growing the dot. */}
               <button
                 type="button"
                 disabled={i > step}
                 onClick={() => setStep(i)}
                 aria-current={i === step ? 'step' : undefined}
                 aria-label={`Step ${i + 1}: ${s.replace(/^\d+\s/, '')}`}
-                className={`-mx-1.5 flex min-h-11 min-w-9 items-center justify-center gap-2 px-1.5 disabled:cursor-default ${
+                className={`flex min-h-11 min-w-11 items-center justify-center gap-2 disabled:cursor-default ${
                   i === step ? 'text-signal-300' : i < step ? 'text-flux-300' : 'text-bone-300'
                 }`}
               >
                 <span
-                  className={`flex h-6 w-6 items-center justify-center rounded-full border text-xs ${
+                  className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full border text-sm font-medium ${
                     i === step
-                      ? 'border-signal-400 bg-signal-500/15 shadow-[0_0_14px_rgba(91,200,232,0.18)]'
+                      ? 'border-signal-400 bg-signal-500 text-ink-950'
                       : i < step
-                        ? 'border-flux-500/40'
-                        : 'border-bone-300/45'
+                        ? 'border-flux-400/60'
+                        : 'border-bone-500'
                   }`}
                 >
                   {i < step ? '✓' : i + 1}
                 </span>
-                <span className="hidden font-mono text-xs tracking-wider md:inline">
-                  {s}
+                <span className="hidden text-sm font-medium md:inline">
+                  {s.replace(/^\d+\s/, '')}
                 </span>
               </button>
               {i < steps.length - 1 && (
-                <div
-                  className={`h-px w-4 sm:w-8 ${i < step ? 'bg-flux-400/50' : 'bg-bone-300/25'}`}
+                <span
+                  aria-hidden
+                  className={`h-px w-4 shrink-0 sm:w-10 ${i < step ? 'bg-flux-400/60' : 'bg-bone-600/60'}`}
                 />
               )}
-            </div>
+            </li>
           ))}
-          <span className="w-full font-mono text-xs text-bone-300 sm:ml-auto sm:w-auto">
-            STEP {String(step + 1).padStart(2, '0')} / 04
-          </span>
-        </div>
+        </ol>
+        <p className="mt-2 text-sm text-bone-300">
+          Step {step + 1} of {steps.length}: <span className="text-bone-50">{steps[step].replace(/^\d+\s/, '')}</span>
+        </p>
 
         {/* Step content */}
         {/* overflow-x-clip, not hidden: the slide transition below animates from
             x:30, and letting a decorative transform widen the document put a
             15px horizontal scroll on every phone. Clip does not create a scroll
             container, so nothing inside loses position: sticky. */}
-        <div className="mt-12 max-w-2xl overflow-x-clip">
+        <div className="mt-6 overflow-x-clip border border-bone-600/30 bg-ink-900 p-4 sm:p-6">
           <AnimatePresence mode="wait">
             <motion.div
               key={step}
@@ -273,7 +272,7 @@ export default function NewAgent() {
               {step === 0 && (
                 <div className="space-y-6">
                   <div>
-                    <SystemLabel className="block !text-bone-300">How should Aegis test it?</SystemLabel>
+                    <h2 className="text-sm font-medium text-bone-100">How should Aegis test it?</h2>
                     <div className="mt-3 grid gap-3 sm:grid-cols-2">
                       {([
                         { mode: 'simulation' as const, icon: FlaskConical, title: 'Prompt simulation', detail: 'Aegis runs the prompt and tools through the evaluator model. Fastest way to establish a low-cost baseline.' },
@@ -282,10 +281,10 @@ export default function NewAgent() {
                         <button key={option.mode} type="button"
                           aria-pressed={form.connectionMode === option.mode}
                           onClick={() => update('connectionMode', option.mode)}
-                          className={`border p-4 text-left transition-colors ${form.connectionMode === option.mode ? 'border-signal-500/55 bg-signal-500/10' : 'border-bone-600/30 bg-ink-900/40 hover:border-bone-400/50'}`}>
+                          className={`border p-4 text-left transition-colors ${form.connectionMode === option.mode ? 'border-signal-400 bg-signal-500/10' : 'border-bone-600/40 bg-ink-950 hover:border-bone-300/60'}`}>
                           <option.icon className={`h-5 w-5 ${form.connectionMode === option.mode ? 'text-signal-300' : 'text-bone-400'}`} />
-                          <span className="mt-3 block font-mono text-xs tracking-wider text-bone-100">{option.title}</span>
-                          <span className="mt-2 block text-sm leading-relaxed text-bone-400">{option.detail}</span>
+                          <span className="mt-3 block text-base font-medium text-bone-50">{option.title}</span>
+                          <span className="mt-1 block text-sm leading-relaxed text-bone-300">{option.detail}</span>
                         </button>
                       ))}
                     </div>
@@ -297,7 +296,7 @@ export default function NewAgent() {
                       <input id="agent-endpoint" type="url" className={inputClass}
                         placeholder="https://agent.example.com/aegis/action"
                         value={form.endpointUrl} onChange={(event) => update('endpointUrl', event.target.value)} />
-                      <p className="mt-2 text-sm leading-relaxed text-bone-400">
+                      <p className="mt-2 text-sm leading-relaxed text-bone-300">
                         Use a dedicated HTTPS endpoint implementing the Aegis runner contract. Do not put a token in this URL; authenticate at your gateway or private network boundary.
                       </p>
                       </div>
@@ -306,7 +305,7 @@ export default function NewAgent() {
                         <input id="agent-runner-token" type="password" autoComplete="new-password"
                           className={inputClass} placeholder="Stored encrypted; never returned"
                           value={runnerToken} onChange={(event) => setRunnerToken(event.target.value)} />
-                        <p className="mt-2 text-sm leading-relaxed text-bone-400">
+                        <p className="mt-2 text-sm leading-relaxed text-bone-300">
                           The token is encrypted by the API and injected only by the worker. It is excluded from reports, version snapshots and browser drafts.
                         </p>
                       </div>
@@ -345,9 +344,9 @@ export default function NewAgent() {
                       value={form.domain}
                       onChange={(e) => update('domain', e.target.value)}
                     />
-                    <p className="mt-2 font-mono text-sm text-bone-300">
+                    <p className="mt-2 text-sm leading-relaxed text-bone-300">
                       Aegis infers the domain from the system prompt. This is only a hint for
-                      you — it is not stored on the agent.
+                      you; it is not stored on the agent.
                     </p>
                   </div>
                 </div>
@@ -364,7 +363,7 @@ export default function NewAgent() {
                     value={form.systemPrompt}
                     onChange={(e) => update('systemPrompt', e.target.value)}
                   />
-                  <p className="mt-2 font-mono text-sm text-bone-300">
+                  <p className="mt-2 text-sm leading-relaxed text-bone-300">
                     {form.systemPrompt.length} characters · adversarial coverage improves with
                     explicit constraints. State hard rules ("never refund above $500 without
                     approval") and escalation paths, so safety scenarios have a correct answer.
@@ -374,16 +373,16 @@ export default function NewAgent() {
 
               {step === 2 && (
                 <div className="space-y-4">
-                  <SystemLabel className="block !text-bone-300">Available tools</SystemLabel>
+                  <h2 className="text-sm font-medium text-bone-100">Available tools</h2>
 
                   {/* Nobody has their tools as a form. They have a schema. */}
-                  <div className="border border-dashed border-bone-600/35 bg-ink-900/40 p-4">
-                    <p className="font-mono text-sm tracking-wider text-bone-200">
+                  <div className="border border-dashed border-bone-600/50 bg-ink-950 p-4">
+                    <h3 className="text-base font-medium text-bone-50">
                       Import a tool schema
-                    </p>
-                    <p className="mt-1 text-sm leading-relaxed text-bone-400">
+                    </h3>
+                    <p className="mt-1 text-sm leading-relaxed text-bone-300">
                       Paste an OpenAI <code className="text-signal-300">tools</code> array, an
-                      Anthropic/MCP tool list, or a name-to-definition map — or upload the .json
+                      Anthropic/MCP tool list or a name-to-definition map, or upload the .json
                       file. Argument schemas are kept, so generated scenarios call your tools with
                       the arguments they really take.
                     </p>
@@ -420,20 +419,20 @@ export default function NewAgent() {
                         onClick={() => fileInput.current?.click()}
                         className={buttonSecondary}
                       >
-                        <Upload className="h-3.5 w-3.5" />Upload .JSON
+                        <Upload className="h-4 w-4" aria-hidden /> Upload JSON file
                       </button>
                       <button
                         type="button"
                         onClick={() => setShowSchema((v) => !v)}
                         className={buttonSecondary}
                       >
-                        <ClipboardPaste className="h-3.5 w-3.5" />
+                        <ClipboardPaste className="h-4 w-4" aria-hidden />
                         {showSchema ? 'Hide' : 'Paste schema'}
                       </button>
                       <button
                         type="button"
                         onClick={copyToolsOut}
-                        className="flex min-h-11 items-center px-2 font-mono text-xs tracking-wider text-bone-400 transition-colors hover:text-bone-100"
+                        className="flex min-h-11 items-center px-2 text-sm text-bone-300 underline-offset-4 transition-colors hover:text-bone-50 hover:underline"
                       >Copy current tools out
                       </button>
                     </div>
@@ -446,7 +445,7 @@ export default function NewAgent() {
                           value={schemaText}
                           onChange={(e) => setSchemaText(e.target.value)}
                           placeholder={SCHEMA_PLACEHOLDER}
-                          className={`${inputClass} resize-y text-xs`}
+                          className={`${inputClass} resize-y font-mono`}
                         />
                         <div className="flex flex-wrap items-center gap-2">
                           <button
@@ -456,7 +455,7 @@ export default function NewAgent() {
                           >Import tools
                           </button>
                           {schemaErrors.length > 0 && (
-                            <span className="font-mono text-xs text-fault-400">
+                            <span className="text-sm text-fault-300">
                               {schemaErrors.slice(0, 2).join(' ')}
                             </span>
                           )}
@@ -466,10 +465,10 @@ export default function NewAgent() {
                   </div>
 
                   {form.tools.map((tool, i) => (
-                    <div key={i} className="border border-bone-300/25 bg-ink-900 p-4">
+                    <div key={i} className="border border-bone-600/40 bg-ink-950 p-4">
                       <div className="flex items-center justify-between">
-                        <span className="font-mono text-xs text-bone-300">
-                          TOOL {String(i + 1).padStart(2, '0')}
+                        <span className="text-sm font-medium text-bone-100">
+                          Tool {i + 1}
                           {tool.parameters && (
                             <span className="ml-2 text-flux-400">· schema imported</span>
                           )}
@@ -489,7 +488,7 @@ export default function NewAgent() {
                           screen readers announce nothing for these fields. */}
                       <input
                         aria-label={`Tool ${i + 1} name`}
-                        className={`${inputClass} mt-3`}
+                        className={`${inputClass} mt-3 font-mono`}
                         placeholder="function_name()"
                         value={tool.name}
                         onChange={(e) => updateTool(i, 'name', e.target.value)}
@@ -502,14 +501,14 @@ export default function NewAgent() {
                         onChange={(e) => updateTool(i, 'description', e.target.value)}
                       />
                       <div className="mt-3 flex flex-wrap items-center gap-2 sm:gap-3">
-                        <SystemLabel className="!text-bone-300">Risk level</SystemLabel>
+                        <span className="text-sm text-bone-200">Risk level</span>
                         <button
                           type="button"
                           aria-pressed={!tool.risk}
                           title="Aegis infers the risk from the tool's name and description"
                           onClick={() => setToolRisk(i, undefined)}
-                          className={`flex min-h-9 items-center border px-3 font-mono text-xs tracking-wider transition-colors ${
-                            !tool.risk ? 'border-signal-500/50 text-signal-300' : 'border-bone-300/35 text-bone-300'
+                          className={`flex min-h-11 items-center border px-3 text-sm capitalize transition-colors ${
+                            !tool.risk ? 'border-signal-400 bg-signal-500/10 text-signal-300' : 'border-bone-600/50 text-bone-200'
                           }`}
                         >
                           auto
@@ -520,14 +519,14 @@ export default function NewAgent() {
                             type="button"
                             aria-pressed={tool.risk === r}
                             onClick={() => setToolRisk(i, r)}
-                            className={`flex min-h-9 items-center border px-3 font-mono text-xs tracking-wider transition-colors ${
+                            className={`flex min-h-11 items-center border px-3 text-sm capitalize transition-colors ${
                               tool.risk === r
                                 ? r === 'high'
                                   ? 'border-fault-500/50 text-fault-400'
                                   : r === 'medium'
                                     ? 'border-warn-500/50 text-warn-400'
                                     : 'border-flux-500/50 text-flux-400'
-                                : 'border-bone-300/35 text-bone-300'
+                                : 'border-bone-600/50 text-bone-200'
                             }`}
                           >
                             {r}
@@ -541,15 +540,15 @@ export default function NewAgent() {
                     onClick={addTool}
                     className={`${buttonSecondary} w-full`}
                   >
-                    <Plus className="h-4 w-4" />Add tool
+                    <Plus className="h-4 w-4" aria-hidden /> Add tool
                   </button>
-                  {toolsError && <p role="alert" className="font-mono text-xs text-warn-400">{toolsError}</p>}
+                  {toolsError && <p role="alert" className="text-sm text-warn-300">{toolsError}</p>}
                 </div>
               )}
 
               {step === 3 && (
                 <div className="space-y-6">
-                  <div className="border border-bone-300/25 bg-ink-900 p-4 sm:p-6">
+                  <div>
                     {[
                       { label: 'Agent name', value: form.name || '—' },
                       { label: 'Test path', value: form.connectionMode === 'connected' ? `Connected runner · ${form.endpointUrl}` : 'Prompt simulation' },
@@ -568,21 +567,21 @@ export default function NewAgent() {
                     ].map((item) => (
                       <div
                         key={item.label}
-                        className="flex flex-col gap-1 border-b border-bone-300/25 py-3 last:border-0 md:flex-row md:gap-8"
+                        className="flex flex-col gap-1 border-b border-bone-600/30 py-3 first:pt-0 last:border-0 md:flex-row md:gap-8"
                       >
-                        <span className="tech-label w-40 shrink-0">{item.label}</span>
-                        <span className="min-w-0 whitespace-pre-wrap break-words font-mono text-sm text-bone-100">
+                        <span className="w-40 shrink-0 text-sm text-bone-300">{item.label}</span>
+                        <span className="min-w-0 whitespace-pre-wrap break-words text-sm text-bone-50">
                           {item.value}
                         </span>
                       </div>
                     ))}
                   </div>
-                  <p className="font-mono text-sm text-bone-300">
+                  <p className="text-sm leading-relaxed text-bone-300">
                     On create, Aegis profiles the system prompt and tool schema and derives a
                     scenario suite from it. No evaluation runs until you start one.
                   </p>
                   {submitError && (
-                    <p className="border border-fault-500/40 bg-fault-500/5 px-4 py-3 font-mono text-sm text-fault-300">
+                    <p role="alert" className="border border-fault-500/50 bg-fault-500/5 px-4 py-3 text-sm text-fault-300">
                       {submitError}
                     </p>
                   )}
@@ -593,7 +592,7 @@ export default function NewAgent() {
         </div>
 
         {/* Navigation: Back on the left, everything that moves forward on the right. */}
-        <div className="mt-10 flex flex-col-reverse gap-3 border-t border-bone-600/20 pt-6 sm:flex-row sm:items-center sm:justify-between">
+        <div className="mt-6 flex flex-col-reverse gap-3 sm:flex-row sm:items-center sm:justify-between">
           {step > 0 ? (
             <button type="button" onClick={() => setStep(step - 1)} className={buttonSecondary}>
               <ArrowLeft className="h-4 w-4" aria-hidden /> Back
@@ -630,6 +629,7 @@ export default function NewAgent() {
               </button>
             )}
           </div>
+        </div>
         </div>
     </div>
   );

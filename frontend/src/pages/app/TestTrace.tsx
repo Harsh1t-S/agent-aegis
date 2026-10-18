@@ -147,7 +147,7 @@ export default function TestTrace() {
                 {test.executionError ? 'Execution error' : cfg.label}
               </span>
               {test.severity && (
-                <span className={`border px-2 py-0.5 text-sm ${severityTone[test.severity]}`}>
+                <span className={`border px-2 py-0.5 text-sm ${severityTone[test.severity]} capitalize`}>
                   {test.severity}
                 </span>
               )}

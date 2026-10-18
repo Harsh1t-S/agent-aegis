@@ -1,9 +1,8 @@
 import { useEffect, useState, type FormEvent } from 'react';
 import { Copy, Download, KeyRound, Trash2 } from 'lucide-react';
-import { buttonPrimary, buttonSecondary } from '@/lib/ui';
+import { buttonPrimary, buttonSecondary, card, fieldHint, fieldInput, fieldLabel, sectionTitle } from '@/lib/ui';
 import { PageHeader } from '@/components/PageHeader';
 import { AsyncBoundary } from '@/components/AsyncState';
-import { SystemLabel } from '@/components/SystemLabel';
 import { useToast } from '@/components/Toaster';
 import { useResource } from '@/hooks/useResource';
 import { api, ApiError } from '@/lib/api';
@@ -66,70 +65,90 @@ export default function Developer() {
 
   return (
     <>
-        <PageHeader
-          crumbs={[{ label: 'Workspace' }, { label: 'API & audit' }]}
-          title="API & audit"
-          description="Named keys belong to this workspace. The raw secret is shown once and only its hash is stored."
-        />
+      <PageHeader
+        crumbs={[{ label: 'Workspace' }, { label: 'API & audit' }]}
+        title="API & audit"
+        description="Named keys belong to this workspace. The raw secret is shown once and only its hash is stored."
+        actions={canManage && (
+          <button type="button" className={buttonPrimary}
+            onClick={() => {
+              const field = document.getElementById('key-name');
+              field?.scrollIntoView({ block: 'center' });
+              field?.focus();
+            }}>
+            <KeyRound className="h-4 w-4" aria-hidden /> New API key
+          </button>
+        )}
+      />
 
+      <div className="space-y-6">
         {canManage && (
-          <form onSubmit={create} className="mt-8 grid max-w-3xl gap-4 border border-bone-600/30 bg-ink-900 p-4 sm:p-6 sm:grid-cols-[1fr_180px_auto]">
-            <label htmlFor="key-name" className="sr-only">API key name</label>
-            <input id="key-name" required value={name} onChange={(event) => setName(event.target.value)}
-              placeholder="CI release gate"
-              className="min-h-11 flex-1 border border-bone-600/35 bg-ink-950 px-4 text-sm text-bone-50 outline-none focus:border-signal-400" />
-            <label className="sr-only" htmlFor="key-expiry">API key expiry</label>
-            <select id="key-expiry" value={expiresInDays ?? ''}
-              onChange={(event) => setExpiresInDays(event.target.value ? Number(event.target.value) : undefined)}
-              className="min-h-11 border border-bone-600/35 bg-ink-950 px-3 font-mono text-xs text-bone-200">
-              <option value="30">Expires in 30 days</option>
-              <option value="90">Expires in 90 days</option>
-              <option value="365">Expires in 1 year</option>
-              <option value="">No expiry</option>
-            </select>
-            <button type="submit"
-              className={buttonPrimary}>
-              <KeyRound className="h-4 w-4" />Create key
-            </button>
-            <fieldset className="flex flex-wrap gap-4 sm:col-span-3">
-              <legend className="mb-2 font-mono text-xs tracking-wider text-bone-500">Least-privilege scopes</legend>
-              {(['read', 'evaluate', 'admin'] as const).map((scope) => (
-                <label key={scope} className="flex min-h-9 cursor-pointer items-center gap-2 font-mono text-sm text-bone-300">
-                  <input type="checkbox" checked={scopes.includes(scope)}
-                    onChange={(event) => setScopes((current) => event.target.checked
-                      ? [...new Set([...current, scope])]
-                      : current.filter((item) => item !== scope))}
-                    className="h-4 w-4 accent-signal-500" />
-                  {scope}
-                </label>
-              ))}
-              <p className="basis-full text-sm text-bone-300">Read inspects reports, evaluate starts or reruns tests, and admin changes workspace configuration.</p>
+          <form onSubmit={create} className={card}>
+            <h2 className={sectionTitle}>Create an API key</h2>
+            <div className="mt-4 grid gap-4 md:grid-cols-[1fr_14rem_auto] md:items-end">
+              <div>
+                <label htmlFor="key-name" className={fieldLabel}>Key name</label>
+                <input id="key-name" required value={name} onChange={(event) => setName(event.target.value)}
+                  placeholder="CI release gate"
+                  className={`${fieldInput} mt-2`} />
+              </div>
+              <div>
+                <label htmlFor="key-expiry" className={fieldLabel}>Expiry</label>
+                <select id="key-expiry" value={expiresInDays ?? ''}
+                  onChange={(event) => setExpiresInDays(event.target.value ? Number(event.target.value) : undefined)}
+                  className={`${fieldInput} mt-2`}>
+                  <option value="30">Expires in 30 days</option>
+                  <option value="90">Expires in 90 days</option>
+                  <option value="365">Expires in 1 year</option>
+                  <option value="">No expiry</option>
+                </select>
+              </div>
+              <button type="submit" className={buttonSecondary}>
+                <KeyRound className="h-4 w-4" aria-hidden /> Create key
+              </button>
+            </div>
+            <fieldset className="mt-4">
+              <legend className={fieldLabel}>Least-privilege scopes</legend>
+              <div className="mt-2 flex flex-wrap gap-x-6 gap-y-1">
+                {(['read', 'evaluate', 'admin'] as const).map((scope) => (
+                  <label key={scope} className="flex min-h-11 cursor-pointer items-center gap-2 text-sm text-bone-100">
+                    <input type="checkbox" checked={scopes.includes(scope)}
+                      onChange={(event) => setScopes((current) => event.target.checked
+                        ? [...new Set([...current, scope])]
+                        : current.filter((item) => item !== scope))}
+                      className="h-4 w-4 accent-signal-500" />
+                    {scope}
+                  </label>
+                ))}
+              </div>
+              <p className={fieldHint}>Read inspects reports, evaluate starts or reruns tests, and admin changes workspace configuration.</p>
             </fieldset>
           </form>
         )}
 
         {secret && (
-          <div className="mt-4 max-w-2xl border border-warn-500/35 bg-warn-500/5 p-5">
-            <SystemLabel className="text-warn-400">Copy this key now</SystemLabel>
-            <code className="mt-3 block break-all text-xs text-bone-100">{secret}</code>
+          <div role="status" className="border border-warn-500/50 bg-warn-500/5 p-4 sm:p-6">
+            <h2 className="font-display text-lg font-semibold text-warn-300">Copy this key now</h2>
+            <p className="mt-1 text-sm text-bone-200">It is shown once. Only its hash is stored.</p>
+            <code className="mt-3 block break-all font-mono text-sm text-bone-50">{secret}</code>
             <button type="button" onClick={() => {
               void navigator.clipboard.writeText(secret);
               toast.success('Copied', 'The API key is on your clipboard.');
-            }} className="mt-4 flex min-h-10 items-center gap-2 border border-warn-500/30 px-4 font-mono text-xs text-warn-300">
-              <Copy className="h-3.5 w-3.5" />Copy key
+            }} className={`${buttonSecondary} mt-4`}>
+              <Copy className="h-4 w-4" aria-hidden /> Copy key
             </button>
           </div>
         )}
 
-        <section className="mt-8 max-w-4xl border border-bone-600/30 bg-ink-900 p-4 sm:p-6">
-          <h2 className="font-display text-lg font-semibold text-bone-50">Workspace keys</h2>
+        <section className={card}>
+          <h2 className={sectionTitle}>Workspace keys</h2>
           <AsyncBoundary loading={keys.loading} error={keys.error} onRetry={keys.reload} label="Loading keys">
-            <div className="mt-4 divide-y divide-bone-600/15">
+            <div className="mt-2 divide-y divide-bone-600/25">
               {(keys.data ?? []).map((key) => (
                 <div key={key.id} className="flex items-center justify-between gap-4 py-4">
-                  <div>
-                    <p className="text-sm text-bone-100">{key.name}</p>
-                    <p className="mt-1 font-mono text-sm text-bone-300">
+                  <div className="min-w-0">
+                    <p className="break-words text-sm font-medium text-bone-50">{key.name}</p>
+                    <p className="mt-1 break-words font-mono text-sm text-bone-300">
                       {key.prefix}… · {key.scopes.join(', ')}
                       {key.revoked && <span className="text-fault-400"> · revoked</span>}
                     </p>
@@ -138,8 +157,8 @@ export default function Developer() {
                     <button type="button" aria-label={`Revoke ${key.name}`} onClick={async () => {
                       await api.revokeApiKey(key.id);
                       keys.reload();
-                    }} className="flex h-10 w-10 items-center justify-center text-bone-500 hover:text-fault-400">
-                      <Trash2 className="h-4 w-4" />
+                    }} className="flex h-11 w-11 shrink-0 items-center justify-center text-bone-300 hover:text-fault-400">
+                      <Trash2 className="h-4 w-4" aria-hidden />
                     </button>
                   )}
                 </div>
@@ -149,48 +168,48 @@ export default function Developer() {
           </AsyncBoundary>
         </section>
 
-        <section className="mt-8 max-w-4xl border border-bone-600/30 bg-ink-900 p-4 sm:p-6">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <SystemLabel>Audit trail</SystemLabel>
+        <section className={card}>
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <h2 className={sectionTitle}>Audit trail</h2>
             {canManage && (
-              <button type="button" onClick={() => void exportBenchmark()}
-                className={buttonSecondary}>
-                <Download className="h-3.5 w-3.5" />Export reviewed benchmark
+              <button type="button" onClick={() => void exportBenchmark()} className={buttonSecondary}>
+                <Download className="h-4 w-4" aria-hidden /> Export reviewed benchmark
               </button>
             )}
           </div>
           <AsyncBoundary loading={events.loading} error={events.error} onRetry={events.reload} label="Loading audit">
-            <div className="mt-4 divide-y divide-bone-600/15">
+            <div className="mt-2 divide-y divide-bone-600/25">
               {(events.data?.items ?? []).map((event) => (
-                <div key={event.id} className="grid gap-1 py-4 sm:grid-cols-[1fr_auto]">
-                  <p className="font-mono text-sm text-bone-200">{event.action}</p>
-                  <time className="font-mono text-xs text-bone-400">{new Date(event.createdAt).toLocaleString()}</time>
-                  <p className="text-sm text-bone-300">{event.targetType} {event.targetId}</p>
+                <div key={event.id} className="grid gap-1 py-4 sm:grid-cols-[1fr_auto] sm:gap-x-6">
+                  <p className="break-words font-mono text-sm text-bone-50">{event.action}</p>
+                  <time className="text-sm text-bone-300">{new Date(event.createdAt).toLocaleString()}</time>
+                  <p className="break-all text-sm text-bone-300">{event.targetType} {event.targetId}</p>
                 </div>
               ))}
               {events.data?.items.length === 0 && <p className="py-6 text-sm text-bone-300">No activity recorded yet.</p>}
             </div>
             {(auditHistory.length > 0 || events.data?.nextCursor) && (
-              <div className="mt-4 flex items-center justify-between border-t border-bone-600/15 pt-4">
+              <div className="mt-4 flex items-center justify-between gap-3 border-t border-bone-600/25 pt-4">
                 <button type="button" disabled={auditHistory.length === 0}
                   onClick={() => {
                     const previous = auditHistory[auditHistory.length - 1];
                     setAuditHistory((current) => current.slice(0, -1));
                     setAuditCursor(previous);
                   }}
-                  className="min-h-10 px-3 font-mono text-xs text-bone-400 disabled:opacity-30">Previous
+                  className={buttonSecondary}>Newer events
                 </button>
                 <button type="button" disabled={!events.data?.nextCursor}
                   onClick={() => {
                     setAuditHistory((current) => [...current, auditCursor]);
                     setAuditCursor(events.data?.nextCursor ?? undefined);
                   }}
-                  className="min-h-10 px-3 font-mono text-xs text-bone-400 disabled:opacity-30">Older events
+                  className={buttonSecondary}>Older events
                 </button>
               </div>
             )}
           </AsyncBoundary>
         </section>
+      </div>
     </>
   );
 }

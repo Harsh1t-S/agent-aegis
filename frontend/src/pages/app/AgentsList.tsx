@@ -45,7 +45,7 @@ export default function AgentsList() {
               action={
                 canCreate ? <Link
                   to="/app/agents/new"
-                  className={`${buttonPrimary} mt-2`}
+                  className={`${buttonSecondary} mt-2`}
                 >
                   <Plus className="h-4 w-4" aria-hidden /> New agent
                 </Link> : undefined

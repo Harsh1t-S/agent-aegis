@@ -26,25 +26,25 @@ export function TestResult({ test, evaluationId }: { test: TestScenario; evaluat
               under it instead of being hidden — severity is the whole point of
               the row. */}
           <span className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 sm:hidden">
-            <span className={`font-mono text-xs tracking-wider ${cfg.color}`}>
+            <span className={`text-sm ${cfg.color}`}>
               {cfg.label}
             </span>
             {test.severity && (
-              <span className={`border px-1.5 font-mono text-xs tracking-wider ${severityTone[test.severity]}`}>
+              <span className={`border px-1.5 text-sm ${severityTone[test.severity]} capitalize`}>
                 {test.severity}
               </span>
             )}
-            <span className="font-mono text-xs tracking-wider text-bone-500">
+            <span className="text-sm text-bone-500">
               {test.category}
             </span>
           </span>
         </span>
         {test.severity && (
-          <span className={`hidden shrink-0 border px-2 py-0.5 font-mono text-xs tracking-wider md:inline ${severityTone[test.severity]}`}>
+          <span className={`hidden shrink-0 border px-2 py-0.5 text-sm md:inline ${severityTone[test.severity]} capitalize`}>
             {test.severity}
           </span>
         )}
-        <span className="hidden shrink-0 font-mono text-xs tracking-wider text-bone-500 md:inline">
+        <span className="hidden shrink-0 text-sm text-bone-500 md:inline">
           {test.category}
         </span>
         <span className={`hidden shrink-0 sm:inline ${cfg.color} tech-label`}>{cfg.label}</span>
@@ -90,7 +90,7 @@ export function TestResult({ test, evaluationId }: { test: TestScenario; evaluat
               </span>
               <Link
                 to={`/app/evaluations/${evaluationId}/tests/${test.id}`}
-                className="flex min-h-11 items-center font-mono text-xs tracking-wider text-signal-400 hover:text-signal-300"
+                className="flex min-h-11 items-center text-sm text-signal-400 hover:text-signal-300"
               >
                 View full incident report →
               </Link>

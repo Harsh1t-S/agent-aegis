@@ -84,7 +84,7 @@ export function VersionEvolution({ versions }: { versions: AgentVersion[] }) {
       )}
 
       {scored.length > 1 && (
-        <p className="mt-4 font-mono text-sm tracking-wider text-bone-400">
+        <p className="mt-4 font-mono text-sm text-bone-400">
           Deltas measured from {first.version} to {last.version}.
         </p>
       )}

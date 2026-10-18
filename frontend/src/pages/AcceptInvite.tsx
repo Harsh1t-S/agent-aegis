@@ -1,5 +1,7 @@
 import { useState } from 'react';
-import { Navigate, useNavigate, useSearchParams } from 'react-router-dom';
+import { Link, Navigate, useNavigate, useSearchParams } from 'react-router-dom';
+import { PageHeader } from '@/components/PageHeader';
+import { buttonPrimary, buttonSecondary } from '@/lib/ui';
 import { useAuth } from '@/contexts/AuthContext';
 import { useWorkspace } from '@/contexts/WorkspaceContext';
 import { api, ApiError } from '@/lib/api';
@@ -35,18 +37,22 @@ export default function AcceptInvite() {
   };
 
   return (
-    <div className="mx-auto max-w-xl py-16 text-center">
-        <p className="font-mono text-xs uppercase tracking-[0.12em] text-signal-400">TEAM INVITATION</p>
-        <h1 className="massive mt-4 text-5xl text-bone-50">JOIN THE WORKSPACE.</h1>
-        <p className="mt-5 text-sm leading-relaxed text-bone-400">
-          Accepting gives your signed-in account access at the role chosen by the workspace owner.
-        </p>
-        {!token && <p className="mt-6 text-fault-400">This invitation link is incomplete.</p>}
-        {error && <p role="alert" className="mt-6 text-fault-400">{error}</p>}
-        <button type="button" disabled={!token || busy} onClick={() => void accept()}
-          className="mt-8 min-h-12 border border-signal-500/50 bg-signal-500/10 px-8 font-mono text-xs uppercase tracking-wider text-signal-300 disabled:opacity-50">
-          {busy ? 'ACCEPTING…' : 'ACCEPT INVITATION'}
-        </button>
-    </div>
+    <>
+      <PageHeader
+        crumbs={[{ label: 'Team invitation' }]}
+        title="Join the workspace"
+        description="Accepting gives your signed-in account access at the role chosen by the workspace owner."
+        actions={(
+          <>
+            <Link to="/app" className={buttonSecondary}>Not now</Link>
+            <button type="button" disabled={!token || busy} onClick={() => void accept()} className={buttonPrimary}>
+              {busy ? 'Accepting…' : 'Accept invitation'}
+            </button>
+          </>
+        )}
+      />
+      {!token && <p role="alert" className="border border-fault-500/50 bg-fault-500/5 p-4 text-sm text-fault-300">This invitation link is incomplete. Ask the workspace owner to send it again.</p>}
+      {error && <p role="alert" className="mt-4 border border-fault-500/50 bg-fault-500/5 p-4 text-sm text-fault-300">{error}</p>}
+    </>
   );
 }

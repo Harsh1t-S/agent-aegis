@@ -1,3 +1,4 @@
+import { LoadingState } from '@/components/AsyncState';
 import { BrowserRouter, Routes, Route, useLocation } from 'react-router-dom';
 import { AnimatePresence, MotionConfig, motion } from 'framer-motion';
 import { SiteNav } from '@/components/SiteNav';
@@ -92,11 +93,7 @@ function App() {
             <WorkspaceProvider>
               <ToastProvider>
                 <Layout>
-                  <Suspense fallback={(
-                  <div className="flex min-h-[60vh] items-center justify-center bg-ink-950 font-mono text-xs uppercase tracking-[0.12em] text-bone-500">
-                    Loading Aegis…
-                  </div>
-                  )}>
+                  <Suspense fallback={<LoadingState label="Loading Aegis" />}>
                     <Routes>
                     <Route path="/" element={<LandingPage />} />
                     <Route path="/how-it-works" element={<HowItWorks />} />

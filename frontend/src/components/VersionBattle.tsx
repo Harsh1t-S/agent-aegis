@@ -92,7 +92,7 @@ export function VersionBattle({ left, right, diff, diffError }: VersionBattlePro
             {signed(scoreDelta)} pts
           </div>
           {diff && (
-            <div className="mt-1 font-mono text-xs tracking-wider text-bone-400">
+            <div className="mt-1 text-sm text-bone-400">
               {diff.shared_scenarios} shared scenarios
             </div>
           )}
@@ -159,7 +159,7 @@ export function VersionBattle({ left, right, diff, diffError }: VersionBattlePro
       {categories.length > 0 && (
         <ScrollReveal delay={0.2}>
           <div className="min-w-0 border border-bone-600/20 bg-ink-850/40 p-4 sm:p-5">
-            <SystemLabel>Failure counts by class</SystemLabel>
+            <h2 className="font-display text-lg font-semibold text-bone-50">Failure counts by class</h2>
             <div className="mt-4 space-y-3">
               {categories.map((category) => {
                 const l = left.failures?.[category] ?? 0;
@@ -178,7 +178,7 @@ export function VersionBattle({ left, right, diff, diffError }: VersionBattlePro
                 );
               })}
             </div>
-            <p className="mt-4 font-mono text-sm tracking-wider text-bone-400">
+            <p className="mt-4 font-mono text-sm text-bone-400">
               Counts are per version and are not normalised by scenario count.
             </p>
           </div>
@@ -188,7 +188,7 @@ export function VersionBattle({ left, right, diff, diffError }: VersionBattlePro
       {/* Server-side scenario diff */}
       <ScrollReveal delay={0.25}>
         <div className="min-w-0 border border-bone-600/20 bg-ink-900/60 p-4 sm:p-5">
-          <SystemLabel>Scenario-level diff</SystemLabel>
+          <h2 className="font-display text-lg font-semibold text-bone-50">Scenario-level diff</h2>
           {diffError && <p className="mt-3 text-sm text-fault-400">{diffError}</p>}
           {!diffError && !diff && (
             <p className="mt-3 text-sm text-bone-400">Loading the diff…</p>
