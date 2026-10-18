@@ -16,6 +16,10 @@ export default defineConfig({
     exclude: ['lucide-react'],
   },
   build: {
+    // Keep font files out of the stylesheet. Inlined as base64 the small
+    // subsets add about 20 kB (gzipped) to the render-blocking CSS, for scripts
+    // most visitors never see.
+    assetsInlineLimit: (file) => (/\.woff2?$/.test(file) ? false : undefined),
     rollupOptions: {
       output: {
         manualChunks: {
